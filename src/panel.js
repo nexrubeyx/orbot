@@ -229,6 +229,7 @@
         text-shadow:1px 1px #000;
       }
       header { color:var(--ouro); font-size:18px; padding-bottom:8px; border-bottom:2px solid var(--k); }
+      .menu-version { margin-left:6px; color:var(--ui-2); font-size:12px; font-weight:500; }
       .page > h2 { color:var(--ouro); }
       .panel button {
         border:1px solid var(--k); border-radius:0; background:#3d3328; color:var(--ui);
@@ -303,7 +304,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela</span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.1</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
