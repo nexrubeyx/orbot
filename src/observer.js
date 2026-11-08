@@ -2545,13 +2545,23 @@
     if (!target) {
       target = nextTarget;
     }
+    const trainingCreatureNearby = huntState.training && mod.creaturesNearby(attackRange).length > 0;
+    if (trainingCreatureNearby && waypointMovePending) {
+      // Cancel the route already sent to the game, not just future waypoint steps.
+      const predicted = window.gameDebug?.state?.().pred;
+      const position = predicted && Number.isInteger(predicted.x) && Number.isInteger(predicted.y) ? predicted : myself;
+      if (typeof window.gameDebug?.send === "function") window.gameDebug.send({ t: "walk", x: position.x, y: position.y });
+      else if (gameSocket?.readyState === WebSocket.OPEN) gameSocket.send(JSON.stringify({ t: "walk", x: position.x, y: position.y }));
+      waypointMovePending = null;
+      nextWaypointMoveAt = 0;
+    }
     if (!target) huntLootId = null;
-    if (processAutoLoot(target)) return;
+    if (!trainingCreatureNearby && processAutoLoot(target)) return;
     if (!target) {
       huntTargetId = null;
       huntTargetSent = null;
       if (huntState.training) {
-        if (huntState.trainingWaypoints && !mod.creaturesNearby(attackRange).length) {
+        if (huntState.trainingWaypoints && !trainingCreatureNearby) {
           followWaypointRoute("Treino · waypoints");
           return;
         }
