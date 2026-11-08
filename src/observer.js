@@ -153,10 +153,12 @@
   let waypointLastReached = false;
   let waypointCompletedLoops = 0;
   let waypointLoopFloor = null;
+  let waypointReversePauseUntil = 0;
   huntState.waypointReverseEnabled = false;
   huntState.waypointReverseLoops = 1;
+  huntState.waypointReverseDelay = 0;
   const resetWaypointDirection = () => {
-    waypointDirection = 1; waypointFirstReached = false; waypointLastReached = false; waypointCompletedLoops = 0; waypointLoopFloor = null;
+    waypointDirection = 1; waypointFirstReached = false; waypointLastReached = false; waypointCompletedLoops = 0; waypointLoopFloor = null; waypointReversePauseUntil = 0;
   };
   let nextWaypointMoveAt = 0;
   let waypointMovePending = null;
@@ -175,6 +177,8 @@
       Number.isInteger(point?.x) && Number.isInteger(point?.y) && Number.isInteger(point?.floor));
     huntState.waypointsEnabled = localStorage.getItem("fantasy-mod-waypoints-enabled") === "true";
     huntState.waypointReverseEnabled = localStorage.getItem("fantasy-mod-waypoint-reverse-enabled") === "true";
+    const reverseDelay = Number(localStorage.getItem("fantasy-mod-waypoint-reverse-delay"));
+    if (Number.isFinite(reverseDelay) && reverseDelay >= 0 && reverseDelay <= 300) huntState.waypointReverseDelay = reverseDelay;
     const reverseLoops = Number(localStorage.getItem("fantasy-mod-waypoint-reverse-loops"));
     if (Number.isInteger(reverseLoops) && reverseLoops >= 1 && reverseLoops <= 1000) huntState.waypointReverseLoops = reverseLoops;
     const trainingClass = localStorage.getItem("fantasy-mod-training-class");
@@ -289,6 +293,13 @@
       localStorage.setItem("fantasy-mod-waypoint-reverse-loops", String(value));
     } catch {}
     return { ok: true };
+  };
+  mod.setWaypointReverseDelay = seconds => {
+    const value = Number(seconds);
+    if (!Number.isFinite(value) || value < 0 || value > 300) return { ok: false, error: "A pausa deve ficar entre 0 e 300 segundos." };
+    huntState.waypointReverseDelay = value;
+    try { localStorage.setItem("fantasy-mod-waypoint-reverse-delay", String(value)); } catch {}
+    return { ok: true, seconds: value };
   };
   mod.setWaypointPatrol = enabled => {
     huntState.waypointsEnabled = !!enabled;
@@ -2087,6 +2098,10 @@
       resetWaypointDirection();
       waypointLoopFloor = myself.floor;
     }
+    if (Date.now() < waypointReversePauseUntil) {
+      huntState.status = `${label}: aguardando ${((waypointReversePauseUntil - Date.now()) / 1000).toFixed(1)} s após inversão`;
+      return true;
+    }
     let order = sameFloor.findIndex(entry => entry.index === huntWaypointIndex);
     if (order < 0) order = 0;
     let current = sameFloor[order];
@@ -2143,6 +2158,7 @@
             waypointCompletedLoops++;
             if (waypointCompletedLoops >= huntState.waypointReverseLoops) {
               waypointDirection *= -1;
+              waypointReversePauseUntil = Date.now() + huntState.waypointReverseDelay * 1000;
               waypointCompletedLoops = 0;
               mod.log("info", `${label}: sentido dos waypoints invertido.`);
             }
@@ -2157,6 +2173,10 @@
       waypointMovePending = null;
       waypointMoveFailures = 0;
       waypointNoProgressFailures = 0;
+      if (Date.now() < waypointReversePauseUntil) {
+        huntState.status = `${label}: aguardando ${((waypointReversePauseUntil - Date.now()) / 1000).toFixed(1)} s após inversão`;
+        return true;
+      }
       if (sameFloor.length === 1) {
         huntState.status = `${label}: waypoint ${current.index + 1}/${mod.waypoints.length} alcançado`;
         return true;

@@ -470,6 +470,7 @@
               <div class="waypoint-reverse-head"><span class="waypoint-reverse-icon" aria-hidden="true">⇄</span><span>Sentido da rota</span></div>
               <label class="pref"><input class="waypoint-reverse-toggle" type="checkbox"> Inverter a ordem dos waypoints</label>
               <label class="waypoint-reverse-settings"><span>Inverter a cada número de voltas</span><input class="waypoint-reverse-loops" type="number" min="1" max="1000" step="1" value="1"></label>
+              <label class="waypoint-reverse-settings"><span>Pausa após inverter (segundos)</span><input class="waypoint-reverse-delay" type="number" min="0" max="300" step="0.1" value="0"></label>
               <p class="hint">Uma volta termina ao retornar ao primeiro ponto depois de alcançar o último.</p>
             </div>
             <div class="waypoint-actions" style="grid-template-columns:1fr">
@@ -576,6 +577,7 @@
   const waypointPatrolToggle = root.querySelector(".waypoint-patrol-toggle");
   const waypointReverseToggle = root.querySelector(".waypoint-reverse-toggle");
   const waypointReverseLoops = root.querySelector(".waypoint-reverse-loops");
+  const waypointReverseDelay = root.querySelector(".waypoint-reverse-delay");
   const waypointLureToggle = root.querySelector(".waypoint-lure-toggle");
   const lureCountInput = root.querySelector(".lure-count-input");
   const lureStepInput = root.querySelector(".lure-step-input");
@@ -933,6 +935,13 @@
   };
   waypointReverseToggle.addEventListener("change", saveWaypointReverse);
   waypointReverseLoops.addEventListener("change", saveWaypointReverse);
+  waypointReverseDelay.addEventListener("change", () => {
+    const outcome = window.mod?.setWaypointReverseDelay?.(waypointReverseDelay.value);
+    if (!outcome?.ok) {
+      waypointReverseDelay.value = String(window.mod?.hunt?.waypointReverseDelay ?? 0);
+      waypointResult.textContent = outcome?.error ?? "Não foi possível salvar a pausa.";
+    }
+  });
   waypointPatrolToggle.addEventListener("change", () => {
     const outcome = window.mod?.setWaypointPatrol?.(waypointPatrolToggle.checked);
     if (!outcome?.ok) waypointResult.textContent = "API de waypoints indisponível.";
@@ -1086,6 +1095,7 @@
     waypointPatrolToggle.checked = !!hunt?.waypointsEnabled;
     waypointReverseToggle.checked = !!hunt?.waypointReverseEnabled;
     if (root.activeElement !== waypointReverseLoops) waypointReverseLoops.value = String(hunt?.waypointReverseLoops ?? 1);
+    if (root.activeElement !== waypointReverseDelay) waypointReverseDelay.value = String(hunt?.waypointReverseDelay ?? 0);
     const recording = window.mod?.waypointRecording;
     waypointRecord.textContent = recording?.enabled ? "Parar gravação" : "Iniciar gravação ao andar";
     waypointRecord.dataset.active = String(!!recording?.enabled);
