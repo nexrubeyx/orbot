@@ -373,6 +373,9 @@
             <h2>Treino</h2>
             <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo, sem usar habilidades.</p>
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
+            <label class="attack-range">Intervalo mínimo entre alvos (segundos)<input class="training-target-delay-min" type="number" min="0" max="60" step="0.1" value="0"></label>
+            <label class="attack-range">Intervalo máximo entre alvos (segundos)<input class="training-target-delay-max" type="number" min="0" max="60" step="0.1" value="0"></label>
+            <p class="hint">O intervalo é sorteado entre os valores mínimo e máximo.</p>
             <label class="attack-range">Classe do treino<select class="training-class"><option value="mage">Mage — 4 tiles</option><option value="melee">Melee — 1 tile</option><option value="distance">Distance — 4 tiles</option></select></label>
             <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver alvos próximos</label>
             <label class="pref"><input class="training-city-bag" type="checkbox"> Ir à cidade com mochila cheia</label>
@@ -570,6 +573,8 @@
   const trainingStatus = root.querySelector(".training-status");
   const trainingClass = root.querySelector(".training-class");
   const trainingRadius = root.querySelector(".training-radius");
+  const trainingTargetDelayMin = root.querySelector(".training-target-delay-min");
+  const trainingTargetDelayMax = root.querySelector(".training-target-delay-max");
   const trainingWaypoints = root.querySelector(".training-waypoints");
   const trainingCityOptions = { bag: root.querySelector(".training-city-bag"), arrows: root.querySelector(".training-city-arrows"), potions: root.querySelector(".training-city-potions") };
   const focusToggle = root.querySelector(".focus-toggle");
@@ -1049,6 +1054,8 @@
     huntToggle.dataset.active = String((active && !trainingActive) || lureActive);
     for (const toggle of autoLootGoldToggles) toggle.checked = hunt?.autoLootGold !== false;
     if (root.activeElement !== trainingRadius) trainingRadius.value = String(hunt?.trainingRadius ?? 4);
+    if (root.activeElement !== trainingTargetDelayMin) trainingTargetDelayMin.value = String(hunt?.trainingTargetDelayMin ?? 0);
+    if (root.activeElement !== trainingTargetDelayMax) trainingTargetDelayMax.value = String(hunt?.trainingTargetDelayMax ?? 0);
     trainingClass.value = hunt?.trainingClass ?? "melee";
     trainingWaypoints.checked = !!hunt?.trainingWaypoints;
     trainingCityOptions.bag.checked = hunt?.trainingCityBag !== false;
@@ -1318,6 +1325,16 @@
     syncHuntUI();
   });
   const saveTrainingOptions = () => window.mod?.setTrainingOptions?.(trainingClass.value, trainingWaypoints.checked);
+  const saveTrainingTargetDelay = () => {
+    const outcome = window.mod?.setTrainingTargetDelay?.(trainingTargetDelayMin.value, trainingTargetDelayMax.value);
+    if (!outcome?.ok) {
+      trainingTargetDelayMin.value = String(window.mod?.hunt?.trainingTargetDelayMin ?? 0);
+      trainingTargetDelayMax.value = String(window.mod?.hunt?.trainingTargetDelayMax ?? 0);
+      trainingStatus.textContent = outcome?.error ?? "Não foi possível salvar o intervalo.";
+    }
+  };
+  trainingTargetDelayMin.addEventListener("change", saveTrainingTargetDelay);
+  trainingTargetDelayMax.addEventListener("change", saveTrainingTargetDelay);
   trainingRadius.addEventListener("change", () => {
     const outcome = window.mod?.setTrainingRadius?.(trainingRadius.value);
     if (!outcome?.ok) {

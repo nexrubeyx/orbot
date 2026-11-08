@@ -126,6 +126,8 @@
   huntState.trainingClass = "melee";
   huntState.trainingWaypoints = false;
   huntState.trainingRadius = 4;
+  huntState.trainingTargetDelayMin = 0;
+  huntState.trainingTargetDelayMax = 0;
   huntState.trainingCityBag = true;
   huntState.trainingCityArrows = true;
   huntState.trainingCityPotions = false;
@@ -169,6 +171,13 @@
     huntState.trainingCityBag = (localStorage.getItem("fantasy-mod-training-city-bag") ?? String(previousCityReturn)) === "true";
     huntState.trainingCityArrows = (localStorage.getItem("fantasy-mod-training-city-arrows") ?? String(previousCityReturn)) === "true";
     huntState.trainingCityPotions = localStorage.getItem("fantasy-mod-training-city-potions") === "true";
+    const oldDelay = Number(localStorage.getItem("fantasy-mod-training-target-delay"));
+    const minDelay = Number(localStorage.getItem("fantasy-mod-training-target-delay-min") ?? oldDelay);
+    const maxDelay = Number(localStorage.getItem("fantasy-mod-training-target-delay-max") ?? oldDelay);
+    if (Number.isFinite(minDelay) && Number.isFinite(maxDelay) && minDelay >= 0 && maxDelay <= 60 && minDelay <= maxDelay) {
+      huntState.trainingTargetDelayMin = minDelay;
+      huntState.trainingTargetDelayMax = maxDelay;
+    }
     const trainingRadius = Number(localStorage.getItem("fantasy-mod-training-radius"));
     if (Number.isInteger(trainingRadius) && trainingRadius >= 1 && trainingRadius <= 100) huntState.trainingRadius = trainingRadius;
     localStorage.setItem("fantasy-mod-lure-enabled", "false");
@@ -306,6 +315,17 @@
     huntState[key] = !!enabled;
     try { localStorage.setItem(`fantasy-mod-training-city-${option}`, String(huntState[key])); } catch {}
     return { ok: true, enabled: huntState[key] };
+  };
+  mod.setTrainingTargetDelay = (minSeconds, maxSeconds) => {
+    const min = Number(minSeconds), max = Number(maxSeconds);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max > 60 || min > max) return { ok: false, error: "Use valores entre 0 e 60 segundos; o mínimo não pode superar o máximo." };
+    huntState.trainingTargetDelayMin = min;
+    huntState.trainingTargetDelayMax = max;
+    try {
+      localStorage.setItem("fantasy-mod-training-target-delay-min", String(min));
+      localStorage.setItem("fantasy-mod-training-target-delay-max", String(max));
+    } catch {}
+    return { ok: true, min, max };
   };
   mod.setTrainingRadius = radius => {
     const value = Number(radius);
@@ -853,6 +873,9 @@
     if (!Number.isFinite(range) || range < 1 || range > 100) return { ok: false, error: "O raio deve ficar entre 1 e 100 tiles." };
     huntState.training = !!training;
     if (huntState.training) {
+      huntTargetId = null;
+      huntTargetSent = null;
+      nextTrainingTargetAt = 0;
       if (huntState.lureEnabled) mod.setLureEnabled(false);
       mod.setFocusEnabled(false);
     }
@@ -893,6 +916,7 @@
   };
 
   let huntTargetId = null;
+  let nextTrainingTargetAt = 0;
   let nextHuntMoveAt = 0;
   let nextFocusMoveAt = 0;
   let huntTargetSent = null;
@@ -2572,7 +2596,11 @@
       : mod.creaturesNearby(1000).find(creature => String(creature.id) === String(huntTargetId)
         && canHunt(creature) && (!huntState.training || creature.distance <= huntState.radius));
     if (!target && huntTargetId != null) {
-      if (huntState.training && gameSocket?.readyState === WebSocket.OPEN) gameSocket.send(JSON.stringify({ t: "untarget" }));
+      if (huntState.training) {
+        const delay = huntState.trainingTargetDelayMin + Math.random() * (huntState.trainingTargetDelayMax - huntState.trainingTargetDelayMin);
+        nextTrainingTargetAt = Date.now() + delay * 1000;
+        if (gameSocket?.readyState === WebSocket.OPEN) gameSocket.send(JSON.stringify({ t: "untarget" }));
+      }
       huntTargetId = null;
       huntTargetSent = null;
       nextHuntMoveAt = 0;
@@ -2591,6 +2619,10 @@
       else if (gameSocket?.readyState === WebSocket.OPEN) gameSocket.send(JSON.stringify({ t: "walk", x: position.x, y: position.y }));
       waypointMovePending = null;
       nextWaypointMoveAt = 0;
+    }
+    if (trainingCreatureNearby && huntTargetId == null && Date.now() < nextTrainingTargetAt) {
+      huntState.status = `Treino: aguardando ${((nextTrainingTargetAt - Date.now()) / 1000).toFixed(1)} s para o próximo alvo`;
+      return;
     }
     if (!target) huntLootId = null;
     if (!trainingCreatureNearby && processAutoLoot(target)) return;
