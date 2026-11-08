@@ -363,7 +363,6 @@
                 <input class="refill-after-sale" type="checkbox" aria-label="Ir ao refill após a venda">
                 <span class="setting-switch" aria-hidden="true"></span>
               </label>
-              <label class="pref"><input class="auto-loot-gold" type="checkbox"> Coletar ouro automaticamente</label>
               <p class="hint hunt-return-position" role="status"></p>
               <div class="hunt-lure">
                 <label class="pref"><input class="waypoint-lure-toggle" type="checkbox"> Lure usando os waypoints</label>

@@ -1213,6 +1213,7 @@
     });
   }
   function processAutoLoot(target) {
+    const collectGold = !huntState.training || huntState.autoLootGold;
     if (!huntState.autoLoot && !huntState.training) {
       huntState.lootStatus = huntState.lureEnabled
         ? `Reunindo criaturas: ${huntState.lureProgress.current}/${huntState.lureProgress.target}`
@@ -1246,7 +1247,7 @@
     const drops = visibleDrops
       .filter(entity => !ignoredPlayerCoveredLoot.has(String(entity.id))
         && Number.isInteger(entity.x) && Number.isInteger(entity.y)
-        && (isGoldDrop(entity) ? huntState.autoLootGold : (mod.inventory.known && !mod.inventory.full)))
+        && (isGoldDrop(entity) ? collectGold : (mod.inventory.known && !mod.inventory.full)))
       .map(entity => ({ entity, distance: Math.max(Math.abs(entity.x - myself.x), Math.abs(entity.y - myself.y)) }))
       .filter(item => item.distance <= AUTO_LOOT_RADIUS)
       .sort((a, b) => a.distance - b.distance);
@@ -1263,8 +1264,8 @@
         return false;
       }
       huntState.lootStatus = mod.inventory.full
-        ? `Mochila cheia (${mod.inventory.used}/${mod.inventory.capacity})${huntState.autoLootGold ? "; procurando apenas ouro" : ""}`
-        : !mod.inventory.known ? (huntState.autoLootGold ? "Aguardando dados da mochila; apenas ouro pode ser coletado" : "Aguardando dados da mochila") : "Caçando; nenhum drop próximo";
+        ? `Mochila cheia (${mod.inventory.used}/${mod.inventory.capacity})${collectGold ? "; procurando apenas ouro" : ""}`
+        : !mod.inventory.known ? (collectGold ? "Aguardando dados da mochila; apenas ouro pode ser coletado" : "Aguardando dados da mochila") : "Caçando; nenhum drop próximo";
       return false;
     }
     const id = loot.entity.id;
