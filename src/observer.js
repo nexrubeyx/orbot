@@ -2018,7 +2018,7 @@
         waypointNoProgressFailures++;
         if (waypointNoProgressFailures >= 3) {
           mod.log("warn", `${label}: waypoint ${current.index + 1} sem progresso; pulando para o próximo ponto.`);
-              setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
+          setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
           waypointNoProgressFailures = 0;
           waypointMoveFailures = 0;
           nextWaypointMoveAt = 0;
@@ -2028,6 +2028,7 @@
       }
     }
     if (distance <= arrivalTolerance) {
+      let reversed = false;
       if (sameFloor.length > 1 && current.index === mainWaypointIndex && waypointRoundStarted) {
         huntState.waypointRounds++;
         huntState.waypointTotalRounds++;
@@ -2035,11 +2036,13 @@
           waypointReverseDirection = !waypointReverseDirection;
           huntState.waypointRounds = 0;
           sameFloor.reverse();
-          order = sameFloor.findIndex(entry => entry.index === current.index);
+          // Start at the first point of the newly ordered route.
+          order = -1;
+          reversed = true;
           mod.log("info", `${label}: ordem dos waypoints invertida após as voltas configuradas.`);
         }
       }
-      if (sameFloor.length > 1) waypointRoundStarted = true;
+      if (sameFloor.length > 1) waypointRoundStarted = !reversed;
       order = (order + 1) % sameFloor.length;
       setHuntWaypointIndex(sameFloor[order].index);
       nextWaypointMoveAt = 0;
