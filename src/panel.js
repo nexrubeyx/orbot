@@ -1127,7 +1127,11 @@
     trainingCityOptions.potions.checked = !!hunt?.trainingCityPotions;
     trainingToggle.textContent = trainingActive ? "Parar treino" : "Iniciar treino";
     trainingToggle.dataset.active = String(trainingActive);
-    trainingStatus.textContent = trainingActive ? (hunt?.status ?? "Treino ativo") : "Treino desligado";
+    const idleSeconds = hunt?.trainingIdleRemainingSeconds;
+    const idleCountdown = trainingActive && Number.isFinite(idleSeconds)
+      ? ` · Aproximação em ${Math.floor(idleSeconds / 60)}:${String(idleSeconds % 60).padStart(2, "0")}`
+      : "";
+    trainingStatus.textContent = trainingActive ? `${hunt?.status ?? "Treino ativo"}${idleCountdown}` : "Treino desligado";
     const focus = window.mod?.focus;
     focusToggle.textContent = focus?.enabled ? "Parar Focar" : "Iniciar Focar";
     focusToggle.dataset.active = String(!!focus?.enabled);

@@ -129,6 +129,7 @@
   huntState.trainingWaypoints = false;
   huntState.trainingRadius = 4;
   huntState.trainingIdleMinutes = 0;
+  huntState.trainingIdleRemainingSeconds = null;
   huntState.trainingTargetDelayMin = 0;
   huntState.trainingTargetDelayMax = 0;
   huntState.trainingCityBag = true;
@@ -437,6 +438,7 @@
     const value = Number(minutes);
     if (!Number.isFinite(value) || value < 0 || value > 1440) return { ok: false, error: "O tempo deve ficar entre 0 e 1440 minutos." };
     huntState.trainingIdleMinutes = value;
+    huntState.trainingIdleRemainingSeconds = null;
     trainingIdleWatch = null;
     try { localStorage.setItem("fantasy-mod-training-idle-minutes", String(value)); } catch {}
     return { ok: true, minutes: value };
@@ -1051,14 +1053,17 @@
     const position = `${myself.floor}:${myself.x}:${myself.y}`;
     if (!trainingIdleWatch || trainingIdleWatch.position !== position || now - trainingIdleWatch.lastTick > 3000) {
       trainingIdleWatch = { position, since: now, lastTick: now };
+      huntState.trainingIdleRemainingSeconds = Math.ceil(huntState.trainingIdleMinutes * 60);
       return false;
     }
     trainingIdleWatch.lastTick = now;
+    huntState.trainingIdleRemainingSeconds = Math.max(0, Math.ceil((huntState.trainingIdleMinutes * 60000 - (now - trainingIdleWatch.since)) / 1000));
     if (trainingIdleWatch.pendingUntil > now) return true;
     if (now - trainingIdleWatch.since < huntState.trainingIdleMinutes * 60000) return false;
     const waypoint = mod.waypoints[huntWaypointIndex]?.floor === myself.floor
       ? mod.waypoints[huntWaypointIndex] : mod.waypoints.find(point => point.floor === myself.floor);
     trainingIdleWatch.since = now;
+    huntState.trainingIdleRemainingSeconds = Math.ceil(huntState.trainingIdleMinutes * 60);
     if (!waypoint) {
       mod.log("warn", "Treino: nenhum waypoint cadastrado neste andar para sair da posição parada.");
       return false;
@@ -2648,6 +2653,7 @@
 
   let nextLootCatalogUpdateAt = 0;
   setInterval(() => {
+    huntState.trainingIdleRemainingSeconds = null;
     logHuntProgress();
     if (Date.now() >= nextLootCatalogUpdateAt) {
       nextLootCatalogUpdateAt = Date.now() + 2000;
