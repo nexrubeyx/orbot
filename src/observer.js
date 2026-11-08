@@ -1293,7 +1293,7 @@
   function finishShopVisit() {
     if (shopVisitFinishing || suppressShopReopenUntilReturn) return;
     shopVisitFinishing = true;
-    mod.log("info", "Vendas encerradas; aguardando 3 segundos para fechar a loja e voltar.");
+    mod.log("info", "Vendas encerradas; aguardando 1 segundo para fechar a loja e voltar.");
     shopFinishTimer = setTimeout(() => {
       shopFinishTimer = 0;
       suppressShopReopenUntilReturn = true;
@@ -1324,7 +1324,7 @@
       closeGameShopPanel();
       setTimeout(closeGameShopPanel, 150);
       setTimeout(closeGameShopPanel, 600);
-    }, 3000);
+    }, 1000);
     activeSellShop = null;
   }
   function finishRefillTrip() {
@@ -1604,7 +1604,7 @@
       shopSellWaiting = false;
       shopSoldCount++;
       mod.log("info", `Venda confirmada: ${shopPendingItemName}.`);
-      nextShopSellAt = Date.now() + 2000 + Math.random() * 1000;
+      nextShopSellAt = Date.now() + 1000;
     }
     const selected = new Set((huntState.lootItemIds ?? []).map(String));
     const candidates = bag.map((itemId, index) => ({ itemId, index }))
