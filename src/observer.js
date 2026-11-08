@@ -78,7 +78,7 @@
     const inModPanel = path.some(node => node?.id === "fantasy-mod-panel-host");
     const target = event.target;
     const isTextInput = target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? "");
-    const huntActive = !!(window.mod?.hunt?.enabled || window.mod?.hunt?.lureEnabled);
+    const huntActive = !!(window.mod?.hunt?.enabled || window.mod?.hunt?.lureEnabled || window.mod?.hunt?.resumeAfterReturn);
     if (inModPanel) {
       // Keep browser defaults (typing, arrows, checkbox toggles), but keep the
       // game listeners from seeing keys pressed while operating the mod panel.
@@ -117,6 +117,9 @@
   const POTION_COOLDOWN_MS = 1300;
   let specialReadyAt = 0;
   const huntState = mod.hunt ?? (mod.hunt = { enabled: false, names: [], types: [], radius: 11, status: "Parado" });
+  huntState.enabled = false;
+  huntState.lureEnabled = false;
+  huntState.status = "Parado";
   const focusState = mod.focus ?? (mod.focus = { enabled: false, useSkill: false, followTarget: true, status: "Focar desligado" });
   focusState.enabled = false;
   try {
@@ -149,7 +152,7 @@
     if (Array.isArray(savedWaypoints)) mod.waypoints = savedWaypoints.filter(point =>
       Number.isInteger(point?.x) && Number.isInteger(point?.y) && Number.isInteger(point?.floor));
     huntState.waypointsEnabled = localStorage.getItem("fantasy-mod-waypoints-enabled") === "true";
-    huntState.lureEnabled = localStorage.getItem("fantasy-mod-lure-enabled") === "true";
+    localStorage.setItem("fantasy-mod-lure-enabled", "false");
     huntState.lureCount = Math.max(1, Math.min(50, Number(localStorage.getItem("fantasy-mod-lure-count")) || 5));
     huntState.lureStepTiles = Math.max(1, Math.min(10, Number(localStorage.getItem("fantasy-mod-lure-step-tiles")) || 3));
     localStorage.removeItem("fantasy-mod-lure-move-delay");
@@ -157,10 +160,6 @@
     huntState.attackRange = Number(localStorage.getItem("fantasy-mod-attack-range")) === 4 ? 4 : 1;
     huntState.useSpecial = localStorage.getItem("fantasy-mod-lure-special") === "true";
   } catch {}
-  if (huntState.lureEnabled && mod.waypoints.length < 2) {
-    huntState.lureEnabled = false;
-    try { localStorage.setItem("fantasy-mod-lure-enabled", "false"); } catch {}
-  }
   const saveWaypoints = () => {
     try { localStorage.setItem("fantasy-mod-waypoints", JSON.stringify(mod.waypoints)); } catch {}
   };
@@ -557,13 +556,6 @@
     try { localStorage.setItem("fantasy-mod-loot-items", JSON.stringify(huntState.lootItemIds)); } catch {}
     return { ok: true, count: huntState.lootItemIds.length };
   };
-  if (huntState.lureEnabled && !huntState.enabled) {
-    if (!huntState.types?.length && !huntState.names?.length && !huntState.attackAny) {
-      huntState.types = Object.keys(mod.targets).filter(type => mod.targets[type]);
-    }
-    if (huntState.types.length || huntState.names.length || huntState.attackAny) huntState.enabled = true;
-    else huntState.lureEnabled = false;
-  }
   Object.defineProperty(mod, "potionCooldownRemaining", {
     configurable: true,
     get: () => Math.max(0, potionReadyAt - Date.now())
@@ -828,7 +820,11 @@
     queueInitialHuntTravel();
     return { ok: true, types: list, radius: huntState.radius, lureEnabled: huntState.lureEnabled };
   };
-  mod.stopHunt = (reason = "Caça parada pelo usuário.") => {
+  mod.stopHunt = (reason = "Caça parada pelo usuário.", preserveResume = false) => {
+    if (!preserveResume) {
+      resumeHuntAfterReturn = false;
+      resumeLureAfterReturn = false;
+    }
     huntState.enabled = false;
     huntState.currentWaypoint = null;
     initialHuntTravel = null;
@@ -937,6 +933,7 @@
   let suppressShopReopenUntilReturn = false;
   let resumeHuntAfterReturn = false;
   let resumeLureAfterReturn = false;
+  Object.defineProperty(huntState, "resumeAfterReturn", { configurable: true, get: () => resumeHuntAfterReturn });
   let fullBagArrivalLogged = false;
   let fullBagNpcNamesLogged = false;
   let fullBagNpcSearchEmptyLogged = false;
@@ -1681,10 +1678,10 @@
         mod.log("warn", "Não foi possível salvar a posição de retorno da caça.");
       }
       arrowsDepletionReturn = returnForArrows;
-      mod.stopHunt();
+      mod.stopHunt("Caça pausada durante a viagem para a cidade.", true);
       fullBagTravelPending = true;
     }
-    huntState.status = `${reason}; caça parada e indo para a cidade`;
+    huntState.status = `${reason}; indo para a cidade`;
     huntState.lootStatus = returnForArrows
       ? "Sem flechas; viajando para a cidade"
       : `Mochila cheia (${mod.inventory.used}/${mod.inventory.capacity}); viajando para a loja`;
@@ -2234,7 +2231,7 @@
       mod.updateLootCatalog();
     }
     if (myself.dead) {
-      if (huntState.enabled || huntState.lureEnabled) mod.stopHunt("Caça e lure interrompidos: o personagem morreu.");
+      if (huntState.enabled || huntState.lureEnabled || resumeHuntAfterReturn) mod.stopHunt("Caça e lure interrompidos: o personagem morreu.");
       return;
     }
     resendTravelAfterFloorChange();
@@ -2522,6 +2519,8 @@
       } else {
         huntState.status = `Retornou para a posição salva: ${myself.x}, ${myself.y}, andar ${myself.floor}`;
       }
+      resumeHuntAfterReturn = false;
+      resumeLureAfterReturn = false;
       arrowsDepletionReturn = false;
       suppressShopReopenUntilReturn = false;
       suppressShopDisplay = false;
@@ -2949,72 +2948,7 @@
     mod.log("info", "Dados da loja recebidos; enviando vendas direto ao servidor sem abrir a tela.");
   }
 
-  let jsonSendTimer = null;
-  let jsonSendSocket = null;
-  let jsonSendGeneration = 0;
   mod.gamePacketEncoding = "Aguardando módulo WebAssembly do jogo";
-  mod.jsonSender = { running: false, sent: 0, total: 1, delayMs: 500, status: "Pronto" };
-  const notifyJsonSender = () => window.dispatchEvent(new CustomEvent("__fantasy_json_sender_update"));
-  mod.stopJsonSender = (status = "Envio interrompido.") => {
-    clearTimeout(jsonSendTimer);
-    jsonSendTimer = null;
-    jsonSendSocket = null;
-    jsonSendGeneration++;
-    mod.jsonSender.running = false;
-    mod.jsonSender.status = status;
-    notifyJsonSender();
-    return { ok: true, sent: mod.jsonSender.sent };
-  };
-  mod.startJsonSender = ({ json, count = 1, delayMs = 500 } = {}) => {
-    if (mod.jsonSender.running) return { ok: false, error: "Pare o envio atual antes de iniciar outro." };
-    let payload;
-    try {
-      const value = JSON.parse(json);
-      if (!value || typeof value !== "object" || Array.isArray(value)) {
-        return { ok: false, error: "Informe um objeto JSON, por exemplo: {\"t\":\"ping\"}." };
-      }
-      // A socket wrapper adds a fresh protocol signature to every send.
-      delete value.z;
-      payload = JSON.stringify(value);
-    } catch { return { ok: false, error: "JSON inválido. Confira aspas, vírgulas e chaves." }; }
-    count = Number(count);
-    delayMs = Number(delayMs);
-    if (!Number.isSafeInteger(count) || count < 0
-      || !Number.isInteger(delayMs) || delayMs < 0 || delayMs > 3600000) {
-      return { ok: false, error: "Use repetições inteiras (0 = até parar) e intervalo de 0 a 3600000 ms." };
-    }
-    if (!gameSocket || gameSocket.readyState !== NativeWebSocket.OPEN || assetSockets.has(gameSocket)) {
-      return { ok: false, error: "Aguardando conexão de gameplay. Entre no jogo antes de enviar." };
-    }
-    const socket = gameSocket;
-    const generation = ++jsonSendGeneration;
-    jsonSendSocket = socket;
-    mod.jsonSender = { running: true, sent: 0, total: count, delayMs, status: "Enviando…" };
-    const send = () => {
-      if (generation !== jsonSendGeneration || !mod.jsonSender.running) return;
-      if (socket !== gameSocket || socket.readyState !== NativeWebSocket.OPEN) {
-        mod.stopJsonSender("Conexão encerrada ou alterada. Envio interrompido.");
-        return;
-      }
-      try {
-        socket.send(payload);
-        mod.jsonSender.sent++;
-      } catch (error) {
-        mod.stopJsonSender(`Falha ao enviar: ${error?.message ?? error}`);
-        return;
-      }
-      if (count > 0 && mod.jsonSender.sent >= count) {
-        mod.stopJsonSender("Envio concluído.");
-        return;
-      }
-      mod.jsonSender.status = "Repetindo envio…";
-      notifyJsonSender();
-      jsonSendTimer = setTimeout(send, delayMs);
-    };
-    send();
-    return { ok: true, ...mod.jsonSender };
-  };
-  window.addEventListener("pagehide", () => mod.stopJsonSender("Página fechada. Envio interrompido."));
 
   const monitor = {
     packets,
@@ -3074,7 +3008,6 @@
         if (isGameSocket) mod.log("info", "WebSocket do jogo conectado.");
       });
       socket.addEventListener("close", event => {
-        if (jsonSendSocket === socket) mod.stopJsonSender("Conexão encerrada. Envio interrompido.");
         update();
         if (isGameSocket && !assetSockets.has(socket)) mod.log("warn", `WebSocket do jogo fechado (código ${event.code}${event.reason ? `: ${event.reason}` : ""}).`);
       });

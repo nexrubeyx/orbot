@@ -316,7 +316,6 @@
           <button class="side-link" data-page="waypoints">Waypoints</button>
           <button class="side-link" data-page="clone">Clone</button>
           <button class="side-link" data-page="automation">Automações</button>
-          <button class="side-link" data-page="json">Enviar JSON</button>
           <button class="side-link" data-page="console">Console</button>
         </nav>
         <div class="page-content">
@@ -480,20 +479,6 @@
               <label class="pref"><input class="auto-refresh" type="checkbox"> Atualizar estado automaticamente</label>
             </div>
           </section>
-          <section class="page" data-section="json" hidden>
-            <h2>Enviar JSON</h2>
-            <form class="json-send-form">
-              <label>Mensagem JSON<textarea class="json-payload" rows="7" spellcheck="false" required placeholder='{"t":"ping"}'></textarea></label>
-              <div class="fields">
-                <label>Quantidade de envios<input class="json-count" type="number" min="0" step="1" value="1" required></label>
-                <label>Intervalo (ms)<input class="json-delay" type="number" min="0" max="3600000" step="1" value="500" required></label>
-              </div>
-              <p class="hint">1 envia uma vez; 0 repete até clicar em Parar. O primeiro envio é imediato.</p>
-              <div class="waypoint-actions"><button class="json-start" type="submit">Enviar / Iniciar</button><button class="json-stop" type="button" disabled>Parar</button></div>
-            </form>
-            <p class="result json-send-status" role="status">Pronto</p>
-            <p class="hint">O envio continua ao trocar de seção ou fechar o menu. Para automaticamente se a conexão cair. Os envios aparecem no Console; envio concluído não confirma aceitação pelo jogo.</p>
-          </section>
           <section class="page" data-section="console" hidden>
             <h2>Console</h2>
             <div class="console-toolbar"><span>Histórico de bot e WebSocket (até 1.000 registros cada)</span><span class="console-actions"><button class="console-export" type="button">Exportar logs</button><button class="console-clear" type="button">Limpar</button></span></div>
@@ -506,30 +491,6 @@
   `;
 
   const backdrop = root.querySelector(".backdrop");
-  const jsonForm = root.querySelector(".json-send-form");
-  const jsonStatus = root.querySelector(".json-send-status");
-  const syncJsonSender = () => {
-    const state = window.mod?.jsonSender;
-    const running = !!state?.running;
-    for (const field of jsonForm.querySelectorAll("textarea, input, .json-start")) field.disabled = running;
-    root.querySelector(".json-stop").disabled = !running;
-    jsonStatus.textContent = state
-      ? `${state.status} Enviados: ${state.sent}${state.total ? ` / ${state.total}` : " (até parar)"}.`
-      : "Aguardando conexão com o módulo de envio.";
-  };
-  jsonForm.addEventListener("submit", event => {
-    event.preventDefault();
-    const outcome = window.mod?.startJsonSender?.({
-      json: root.querySelector(".json-payload").value,
-      count: Number(root.querySelector(".json-count").value),
-      delayMs: Number(root.querySelector(".json-delay").value)
-    });
-    if (!outcome?.ok) jsonStatus.textContent = outcome?.error ?? "Envio indisponível.";
-    else syncJsonSender();
-  });
-  root.querySelector(".json-stop").addEventListener("click", () => window.mod?.stopJsonSender?.());
-  window.addEventListener("__fantasy_json_sender_update", syncJsonSender);
-  syncJsonSender();
   for (const [kind, title] of [["shop", "Loja de venda"], ["refill", "Refill de suprimentos"]]) {
     const form = document.createElement("form");
     form.className = "destination-form";
@@ -1070,7 +1031,7 @@
 
   function syncHuntUI() {
     const hunt = window.mod?.hunt;
-    const active = !!hunt?.enabled;
+    const active = !!(hunt?.enabled || hunt?.resumeAfterReturn);
     const lureActive = !!hunt?.lureEnabled;
     waypointLureToggle.checked = lureActive;
     waypointPatrolToggle.checked = !!hunt?.waypointsEnabled;
@@ -1333,7 +1294,7 @@
     }
   });
   huntToggle.addEventListener("click", () => {
-    if (window.mod?.hunt?.enabled || window.mod?.hunt?.lureEnabled) window.mod.stopHunt();
+    if (window.mod?.hunt?.enabled || window.mod?.hunt?.lureEnabled || window.mod?.hunt?.resumeAfterReturn) window.mod.stopHunt();
     else {
       const types = Object.keys(window.mod?.targets ?? {}).filter(type => window.mod.targets[type]);
       const outcome = window.mod?.startHuntTargets?.(types, 11, true);
