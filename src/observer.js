@@ -2529,11 +2529,10 @@
       return;
     }
     const attackRange = huntState.training ? (huntState.trainingClass === "melee" ? 1 : 4) : huntState.attackRange;
-    const inTrainingRange = creature => !huntState.training || (creature.distance <= attackRange && hasAttackLine(myself.x, myself.y, creature));
     let target = huntTargetId == null
       ? null
       : mod.creaturesNearby(1000).find(creature => String(creature.id) === String(huntTargetId)
-        && canHunt(creature) && inTrainingRange(creature));
+        && canHunt(creature) && (!huntState.training || creature.distance <= huntState.radius));
     if (!target && huntTargetId != null) {
       if (huntState.training && gameSocket?.readyState === WebSocket.OPEN) gameSocket.send(JSON.stringify({ t: "untarget" }));
       huntTargetId = null;
@@ -2541,11 +2540,11 @@
       nextHuntMoveAt = 0;
     }
     // Keep the current target unless a valid creature is strictly closer.
-    const nextTarget = creaturesWithinPathRadius(huntState.radius).find(creature => canHunt(creature) && inTrainingRange(creature));
+    const nextTarget = creaturesWithinPathRadius(huntState.radius).find(canHunt);
     if (!target) {
       target = nextTarget;
     }
-    const trainingCreatureNearby = huntState.training && mod.creaturesNearby(attackRange).length > 0;
+    const trainingCreatureNearby = huntState.training && !!target;
     if (trainingCreatureNearby && waypointMovePending) {
       // Cancel the route already sent to the game, not just future waypoint steps.
       const predicted = window.gameDebug?.state?.().pred;
@@ -2565,7 +2564,7 @@
           followWaypointRoute("Treino · waypoints");
           return;
         }
-        huntState.status = "Treino: aguardando criatura ao alcance";
+        huntState.status = "Treino: procurando alvos em até 8 tiles";
         return;
       }
       if (huntState.waypointsEnabled) {
@@ -2590,13 +2589,13 @@
       return;
     }
     if (Date.now() < nextHuntMoveAt) {
-      huntState.status = `Perseguindo ${target.name} · ${target.distance}/${huntState.attackRange} tiles`;
+      huntState.status = `Perseguindo ${target.name} · ${target.distance}/${attackRange} tiles`;
       return;
     }
-    const outcome = moveTowardAttackRange(target);
+    const outcome = moveTowardAttackRange(target, attackRange);
     if (!outcome.ok) ignoreMobAtCurrentPosition(target, outcome.error);
     huntState.status = outcome.ok
-      ? `Perseguindo ${target.name} · ${target.distance}/${huntState.attackRange} tiles`
+      ? `Perseguindo ${target.name} · ${target.distance}/${attackRange} tiles`
       : outcome.error;
     nextHuntMoveAt = Date.now() + (outcome.ok ? 900 : 700);
   }, 300);

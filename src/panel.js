@@ -371,9 +371,9 @@
           </section>
           <section class="page" data-section="training" hidden>
             <h2>Treino</h2>
-            <p class="hint">Ataca os alvos ao alcance sem persegui-los ou usar habilidades e coleta loot próximo.</p>
+            <p class="hint">Procura alvos em até 8 tiles, aproxima-se até o alcance de ataque e coleta loot próximo, sem usar habilidades.</p>
             <label class="attack-range">Classe do treino<select class="training-class"><option value="mage">Mage — 4 tiles</option><option value="melee">Melee — 1 tile</option><option value="distance">Distance — 4 tiles</option></select></label>
-            <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver criaturas ao alcance</label>
+            <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver alvos próximos</label>
             <label class="pref"><input class="auto-loot-gold" type="checkbox"> Coletar ouro automaticamente</label>
             <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint training-status" role="status"></p>
@@ -1317,7 +1317,7 @@
       return;
     } else {
       const types = Object.keys(window.mod?.targets ?? {}).filter(type => window.mod.targets[type]);
-      const outcome = window.mod?.startHuntTargets?.(types, 11, false, true);
+      const outcome = window.mod?.startHuntTargets?.(types, 8, false, true);
       if (!outcome?.ok) { trainingStatus.textContent = outcome?.error ?? "API de treino indisponível."; return; }
     }
     syncHuntUI();
