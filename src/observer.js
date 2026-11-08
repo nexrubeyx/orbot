@@ -148,6 +148,16 @@
     huntWaypointIndex = index;
     huntState.waypointIndex = index;
   };
+  let waypointDirection = 1;
+  let waypointFirstReached = false;
+  let waypointLastReached = false;
+  let waypointCompletedLoops = 0;
+  let waypointLoopFloor = null;
+  huntState.waypointReverseEnabled = false;
+  huntState.waypointReverseLoops = 1;
+  const resetWaypointDirection = () => {
+    waypointDirection = 1; waypointFirstReached = false; waypointLastReached = false; waypointCompletedLoops = 0; waypointLoopFloor = null;
+  };
   let nextWaypointMoveAt = 0;
   let waypointMovePending = null;
   let waypointMoveFailures = 0;
@@ -164,6 +174,9 @@
     if (Array.isArray(savedWaypoints)) mod.waypoints = savedWaypoints.filter(point =>
       Number.isInteger(point?.x) && Number.isInteger(point?.y) && Number.isInteger(point?.floor));
     huntState.waypointsEnabled = localStorage.getItem("fantasy-mod-waypoints-enabled") === "true";
+    huntState.waypointReverseEnabled = localStorage.getItem("fantasy-mod-waypoint-reverse-enabled") === "true";
+    const reverseLoops = Number(localStorage.getItem("fantasy-mod-waypoint-reverse-loops"));
+    if (Number.isInteger(reverseLoops) && reverseLoops >= 1 && reverseLoops <= 1000) huntState.waypointReverseLoops = reverseLoops;
     const trainingClass = localStorage.getItem("fantasy-mod-training-class");
     if (["mage", "melee", "distance"].includes(trainingClass)) huntState.trainingClass = trainingClass;
     huntState.trainingWaypoints = localStorage.getItem("fantasy-mod-training-waypoints") === "true";
@@ -195,6 +208,7 @@
     if (!Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(floor)) {
       return { ok: false, error: "Informe X e Y inteiros e aguarde a posição/andar do personagem." };
     }
+    resetWaypointDirection();
     mod.waypoints.push({ x, y, floor });
     saveWaypoints();
     setHuntWaypointIndex(0);
@@ -245,6 +259,7 @@
   }
   mod.removeWaypoint = index => {
     if (!Number.isInteger(index) || index < 0 || index >= mod.waypoints.length) return { ok: false, error: "Waypoint inválido." };
+    resetWaypointDirection();
     mod.waypoints.splice(index, 1);
     saveWaypoints();
     setHuntWaypointIndex(Math.min(huntWaypointIndex, Math.max(0, mod.waypoints.length - 1)));
@@ -254,12 +269,25 @@
     return { ok: true, count: mod.waypoints.length };
   };
   mod.clearWaypoints = () => {
+    resetWaypointDirection();
     mod.waypoints = [];
     saveWaypoints();
     setHuntWaypointIndex(0);
     waypointMoveFailures = 0;
     waypointNoProgressFailures = 0;
     waypointMovePending = null;
+    return { ok: true };
+  };
+  mod.setWaypointReverse = (enabled, loops) => {
+    const value = Number(loops);
+    if (!Number.isInteger(value) || value < 1 || value > 1000) return { ok: false, error: "Informe um número inteiro de voltas entre 1 e 1000." };
+    huntState.waypointReverseEnabled = !!enabled;
+    huntState.waypointReverseLoops = value;
+    resetWaypointDirection();
+    try {
+      localStorage.setItem("fantasy-mod-waypoint-reverse-enabled", String(huntState.waypointReverseEnabled));
+      localStorage.setItem("fantasy-mod-waypoint-reverse-loops", String(value));
+    } catch {}
     return { ok: true };
   };
   mod.setWaypointPatrol = enabled => {
@@ -2054,6 +2082,10 @@
       huntState.status = `${label}: cadastre dois waypoints distintos neste andar`;
       return true;
     }
+    if (waypointLoopFloor !== myself.floor) {
+      resetWaypointDirection();
+      waypointLoopFloor = myself.floor;
+    }
     let order = sameFloor.findIndex(entry => entry.index === huntWaypointIndex);
     if (order < 0) order = 0;
     let current = sameFloor[order];
@@ -2093,7 +2125,7 @@
         waypointNoProgressFailures++;
         if (waypointNoProgressFailures >= 8) {
           mod.log("warn", `${label}: waypoint ${current.index + 1} sem progresso; pulando para o próximo ponto.`);
-          setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
+          setHuntWaypointIndex(sameFloor[(order + waypointDirection + sameFloor.length) % sameFloor.length].index);
           waypointNoProgressFailures = 0;
           waypointMoveFailures = 0;
           nextWaypointMoveAt = 0;
@@ -2103,7 +2135,22 @@
       }
     }
     if (distance <= arrivalTolerance) {
-      order = (order + 1) % sameFloor.length;
+      if (sameFloor.length > 1 && huntState.waypointReverseEnabled) {
+        if (order === sameFloor.length - 1 && waypointFirstReached) waypointLastReached = true;
+        if (order === 0) {
+          if (waypointFirstReached && waypointLastReached) {
+            waypointCompletedLoops++;
+            if (waypointCompletedLoops >= huntState.waypointReverseLoops) {
+              waypointDirection *= -1;
+              waypointCompletedLoops = 0;
+              mod.log("info", `${label}: sentido dos waypoints invertido.`);
+            }
+          }
+          waypointFirstReached = true;
+          waypointLastReached = false;
+        }
+      }
+      order = (order + waypointDirection + sameFloor.length) % sameFloor.length;
       setHuntWaypointIndex(sameFloor[order].index);
       nextWaypointMoveAt = 0;
       waypointMovePending = null;
@@ -2162,7 +2209,7 @@
       }
       if (waypointMoveFailures >= 8) {
         mod.log("warn", `${label}: waypoint ${current.index + 1} sem rota válida; pulando para o próximo ponto.`);
-        setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
+        setHuntWaypointIndex(sameFloor[(order + waypointDirection + sameFloor.length) % sameFloor.length].index);
         waypointMovePending = null;
         waypointMoveFailures = 0;
         waypointNoProgressFailures = 0;
