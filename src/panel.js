@@ -383,8 +383,10 @@
           <section class="page" data-section="training" hidden>
             <h2>Treino</h2>
             <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
-            <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo, sem usar habilidades.</p>
+            <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo.</p>
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
+            <label class="attack-range">Tempo parado para aproximar do waypoint (minutos)<input class="training-idle-minutes" type="number" min="0" max="1440" step="0.1" value="0"></label>
+            <div class="hint">Use 0 para desativar. Requer um waypoint no andar atual.</div>
             <div class="training-delay">
               <div class="training-delay-title">Intervalo entre alvos</div>
               <div class="training-delay-fields">
@@ -396,7 +398,7 @@
             <label class="attack-range">Classe do treino<select class="training-class"><option value="mage">Mage — 4 tiles</option><option value="melee">Melee — 1 tile</option><option value="distance">Distance — 4 tiles</option></select></label>
             <label class="pref"><input class="training-elite-enabled" type="checkbox"> Trocar de classe quando um elite atacar</label>
             <label class="attack-range">Classe para combater elite<select class="training-elite-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
-            <p class="hint">Prioriza o elite e retorna à classe anterior após o combate.</p>
+            <p class="hint">Prioriza o elite, usa a habilidade especial e retorna à classe anterior após o combate. Para Mage, ative o especial automático no jogo.</p>
             <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver alvos próximos</label>
             <label class="pref"><input class="training-city-bag" type="checkbox"> Ir à cidade com mochila cheia</label>
             <label class="pref"><input class="training-city-arrows" type="checkbox"> Ir à cidade sem flechas</label>
@@ -606,6 +608,7 @@
   const trainingEliteEnabled = root.querySelector(".training-elite-enabled");
   const trainingEliteClass = root.querySelector(".training-elite-class");
   const trainingRadius = root.querySelector(".training-radius");
+  const trainingIdleMinutes = root.querySelector(".training-idle-minutes");
   const trainingTargetDelayMin = root.querySelector(".training-target-delay-min");
   const trainingTargetDelayMax = root.querySelector(".training-target-delay-max");
   const trainingWaypoints = root.querySelector(".training-waypoints");
@@ -1111,6 +1114,7 @@
     huntToggle.dataset.active = String((active && !trainingActive) || lureActive);
     for (const toggle of autoLootGoldToggles) toggle.checked = hunt?.autoLootGold !== false;
     if (root.activeElement !== trainingRadius) trainingRadius.value = String(hunt?.trainingRadius ?? 4);
+    if (root.activeElement !== trainingIdleMinutes) trainingIdleMinutes.value = String(hunt?.trainingIdleMinutes ?? 0);
     if (root.activeElement !== trainingTargetDelayMin) trainingTargetDelayMin.value = String(hunt?.trainingTargetDelayMin ?? 0);
     if (root.activeElement !== trainingTargetDelayMax) trainingTargetDelayMax.value = String(hunt?.trainingTargetDelayMax ?? 0);
     trainingClass.value = hunt?.trainingClass ?? "melee";
@@ -1406,6 +1410,13 @@
     if (!outcome?.ok) {
       trainingRadius.value = String(window.mod?.hunt?.trainingRadius ?? 4);
       trainingStatus.textContent = outcome?.error ?? "Não foi possível salvar o raio.";
+    }
+  });
+  trainingIdleMinutes.addEventListener("change", () => {
+    const outcome = window.mod?.setTrainingIdleMinutes?.(trainingIdleMinutes.value);
+    if (!outcome?.ok) {
+      trainingIdleMinutes.value = String(window.mod?.hunt?.trainingIdleMinutes ?? 0);
+      trainingStatus.textContent = outcome?.error ?? "Não foi possível salvar o tempo.";
     }
   });
   trainingClass.addEventListener("change", saveTrainingOptions);

@@ -128,6 +128,7 @@
   huntState.trainingEliteClass = "melee";
   huntState.trainingWaypoints = false;
   huntState.trainingRadius = 4;
+  huntState.trainingIdleMinutes = 0;
   huntState.trainingTargetDelayMin = 0;
   huntState.trainingTargetDelayMax = 0;
   huntState.trainingCityBag = true;
@@ -202,6 +203,8 @@
     }
     const trainingRadius = Number(localStorage.getItem("fantasy-mod-training-radius"));
     if (Number.isInteger(trainingRadius) && trainingRadius >= 1 && trainingRadius <= 100) huntState.trainingRadius = trainingRadius;
+    const idleMinutes = Number(localStorage.getItem("fantasy-mod-training-idle-minutes"));
+    if (Number.isFinite(idleMinutes) && idleMinutes >= 0 && idleMinutes <= 1440) huntState.trainingIdleMinutes = idleMinutes;
     localStorage.setItem("fantasy-mod-lure-enabled", "false");
     huntState.lureCount = Math.max(1, Math.min(50, Number(localStorage.getItem("fantasy-mod-lure-count")) || 5));
     huntState.lureStepTiles = Math.max(1, Math.min(10, Number(localStorage.getItem("fantasy-mod-lure-step-tiles")) || 3));
@@ -429,6 +432,14 @@
     if (huntState.training) huntState.radius = value;
     try { localStorage.setItem("fantasy-mod-training-radius", String(value)); } catch {}
     return { ok: true, radius: value };
+  };
+  mod.setTrainingIdleMinutes = minutes => {
+    const value = Number(minutes);
+    if (!Number.isFinite(value) || value < 0 || value > 1440) return { ok: false, error: "O tempo deve ficar entre 0 e 1440 minutos." };
+    huntState.trainingIdleMinutes = value;
+    trainingIdleWatch = null;
+    try { localStorage.setItem("fantasy-mod-training-idle-minutes", String(value)); } catch {}
+    return { ok: true, minutes: value };
   };
   mod.setHuntAttackRange = range => {
     const value = Number(range);
@@ -968,6 +979,7 @@
     if (!Number.isFinite(range) || range < 1 || range > 100) return { ok: false, error: "O raio deve ficar entre 1 e 100 tiles." };
     huntState.training = !!training;
     if (huntState.training) {
+      trainingIdleWatch = null;
       huntTargetId = null;
       huntTargetSent = null;
       nextTrainingTargetAt = 0;
@@ -1028,6 +1040,50 @@
     trainingEliteAttackers.clear();
   }
   let nextTrainingTargetAt = 0;
+  let trainingIdleWatch = null;
+
+  function processTrainingIdleMovement() {
+    if (!huntState.enabled || !huntState.training || !huntState.trainingIdleMinutes) {
+      trainingIdleWatch = null;
+      return false;
+    }
+    const now = Date.now();
+    const position = `${myself.floor}:${myself.x}:${myself.y}`;
+    if (!trainingIdleWatch || trainingIdleWatch.position !== position || now - trainingIdleWatch.lastTick > 3000) {
+      trainingIdleWatch = { position, since: now, lastTick: now };
+      return false;
+    }
+    trainingIdleWatch.lastTick = now;
+    if (trainingIdleWatch.pendingUntil > now) return true;
+    if (now - trainingIdleWatch.since < huntState.trainingIdleMinutes * 60000) return false;
+    const waypoint = mod.waypoints[huntWaypointIndex]?.floor === myself.floor
+      ? mod.waypoints[huntWaypointIndex] : mod.waypoints.find(point => point.floor === myself.floor);
+    trainingIdleWatch.since = now;
+    if (!waypoint) {
+      mod.log("warn", "Treino: nenhum waypoint cadastrado neste andar para sair da posição parada.");
+      return false;
+    }
+    const distance = (x, y) => Math.max(Math.abs(waypoint.x - x), Math.abs(waypoint.y - y));
+    const currentDistance = distance(myself.x, myself.y);
+    const candidates = [];
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const x = myself.x + dx, y = myself.y + dy;
+      if ((dx || dy) && distance(x, y) < currentDistance) candidates.push({ x, y });
+    }
+    candidates.sort((a, b) => distance(a.x, a.y) - distance(b.x, b.y));
+    for (const point of candidates) {
+      const outcome = mod.move(point.x, point.y, { requireExact: true });
+      if (outcome.ok) {
+        trainingIdleWatch.pendingUntil = now + 2000;
+        waypointMovePending = null;
+        huntState.status = "Treino: aproximando do waypoint após ficar parado";
+        mod.log("info", `Treino: movendo para (${point.x}, ${point.y}) após ficar parado.`);
+        return true;
+      }
+    }
+    if (currentDistance > 0) mod.log("warn", "Treino: não foi possível encontrar um passo livre em direção ao waypoint.");
+    return false;
+  }
   let nextHuntMoveAt = 0;
   let nextFocusMoveAt = 0;
   let huntTargetSent = null;
@@ -2621,6 +2677,7 @@
       processFocusTarget();
       return;
     }
+    if (processTrainingIdleMovement()) return;
     const wanted = huntState.names.map(normalizeName);
     const wantedTypes = (huntState.names.length
       ? (huntState.types ?? [])
@@ -2817,6 +2874,10 @@
     ensureHuntTarget(target);
     if (target.distance <= attackRange && hasAttackLine(myself.x, myself.y, target)) {
       huntState.status = `${trainingElite ? "Elite: atacando" : "Atacando"} ${target.name}`;
+      if (trainingElite && Number(playerStats.cls ?? playerStats.cl) === classIds[huntState.trainingEliteClass]) {
+        const outcome = mod.useHuntSpecial();
+        if (!outcome.ok && !/cooldown/i.test(outcome.error ?? "")) huntState.status += ` · ${outcome.error}`;
+      }
       return;
     }
     if (Date.now() < nextHuntMoveAt) {
