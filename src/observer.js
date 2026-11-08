@@ -440,6 +440,7 @@
     huntState.trainingIdleMinutes = value;
     huntState.trainingIdleRemainingSeconds = null;
     trainingIdleWatch = null;
+    trainingIdleMove = null;
     try { localStorage.setItem("fantasy-mod-training-idle-minutes", String(value)); } catch {}
     return { ok: true, minutes: value };
   };
@@ -982,6 +983,7 @@
     huntState.training = !!training;
     if (huntState.training) {
       trainingIdleWatch = null;
+      trainingIdleMove = null;
       huntTargetId = null;
       huntTargetSent = null;
       nextTrainingTargetAt = 0;
@@ -1043,14 +1045,45 @@
   }
   let nextTrainingTargetAt = 0;
   let trainingIdleWatch = null;
+  let trainingIdleMove = null;
 
   function processTrainingIdleMovement() {
     if (!huntState.enabled || !huntState.training || !huntState.trainingIdleMinutes) {
       trainingIdleWatch = null;
+      trainingIdleMove = null;
       return false;
     }
     const now = Date.now();
     const position = `${myself.floor}:${myself.x}:${myself.y}`;
+    if (trainingIdleMove) {
+      const move = trainingIdleMove;
+      if (move.floor !== myself.floor || (myself.x === move.x && myself.y === move.y)) {
+        trainingIdleMove = null;
+      } else if (move.pending && now < move.deadline && (myself.x !== move.pending.x || myself.y !== move.pending.y)) {
+        huntState.trainingIdleRemainingSeconds = Math.ceil(huntState.trainingIdleMinutes * 60);
+        huntState.status = "Treino: aproximando do waypoint após ficar parado";
+        return true;
+      } else if (move.pending && now >= move.deadline && (myself.x !== move.pending.x || myself.y !== move.pending.y)) {
+        mod.log("warn", "Treino: movimento de aproximação não chegou ao destino.");
+        trainingIdleMove = null;
+      } else {
+        const point = {
+          x: myself.x + Math.max(-20, Math.min(20, move.x - myself.x)),
+          y: myself.y + Math.max(-20, Math.min(20, move.y - myself.y))
+        };
+        const outcome = mod.move(point.x, point.y, { requireExact: true });
+        if (outcome.ok) {
+          move.pending = point;
+          move.deadline = now + Math.min(40000, 3000 + (outcome.steps ?? 1) * 800);
+          huntState.trainingIdleRemainingSeconds = Math.ceil(huntState.trainingIdleMinutes * 60);
+          huntState.status = "Treino: aproximando do waypoint após ficar parado";
+          return true;
+        }
+        mod.log("warn", `Treino: não foi possível chegar à metade do caminho: ${outcome.error}`);
+        trainingIdleMove = null;
+      }
+      trainingIdleWatch = null;
+    }
     if (!trainingIdleWatch || trainingIdleWatch.position !== position || now - trainingIdleWatch.lastTick > 3000) {
       trainingIdleWatch = { position, since: now, lastTick: now };
       huntState.trainingIdleRemainingSeconds = Math.ceil(huntState.trainingIdleMinutes * 60);
@@ -1058,7 +1091,6 @@
     }
     trainingIdleWatch.lastTick = now;
     huntState.trainingIdleRemainingSeconds = Math.max(0, Math.ceil((huntState.trainingIdleMinutes * 60000 - (now - trainingIdleWatch.since)) / 1000));
-    if (trainingIdleWatch.pendingUntil > now) return true;
     if (now - trainingIdleWatch.since < huntState.trainingIdleMinutes * 60000) return false;
     const waypoint = mod.waypoints[huntWaypointIndex]?.floor === myself.floor
       ? mod.waypoints[huntWaypointIndex] : mod.waypoints.find(point => point.floor === myself.floor);
@@ -1068,26 +1100,18 @@
       mod.log("warn", "Treino: nenhum waypoint cadastrado neste andar para sair da posição parada.");
       return false;
     }
-    const distance = (x, y) => Math.max(Math.abs(waypoint.x - x), Math.abs(waypoint.y - y));
-    const currentDistance = distance(myself.x, myself.y);
-    const candidates = [];
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      const x = myself.x + dx, y = myself.y + dy;
-      if ((dx || dy) && distance(x, y) < currentDistance) candidates.push({ x, y });
-    }
-    candidates.sort((a, b) => distance(a.x, a.y) - distance(b.x, b.y));
-    for (const point of candidates) {
-      const outcome = mod.move(point.x, point.y, { requireExact: true });
-      if (outcome.ok) {
-        trainingIdleWatch.pendingUntil = now + 2000;
-        waypointMovePending = null;
-        huntState.status = "Treino: aproximando do waypoint após ficar parado";
-        mod.log("info", `Treino: movendo para (${point.x}, ${point.y}) após ficar parado.`);
-        return true;
-      }
-    }
-    if (currentDistance > 0) mod.log("warn", "Treino: não foi possível encontrar um passo livre em direção ao waypoint.");
-    return false;
+    const dx = waypoint.x - myself.x, dy = waypoint.y - myself.y;
+    if (!dx && !dy) return false;
+    const halfway = {
+      x: myself.x + Math.sign(dx) * Math.ceil(Math.abs(dx) / 2),
+      y: myself.y + Math.sign(dy) * Math.ceil(Math.abs(dy) / 2),
+      floor: myself.floor,
+      pending: null
+    };
+    trainingIdleMove = halfway;
+    waypointMovePending = null;
+    mod.log("info", `Treino: aproximando até (${halfway.x}, ${halfway.y}), metade da distância ao waypoint.`);
+    return processTrainingIdleMovement();
   }
   let nextHuntMoveAt = 0;
   let nextFocusMoveAt = 0;
