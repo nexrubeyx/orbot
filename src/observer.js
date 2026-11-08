@@ -2482,7 +2482,8 @@
       const waypoint = document.createElement("span");
       const gold = document.createElement("span");
       const loops = document.createElement("span");
-      panel.append(title, position, waypoint, gold, loops);
+      const idleCountdown = document.createElement("span");
+      panel.append(title, position, waypoint, gold, loops, idleCountdown);
       hud.append(panel);
     }
     const playerRect = playerCard.getBoundingClientRect();
@@ -2494,8 +2495,8 @@
     if (panel.style.left !== left) panel.style.left = left;
     if (panel.style.top !== top) panel.style.top = top;
     if (panel.style.width !== width) panel.style.width = width;
-    while (panel.children.length < 5) panel.append(document.createElement("span"));
-    const [, positionLine, waypointLine, goldLine, loopsLine] = panel.children;
+    while (panel.children.length < 6) panel.append(document.createElement("span"));
+    const [, positionLine, waypointLine, goldLine, loopsLine, idleLine] = panel.children;
     const positionText = Number.isInteger(myself.x) && Number.isInteger(myself.y)
       ? `Posição: (${myself.x}, ${myself.y}) · andar ${myself.floor ?? "?"}`
       : "Posição: aguardando dados";
@@ -2511,6 +2512,12 @@
     loopsLine.hidden = !huntState.waypointReverseEnabled;
     const loopsText = `Voltas: ${waypointCompletedLoops}/${huntState.waypointReverseLoops}`;
     if (loopsLine.textContent !== loopsText) loopsLine.textContent = loopsText;
+    const idleSeconds = huntState.trainingIdleRemainingSeconds;
+    idleLine.hidden = !huntState.enabled || !huntState.training || !Number.isFinite(idleSeconds);
+    if (!idleLine.hidden) {
+      const idleText = `Aproximação: ${Math.floor(idleSeconds / 60)}:${String(idleSeconds % 60).padStart(2, "0")}`;
+      if (idleLine.textContent !== idleText) idleLine.textContent = idleText;
+    }
   }
   setInterval(syncHudStatusPanel, 250);
 
