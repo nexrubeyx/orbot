@@ -141,6 +141,7 @@
   };
   let waypointReverseDirection = false;
   let waypointRoundStarted = false;
+  let waypointRoundLeftMain = false;
   let waypointRouteFloor = null;
   huntState.waypointRounds = 0;
   huntState.waypointTotalRounds = 0;
@@ -148,6 +149,7 @@
   huntState.waypointReverseEnabled = false;
   const resetWaypointRounds = (resetDirection = true) => {
     waypointRoundStarted = false;
+    waypointRoundLeftMain = false;
     waypointRouteFloor = null;
     huntState.waypointRounds = 0;
     huntState.waypointTotalRounds = 0;
@@ -228,7 +230,7 @@
   };
   mod.setWaypointReverseEnabled = enabled => {
     huntState.waypointReverseEnabled = !!enabled;
-    resetWaypointRounds();
+    resetWaypointRounds(!enabled);
     try { localStorage.setItem("fantasy-mod-waypoint-reverse-enabled", String(huntState.waypointReverseEnabled)); } catch {}
     return { ok: true, enabled: huntState.waypointReverseEnabled };
   };
@@ -1949,6 +1951,7 @@
     }
     if (waypointRouteFloor !== myself.floor) {
       waypointRoundStarted = false;
+      waypointRoundLeftMain = false;
       huntState.waypointRounds = 0;
       huntState.waypointTotalRounds = 0;
       waypointRouteFloor = myself.floor;
@@ -2030,7 +2033,7 @@
       }
     }
     if (distance <= arrivalTolerance) {
-      if (sameFloor.length > 1 && current.index === mainWaypointIndex && waypointRoundStarted) {
+      if (sameFloor.length > 1 && current.index === mainWaypointIndex && waypointRoundStarted && waypointRoundLeftMain) {
         huntState.waypointRounds++;
         huntState.waypointTotalRounds++;
         if (huntState.waypointReverseEnabled && huntState.waypointRounds >= huntState.waypointReverseEvery) {
@@ -2041,7 +2044,14 @@
           mod.log("info", `${label}: ordem dos waypoints invertida após as voltas configuradas.`);
         }
       }
-      if (sameFloor.length > 1) waypointRoundStarted = current.index !== mainWaypointIndex;
+      if (sameFloor.length > 1) {
+        if (current.index === mainWaypointIndex) {
+          waypointRoundStarted = true;
+          waypointRoundLeftMain = false;
+        } else if (waypointRoundStarted) {
+          waypointRoundLeftMain = true;
+        }
+      }
       order = (order + 1) % sameFloor.length;
       setHuntWaypointIndex(sameFloor[order].index);
       nextWaypointMoveAt = 0;
