@@ -6,6 +6,9 @@
   const sockets = [];
   let nextSocketId = 1;
   let gameSocket = null;
+  let reconnectPending = false;
+  let reconnectNextAt = 0;
+  const intentionalCloses = new WeakSet();
   const socketDecoders = new WeakMap();
   const assetSockets = new WeakSet();
   let gameWorld = null;
@@ -2923,10 +2926,25 @@
 
   function finishRecord(packet, socket) {
     if (packet.direction === "RECEBIDO" && packet.decoded) {
+      if (packet.decoded.t === "kick") {
+        intentionalCloses.add(socket);
+        reconnectPending = false;
+      }
       updateMyself(packet.decoded);
       updateInventory(packet.decoded);
       updateShop(packet.decoded);
       handleDeathRecoveryPacket(socket, packet.decoded);
+      if (reconnectPending && socket === gameSocket && packet.decoded.t === "snap" && packet.decoded.you) {
+        reconnectPending = false;
+        mod.log("info", "Reconexão automática concluída.");
+        const destination = activeTravelDestination();
+        if (destination && !myself.dead) {
+          try {
+            socket.send(JSON.stringify({ t: "travel", id: 2, go: true, f: destination.floor, x: destination.x, y: destination.y }));
+            mod.log("info", "Viagem retomada após a reconexão.");
+          } catch (error) { mod.log("warn", `Não foi possível retomar a viagem: ${error.message}`); }
+        }
+      }
     }
     if (packet.decodeError) mod.log("warn", `Pacote WebSocket recebido não foi decodificado: ${packet.decodeError}`);
     packets.push(packet);
@@ -3118,6 +3136,10 @@
             const outgoing = JSON.parse(data);
             if (outgoing?.t === "k") assetSockets.add(this);
             else if (outgoing?.t) gameSocket = this;
+            if (outgoing?.t === "logout") {
+              intentionalCloses.add(this);
+              reconnectPending = false;
+            }
           } catch {}
         }
         let outgoingData = data;
@@ -3148,7 +3170,7 @@
       };
 
       const update = () => publish("sockets", socketState());
-      const isGameSocket = (() => { try { return new URL(socket.url).pathname === "/ws"; } catch { return false; } })();
+      const isGameSocket = (() => { try { return /^\/ws(?:\/\d+)?\/?$/.test(new URL(socket.url).pathname); } catch { return false; } })();
       socket.addEventListener("open", () => {
         update();
         if (isGameSocket) mod.log("info", "WebSocket do jogo conectado.");
@@ -3156,6 +3178,14 @@
       socket.addEventListener("close", event => {
         update();
         if (isGameSocket && !assetSockets.has(socket)) mod.log("warn", `WebSocket do jogo fechado (código ${event.code}${event.reason ? `: ${event.reason}` : ""}).`);
+        if (socket === gameSocket && !assetSockets.has(socket) && !intentionalCloses.has(socket)
+            && deathRecovery?.stage !== "reconnect") {
+          try { reconnectPending = localStorage.getItem("fantasy-mod-auto-reconnect") === "true"; } catch { reconnectPending = false; }
+          if (reconnectPending) {
+            reconnectNextAt = Date.now() + 2000;
+            mod.log("info", "Conexão perdida; aguardando a tela de reconexão.");
+          }
+        }
       });
       socket.addEventListener("error", () => {
         update();
@@ -3165,6 +3195,42 @@
       return socket;
     }
   });
+
+  // Capture the game's own Reconnect/Retry action when it draws the button.
+  // Invoking that action keeps session handling and the game UI in sync.
+  Promise.all([import("/src/gui.mjs"), import("/src/i18n.mjs")]).then(([gui, i18n]) => {
+    const prototype = gui.GUI?.prototype;
+    if (!prototype || typeof prototype.text !== "function" || typeof prototype.button !== "function") throw new Error("interface de reconexão indisponível");
+    const originalText = prototype.text;
+    const originalButton = prototype.button;
+    const labels = new WeakMap();
+    prototype.text = function (label, ...args) {
+      labels.set(this, label);
+      return originalText.call(this, label, ...args);
+    };
+    prototype.button = function (rect, action, ...args) {
+      const label = labels.get(this);
+      labels.delete(this);
+      const result = originalButton.call(this, rect, action, ...args);
+      let enabled = false;
+      try { enabled = localStorage.getItem("fantasy-mod-auto-reconnect") === "true"; } catch {}
+      if (!enabled) reconnectPending = false;
+      if (enabled && reconnectPending && Date.now() >= reconnectNextAt
+          && (label === i18n.t("Reconnect") || label === i18n.t("Retry"))
+          && rect?.x === 2.5 && (rect.y === 2 || rect.y === 0.5) && rect.w === 5 && rect.h === 1) {
+        reconnectNextAt = Date.now() + 8000;
+        setTimeout(() => {
+          if (!reconnectPending) return;
+          try {
+            if (localStorage.getItem("fantasy-mod-auto-reconnect") !== "true") return;
+            mod.log("info", "Tentando reconectar automaticamente.");
+            action();
+          } catch (error) { mod.log("warn", `Falha ao reconectar: ${error?.message ?? error}`); }
+        }, 0);
+      }
+      return result;
+    };
+  }).catch(error => mod.log("warn", `Reconexão automática indisponível: ${error?.message ?? error}`));
 
   const NativeWorker = window.Worker;
   window.Worker = new Proxy(NativeWorker, {
