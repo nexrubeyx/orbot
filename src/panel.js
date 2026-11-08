@@ -205,6 +205,13 @@
       .loot-item-empty { margin:0; color:var(--ui-2); font-size:11px; }
       .waypoint-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:8px; }
       .waypoint-actions button,.waypoint-remove { padding:7px 8px; border:1px solid var(--luz); border-radius:0; background:#3d3328; color:var(--ui); cursor:pointer; }
+      .waypoint-reverse-card { margin-top:8px; padding:10px; border:1px solid var(--luz); background:var(--painel); }
+      .waypoint-reverse-head { display:flex; align-items:center; gap:8px; color:var(--ui); font-size:12px; font-weight:650; }
+      .waypoint-reverse-icon { display:grid; place-items:center; width:26px; height:26px; flex:none; border:1px solid var(--luz); background:var(--slot); color:var(--ouro); font-size:17px; }
+      .waypoint-reverse-card .pref { margin:9px 0 0; background:var(--slot); }
+      .waypoint-reverse-settings { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:9px; color:var(--ui-2); font-size:11px; }
+      .waypoint-reverse-settings input { width:76px; flex:none; margin:0; }
+      .waypoint-reverse-card .hint { margin-top:8px; line-height:1.4; }
       .waypoint-list { display:grid; gap:6px; max-height:210px; overflow:auto; margin-top:10px; }
       .waypoint-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; padding:7px 8px; border:1px solid var(--luz); border-radius:0; background:var(--slot); }
       .waypoint-name { color:var(--ui); font-weight:600; }
@@ -460,9 +467,12 @@
           <section class="page" data-section="waypoints" hidden>
             <h2>Waypoints</h2>
             <label class="pref"><input class="waypoint-patrol-toggle" type="checkbox"> Percorrer quando não houver alvos</label>
-            <label class="pref"><input class="waypoint-reverse-toggle" type="checkbox"> Inverter a ordem dos waypoints</label>
-            <label class="attack-range">Inverter a cada quantas voltas<input class="waypoint-reverse-loops" type="number" min="1" max="1000" step="1" value="1"></label>
-            <p class="hint">Uma volta é contada ao retornar ao primeiro waypoint após chegar ao último.</p>
+            <div class="waypoint-reverse-card">
+              <div class="waypoint-reverse-head"><span class="waypoint-reverse-icon" aria-hidden="true">⇄</span><span>Sentido da rota</span></div>
+              <label class="pref"><input class="waypoint-reverse-toggle" type="checkbox"> Inverter a ordem dos waypoints</label>
+              <label class="waypoint-reverse-settings"><span>Inverter a cada número de voltas</span><input class="waypoint-reverse-loops" type="number" min="1" max="1000" step="1" value="1"></label>
+              <p class="hint">Uma volta termina ao retornar ao primeiro ponto depois de alcançar o último.</p>
+            </div>
             <div class="waypoint-actions" style="grid-template-columns:1fr">
               <button class="waypoint-current">Adicionar posição atual</button>
               <button class="waypoint-record" type="button">Iniciar gravação ao andar</button>
