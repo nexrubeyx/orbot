@@ -443,6 +443,7 @@
               <button class="waypoint-import" type="button">Importar JSON</button>
             </div>
             <input class="waypoint-file" type="file" accept="application/json,.json" hidden>
+            <p class="hint waypoint-rounds" role="status"></p>
             <p class="result waypoint-result" role="status"></p>
             <div class="waypoint-list" aria-live="polite"></div>
           </section>
@@ -1065,7 +1066,11 @@
         : current > 0 ? "Puxando criaturas" : "Procurando criaturas";
     lureCountDisplay.textContent = `${current}/${target}`;
     lureProgressFill.style.width = `${Math.min(100, current / target * 100)}%`;
-    huntStatus.textContent = hunt?.status ?? "Sistema de caça indisponível";
+    const waypointRoundsText = `Voltas: ${hunt?.waypointTotalRounds ?? 0}`;
+    const reverseProgress = hunt?.waypointReverseEnabled
+      ? ` · até inverter: ${hunt.waypointRounds ?? 0}/${hunt.waypointReverseEvery ?? 1}` : "";
+    root.querySelector(".waypoint-rounds").textContent = waypointRoundsText + reverseProgress;
+    huntStatus.textContent = `${hunt?.status ?? "Sistema de caça indisponível"} · ${waypointRoundsText}`;
     const returnPosition = hunt?.returnPosition;
     root.querySelector(".hunt-return-position").textContent = returnPosition
       ? `Posição de retorno salva: ${returnPosition.x}, ${returnPosition.y} · andar ${returnPosition.floor}`

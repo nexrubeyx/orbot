@@ -143,12 +143,14 @@
   let waypointRoundStarted = false;
   let waypointRouteFloor = null;
   huntState.waypointRounds = 0;
+  huntState.waypointTotalRounds = 0;
   huntState.waypointReverseEvery = 1;
   huntState.waypointReverseEnabled = false;
   const resetWaypointRounds = () => {
     waypointRoundStarted = false;
     waypointRouteFloor = null;
     huntState.waypointRounds = 0;
+    huntState.waypointTotalRounds = 0;
     waypointReverseDirection = false;
   };
   let nextWaypointMoveAt = 0;
@@ -1946,6 +1948,7 @@
     if (waypointRouteFloor !== myself.floor) {
       waypointRoundStarted = false;
       huntState.waypointRounds = 0;
+      huntState.waypointTotalRounds = 0;
       waypointRouteFloor = myself.floor;
     }
     let sameFloor = mod.waypoints.map((point, index) => ({ point, index }))
@@ -2027,6 +2030,7 @@
     if (distance <= arrivalTolerance) {
       if (sameFloor.length > 1 && current.index === mainWaypointIndex && waypointRoundStarted) {
         huntState.waypointRounds++;
+        huntState.waypointTotalRounds++;
         if (huntState.waypointReverseEnabled && huntState.waypointRounds >= huntState.waypointReverseEvery) {
           waypointReverseDirection = !waypointReverseDirection;
           huntState.waypointRounds = 0;
@@ -2273,7 +2277,8 @@
       ? `Indo para waypoint ${waypoint.index}/${waypoint.total}: (${waypoint.x}, ${waypoint.y}) · andar ${waypoint.floor}`
       : "Waypoint: parado";
     if (positionLine.textContent !== positionText) positionLine.textContent = positionText;
-    if (waypointLine.textContent !== waypointText) waypointLine.textContent = waypointText;
+    const waypointStatus = `${waypointText} · voltas: ${huntState.waypointTotalRounds}`;
+    if (waypointLine.textContent !== waypointStatus) waypointLine.textContent = waypointStatus;
   }
   setInterval(syncHudStatusPanel, 250);
 
