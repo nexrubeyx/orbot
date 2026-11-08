@@ -382,7 +382,6 @@
     huntState.names = JSON.parse(localStorage.getItem("fantasy-mod-hunt-names") ?? "[]");
     huntState.radius = 11;
     huntState.attackAny = localStorage.getItem("fantasy-mod-attack-any-creature") === "true";
-    huntState.autoLoot = localStorage.getItem("fantasy-mod-auto-loot") === "true";
     huntState.autoSell = localStorage.getItem("fantasy-mod-auto-sell") === "true";
     huntState.refillAfterSale = localStorage.getItem("fantasy-mod-refill-after-sale") === "true";
     mod.refill = {
@@ -398,15 +397,9 @@
     mod.lootCatalog = JSON.parse(localStorage.getItem("fantasy-mod-loot-catalog") ?? "[]")
       .filter(item => item && item.id != null && typeof item.name === "string");
   } catch {}
+  huntState.autoLoot = true;
   mod.lootCatalog ??= [];
   huntState.lootItemIds ??= [];
-  huntState.lootAllItems = false;
-  try { huntState.lootAllItems = localStorage.getItem("fantasy-mod-loot-all-items") === "true"; } catch {}
-  mod.setLootAllItems = enabled => {
-    huntState.lootAllItems = !!enabled;
-    try { localStorage.setItem("fantasy-mod-loot-all-items", String(huntState.lootAllItems)); } catch {}
-    return { ok: true, enabled: huntState.lootAllItems };
-  };
   mod.refill ??= { x: 314, y: 215, floor: 0, radius: 2, status: "Pronto" };
   mod.refill.items ??= [];
   mod.refill.shopItems ??= [];
@@ -1101,8 +1094,7 @@
     const drops = visibleDrops
       .filter(entity => !ignoredPlayerCoveredLoot.has(String(entity.id))
         && Number.isInteger(entity.x) && Number.isInteger(entity.y)
-        && (isGoldDrop(entity) || (mod.inventory.known && !mod.inventory.full
-          && (huntState.lootAllItems || huntState.lootItemIds.includes(lootItemKey(entity))))))
+        && (isGoldDrop(entity) || (mod.inventory.known && !mod.inventory.full)))
       .map(entity => ({ entity, distance: Math.max(Math.abs(entity.x - myself.x), Math.abs(entity.y - myself.y)) }))
       .filter(item => item.distance <= AUTO_LOOT_RADIUS)
       .sort((a, b) => a.distance - b.distance);
@@ -1630,7 +1622,7 @@
       if (!shopSellDoneLogged) {
         shopSellDoneLogged = true;
         mod.log("info", shopSoldCount
-          ? `Venda feita: ${shopSoldCount} item(ns) da lista de Loot vendido(s).`
+          ? `Venda feita: ${shopSoldCount} item(ns) da lista de venda vendido(s).`
           : "Venda feita: nenhum item selecionado e vendável estava na mochila.");
       }
       finishShopVisit();

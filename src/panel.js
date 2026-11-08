@@ -312,7 +312,6 @@
           <button class="side-link" data-page="hunt">Sistema de caça</button>
           <button class="side-link" data-page="focus">Focar</button>
           <button class="side-link" data-page="refill">Loja / Refill</button>
-          <button class="side-link" data-page="loot">Loot</button>
           <button class="side-link" data-page="waypoints">Waypoints</button>
           <button class="side-link" data-page="clone">Clone</button>
           <button class="side-link" data-page="automation">Automações</button>
@@ -417,17 +416,11 @@
               </div>
               <div class="refill-item-list" aria-live="polite"></div>
             </div>
-          </section>
-          <section class="page" data-section="loot" hidden>
-            <h2>Loot</h2>
-            <label class="pref hunt-loot-pref"><input class="hunt-auto-loot" type="checkbox"> Autoloot ativado</label>
-            <label class="pref"><input class="loot-all-items" type="checkbox"> Coletar todos os itens, incluindo drops novos</label>
             <div class="loot-picker">
-              <div class="loot-picker-head"><span>Itens para coletar</span><span class="loot-picker-actions"><button class="loot-select-all" type="button">Todos</button><button class="loot-select-none" type="button">Limpar</button></span></div>
+              <div class="loot-picker-head"><span>Itens para venda automática</span><span class="loot-picker-actions"><button class="loot-select-all" type="button">Todos</button><button class="loot-select-none" type="button">Limpar</button></span></div>
               <div class="loot-item-list" aria-live="polite"></div>
             </div>
             <p class="hint loot-assets-status" role="status"></p>
-            <p class="hint hunt-loot-status" role="status">Autoloot: desativado</p>
           </section>
           <section class="page" data-section="targets" hidden>
             <h2>Alvos</h2>
@@ -551,7 +544,6 @@
   const lureSpecialToggle = root.querySelector(".lure-special-toggle");
   const waypointResult = root.querySelector(".waypoint-result");
   const huntAttackAny = root.querySelector(".hunt-attack-any");
-  const huntAutoLoot = root.querySelector(".hunt-auto-loot");
   const huntAutoSell = root.querySelector(".hunt-auto-sell");
   const refillAfterSale = root.querySelector(".refill-after-sale");
   const refillTest = root.querySelector(".refill-test");
@@ -571,7 +563,6 @@
   const lureStatusTitle = root.querySelector(".lure-status-title");
   const lureCountDisplay = root.querySelector(".lure-count-display");
   const lureProgressFill = root.querySelector(".lure-progress-fill");
-  const huntLootStatus = root.querySelector(".hunt-loot-status");
   const lootAssetsStatus = root.querySelector(".loot-assets-status");
   const autoRefresh = root.querySelector(".auto-refresh");
   const autoHeal = root.querySelector(".auto-heal");
@@ -601,7 +592,6 @@
   autoReconnect.checked = readPreference("auto-reconnect", "false") === "true";
   hpThreshold.value = readPreference("heal-threshold", "50");
   mpThreshold.value = readPreference("mana-threshold", "30");
-  huntAutoLoot.checked = !!window.mod?.hunt?.autoLoot;
   huntAutoSell.checked = !!window.mod?.hunt?.autoSell;
   refillAfterSale.checked = !!window.mod?.hunt?.refillAfterSale;
   focusSkillToggle.checked = !!window.mod?.focus?.useSkill;
@@ -848,14 +838,10 @@
     try { localStorage.setItem(preferenceKey, String(autoRefresh.checked)); } catch {}
     refresh(true);
   });
-  huntAutoLoot.addEventListener("change", () => {
-    if (window.mod?.hunt) window.mod.hunt.autoLoot = huntAutoLoot.checked;
-    try { localStorage.setItem("fantasy-mod-auto-loot", String(huntAutoLoot.checked)); } catch {}
-  });
   huntAutoSell.addEventListener("change", () => {
     if (window.mod?.hunt) window.mod.hunt.autoSell = huntAutoSell.checked;
     try { localStorage.setItem("fantasy-mod-auto-sell", String(huntAutoSell.checked)); } catch {}
-    if (huntAutoSell.checked) window.mod?.log?.("info", "Auto sell ativado; itens selecionados em Loot serão vendidos na loja.");
+    if (huntAutoSell.checked) window.mod?.log?.("info", "Auto sell ativado; itens selecionados em Loja / Refill serão vendidos na loja.");
   });
   refillAfterSale.addEventListener("change", () => {
     if (window.mod?.hunt) window.mod.hunt.refillAfterSale = refillAfterSale.checked;
@@ -884,12 +870,7 @@
     window.mod?.setLootItemsEnabled?.(true);
     showLootItems();
   });
-  root.querySelector(".loot-all-items").addEventListener("change", event => {
-    window.mod?.setLootAllItems?.(event.target.checked);
-    showLootItems();
-  });
   root.querySelector(".loot-select-none").addEventListener("click", () => {
-    window.mod?.setLootAllItems?.(false);
     window.mod?.setLootItemsEnabled?.(false);
     showLootItems();
   });
@@ -1067,7 +1048,6 @@
     root.querySelector(".hunt-return-position").textContent = returnPosition
       ? `Posição de retorno salva: ${returnPosition.x}, ${returnPosition.y} · andar ${returnPosition.floor}`
       : "A posição de retorno será salva quando a caça for à loja.";
-    huntLootStatus.textContent = `Autoloot: ${hunt?.lootStatus ?? (hunt?.autoLoot ? "ativado" : "desativado")}`;
     lootAssetsStatus.textContent = window.mod?.lootIconStatus ?? "Aguardando dados dos itens";
     showLootItems();
     if (!backdrop.hidden && root.querySelector('[data-section="targets"]')?.hidden === false) showTargets();
@@ -1075,19 +1055,16 @@
   }
 
   function showLootItems() {
-    const allItems = !!window.mod?.hunt?.lootAllItems;
-    root.querySelector(".loot-all-items").checked = allItems;
     const catalog = window.mod?.lootCatalog ?? [];
     const selected = new Set((window.mod?.hunt?.lootItemIds ?? []).map(String));
-    const signature = JSON.stringify([catalog, [...selected].sort(), allItems]);
+    const signature = JSON.stringify([catalog, [...selected].sort()]);
     if (lootItemList.dataset.signature === signature) return;
     lootItemList.dataset.signature = signature;
     lootItemList.replaceChildren();
     if (!catalog.length) {
       const empty = document.createElement("p");
       empty.className = "loot-item-empty";
-      empty.textContent = allItems ? "Todos os drops serão coletados, mesmo antes de aparecerem nesta lista."
-        : "Aguardando catálogo do jogo ou drops visíveis.";
+      empty.textContent = "Aguardando catálogo do jogo ou drops visíveis.";
       lootItemList.append(empty);
       return;
     }
@@ -1096,8 +1073,7 @@
       label.className = "loot-item";
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
-      checkbox.checked = allItems || selected.has(String(item.id));
-      checkbox.disabled = allItems;
+      checkbox.checked = selected.has(String(item.id));
       checkbox.addEventListener("change", () => window.mod?.setLootItemEnabled?.(item.id, checkbox.checked));
       if (item.sprite) {
         const icon = document.createElement("img");
