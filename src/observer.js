@@ -2375,7 +2375,7 @@
       Object.assign(panel.style, {
         position: "fixed", zIndex: "2147483646", boxSizing: "border-box",
         display: "grid", gap: "4px", padding: "6px 8px", color: "#efe4cc",
-        background: "#2a231c", border: "2px solid #0d0a07",
+        background: "rgba(42, 35, 28, 0.82)", border: "2px solid #0d0a07",
         boxShadow: "inset 2px 2px 0 #574735, inset -2px -2px 0 #17120d",
         fontFamily: '"Pixelify Num", "Pixelify Sans", monospace',
         fontSize: "12px", lineHeight: "1.2", textShadow: "1px 1px #000",
