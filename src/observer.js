@@ -1251,19 +1251,25 @@
       if (!clicked) mod.log("warn", "Refill concluído, mas não encontrei o canvas para clicar.");
       if (returnTo) {
         savedHuntPosition = returnTo;
-        returnTravelPending = true;
+        returnTravelPending = false;
         returnTravelStage = 0;
         returnTravelStarted = false;
         suppressShopReopenUntilReturn = true;
         suppressShopDisplay = true;
-        huntState.status = "Refill concluído; preparando retorno à caça";
-        mod.log("info", `Retorno à caça preparado para (${returnTo.x}, ${returnTo.y}), andar ${returnTo.floor}.`);
       } else {
         refillReturnTo = null;
         suppressShopReopenUntilReturn = false;
         suppressShopDisplay = false;
         restoreShopScreen();
       }
+      if (switchServerEnabled()) {
+        deathRecovery = { stage: "chooseChannel", nextAt: Date.now(), socket: gameSocket, origin: "refill", returnTo: !!returnTo };
+        huntState.status = "Refill concluído; preparando troca de servidor";
+      } else if (returnTo) {
+        returnTravelPending = true;
+        huntState.status = "Refill concluído; preparando retorno à caça";
+      }
+      mod.log("info", huntState.status);
     }, 1000);
   }
   function closeGameShopPanel() {
@@ -2226,6 +2232,7 @@
   setInterval(syncHudStatusPanel, 250);
 
   function beginDeathRecovery() {
+    if (deathRecovery?.origin === "refill" && myself.dead) deathRecovery = null;
     if (deathRecovery || !(huntState.enabled || huntState.lureEnabled || resumeHuntAfterReturn)) return;
     const destination = savedHuntPosition ?? firstHuntWaypoint() ?? (
       Number.isInteger(myself.x) && Number.isInteger(myself.y) && Number.isInteger(myself.floor)
@@ -2256,6 +2263,20 @@
     huntState.status = "Morte detectada; aguardando renascimento";
   }
 
+  function switchServerEnabled() {
+    try { return localStorage.getItem("fantasy-mod-auto-switch-server") !== "false"; } catch { return true; }
+  }
+
+  function finishServerSwitch(recovery, message) {
+    deathRecovery = null;
+    if (recovery.origin !== "refill" || recovery.returnTo) {
+      returnTravelPending = true;
+      returnTravelStage = 0;
+    }
+    huntState.status = message;
+    mod.log("info", message);
+  }
+
   async function chooseDeathRecoveryChannel(recovery) {
     try {
       const response = await fetch("/api/canais", { cache: "no-store", signal: AbortSignal.timeout(5000) });
@@ -2278,7 +2299,7 @@
       recovery.stage = "channelReply";
       recovery.nextAt = Date.now() + 15000;
       gameSocket.send(JSON.stringify({ t: "canal", id: next.id }));
-      huntState.status = `Renascido; trocando para ${next.name ?? `canal ${next.id}`}`;
+      huntState.status = `Trocando para ${next.name ?? `canal ${next.id}`}`;
       mod.log("info", huntState.status);
     } catch (error) {
       if (deathRecovery !== recovery) return;
@@ -2297,14 +2318,8 @@
       recovery.stage = "chooseChannel";
       recovery.nextAt = now;
     }
-    let switchServer = true;
-    try { switchServer = localStorage.getItem("fantasy-mod-auto-switch-server") !== "false"; } catch {}
-    if (!switchServer && (recovery.stage === "chooseChannel" || recovery.stage === "fetching")) {
-      deathRecovery = null;
-      returnTravelPending = true;
-      returnTravelStage = 0;
-      huntState.status = "Renascido; preparando retorno à caça";
-      mod.log("info", huntState.status);
+    if (!switchServerEnabled() && (recovery.stage === "chooseChannel" || recovery.stage === "fetching")) {
+      finishServerSwitch(recovery, recovery.origin === "refill" ? "Refill concluído; troca de servidor desativada" : "Renascido; preparando retorno à caça");
       return true;
     }
     if (recovery.stage === "respawn" && now >= recovery.nextAt && gameSocket?.readyState === WebSocket.OPEN) {
@@ -2315,6 +2330,10 @@
       } catch (error) { recovery.nextAt = now + 5000; mod.log("warn", `Falha ao renascer: ${error.message}`); }
     }
     if (recovery.stage === "chooseChannel" && now >= recovery.nextAt) {
+      if (!recovery.socket || recovery.socket.readyState !== WebSocket.OPEN) {
+        if (gameSocket?.readyState !== WebSocket.OPEN) return true;
+        recovery.socket = gameSocket;
+      }
       recovery.stage = "fetching";
       chooseDeathRecoveryChannel(recovery);
     }
@@ -2342,11 +2361,8 @@
     }
     if (recovery.stage === "reconnect" && socket !== recovery.socket && socket === gameSocket
         && packet.t === "snap" && !myself.dead && (packet.you || packet.yd)) {
-      deathRecovery = null;
-      returnTravelPending = true;
-      returnTravelStage = 0;
-      huntState.status = "Reconectado; preparando retorno à caça";
-      mod.log("info", huntState.status);
+      finishServerSwitch(recovery, recovery.origin === "refill" && !recovery.returnTo
+        ? "Refill concluído; servidor alterado" : "Reconectado; preparando retorno à caça");
     }
   }
 

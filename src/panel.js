@@ -476,7 +476,7 @@
                 <label class="automation-title"><input class="auto-mana" type="checkbox"> Auto mana (MP)</label>
                 <label><input class="mp-threshold threshold" type="number" min="5" max="95" step="5" aria-label="Usar poção de mana abaixo de porcentagem">%</label>
               </div>
-              <label class="pref"><input class="auto-switch-server" type="checkbox"> Trocar de servidor após morrer</label>
+              <label class="pref"><input class="auto-switch-server" type="checkbox"> Trocar de servidor após morrer ou finalizar o refill</label>
               <p class="hint">Usa servidores das Américas do Norte e do Sul antes de retornar à caça.</p>
               <label class="pref"><input class="auto-refresh" type="checkbox"> Atualizar estado automaticamente</label>
             </div>
