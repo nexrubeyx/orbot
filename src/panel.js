@@ -351,6 +351,7 @@
                 <input class="refill-after-sale" type="checkbox" aria-label="Ir ao refill após a venda">
                 <span class="setting-switch" aria-hidden="true"></span>
               </label>
+              <label class="pref"><input class="auto-loot-gold" type="checkbox"> Coletar ouro automaticamente</label>
               <p class="hint hunt-return-position" role="status"></p>
               <div class="hunt-lure">
                 <label class="pref"><input class="waypoint-lure-toggle" type="checkbox"> Lure usando os waypoints</label>
@@ -372,7 +373,8 @@
             <h2>Treino</h2>
             <p class="hint">Ataca os alvos ao alcance sem persegui-los ou usar habilidades e coleta loot próximo.</p>
             <label class="attack-range">Classe do treino<select class="training-class"><option value="mage">Mage — 4 tiles</option><option value="melee">Melee — 1 tile</option><option value="distance">Distance — 4 tiles</option></select></label>
-            <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver criaturas próximas</label>
+            <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver criaturas ao alcance</label>
+            <label class="pref"><input class="auto-loot-gold" type="checkbox"> Coletar ouro automaticamente</label>
             <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint training-status" role="status"></p>
           </section>
@@ -559,6 +561,7 @@
   const lootItemList = root.querySelector(".loot-item-list");
   const huntToggle = root.querySelector(".hunt-toggle");
   const trainingToggle = root.querySelector(".training-toggle");
+  const autoLootGoldToggles = root.querySelectorAll(".auto-loot-gold");
   const trainingStatus = root.querySelector(".training-status");
   const trainingClass = root.querySelector(".training-class");
   const trainingWaypoints = root.querySelector(".training-waypoints");
@@ -1037,6 +1040,7 @@
     const trainingActive = active && !!hunt?.training;
     huntToggle.textContent = active && !trainingActive ? "Parar caça" : lureActive ? "Parar lure" : "Iniciar caça";
     huntToggle.dataset.active = String((active && !trainingActive) || lureActive);
+    for (const toggle of autoLootGoldToggles) toggle.checked = hunt?.autoLootGold !== false;
     trainingClass.value = hunt?.trainingClass ?? "melee";
     trainingWaypoints.checked = !!hunt?.trainingWaypoints;
     trainingToggle.textContent = trainingActive ? "Parar treino" : "Iniciar treino";
@@ -1296,6 +1300,10 @@
       const outcome = window.mod?.startHuntTargets?.(types, 11, true);
       if (!outcome?.ok) huntStatus.textContent = outcome?.error ?? "API de caça indisponível.";
     }
+    syncHuntUI();
+  });
+  for (const toggle of autoLootGoldToggles) toggle.addEventListener("change", () => {
+    window.mod?.setAutoLootGold?.(toggle.checked);
     syncHuntUI();
   });
   const saveTrainingOptions = () => window.mod?.setTrainingOptions?.(trainingClass.value, trainingWaypoints.checked);

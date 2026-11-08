@@ -416,6 +416,13 @@
       .filter(item => item && item.id != null && typeof item.name === "string");
   } catch {}
   huntState.autoLoot = true;
+  try { huntState.autoLootGold = localStorage.getItem("fantasy-mod-auto-loot-gold") !== "false"; }
+  catch { huntState.autoLootGold = true; }
+  mod.setAutoLootGold = enabled => {
+    huntState.autoLootGold = !!enabled;
+    try { localStorage.setItem("fantasy-mod-auto-loot-gold", String(huntState.autoLootGold)); } catch {}
+    return { ok: true, enabled: huntState.autoLootGold };
+  };
   mod.lootCatalog ??= [];
   huntState.lootItemIds ??= [];
   mod.refill ??= { x: 314, y: 215, floor: 0, radius: 2, status: "Pronto" };
@@ -1119,7 +1126,7 @@
     const drops = visibleDrops
       .filter(entity => !ignoredPlayerCoveredLoot.has(String(entity.id))
         && Number.isInteger(entity.x) && Number.isInteger(entity.y)
-        && (isGoldDrop(entity) || (mod.inventory.known && !mod.inventory.full)))
+        && (isGoldDrop(entity) ? huntState.autoLootGold : (mod.inventory.known && !mod.inventory.full)))
       .map(entity => ({ entity, distance: Math.max(Math.abs(entity.x - myself.x), Math.abs(entity.y - myself.y)) }))
       .filter(item => item.distance <= AUTO_LOOT_RADIUS)
       .sort((a, b) => a.distance - b.distance);
@@ -1136,8 +1143,8 @@
         return false;
       }
       huntState.lootStatus = mod.inventory.full
-        ? `Mochila cheia (${mod.inventory.used}/${mod.inventory.capacity}); procurando apenas ouro`
-        : !mod.inventory.known ? "Aguardando dados da mochila; apenas ouro pode ser coletado" : "Caçando; nenhum drop próximo";
+        ? `Mochila cheia (${mod.inventory.used}/${mod.inventory.capacity})${huntState.autoLootGold ? "; procurando apenas ouro" : ""}`
+        : !mod.inventory.known ? (huntState.autoLootGold ? "Aguardando dados da mochila; apenas ouro pode ser coletado" : "Aguardando dados da mochila") : "Caçando; nenhum drop próximo";
       return false;
     }
     const id = loot.entity.id;
@@ -2544,7 +2551,7 @@
       huntTargetId = null;
       huntTargetSent = null;
       if (huntState.training) {
-        if (huntState.trainingWaypoints && !mod.creaturesNearby(huntState.radius).length) {
+        if (huntState.trainingWaypoints && !mod.creaturesNearby(attackRange).length) {
           followWaypointRoute("Treino · waypoints");
           return;
         }
