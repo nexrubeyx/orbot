@@ -2261,7 +2261,7 @@
       const response = await fetch("/api/canais", { cache: "no-store", signal: AbortSignal.timeout(5000) });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      if (deathRecovery !== recovery) return;
+      if (deathRecovery !== recovery || recovery.stage !== "fetching") return;
       const channels = Array.isArray(data.canais) ? data.canais : [];
       const pathId = Number(new URL(recovery.socket.url).pathname.match(/\/ws\/(\d+)\/?$/)?.[1]);
       let storedId = 0;
@@ -2296,6 +2296,16 @@
     if (recovery.stage === "respawn" && !myself.dead) {
       recovery.stage = "chooseChannel";
       recovery.nextAt = now;
+    }
+    let switchServer = true;
+    try { switchServer = localStorage.getItem("fantasy-mod-auto-switch-server") !== "false"; } catch {}
+    if (!switchServer && (recovery.stage === "chooseChannel" || recovery.stage === "fetching")) {
+      deathRecovery = null;
+      returnTravelPending = true;
+      returnTravelStage = 0;
+      huntState.status = "Renascido; preparando retorno à caça";
+      mod.log("info", huntState.status);
+      return true;
     }
     if (recovery.stage === "respawn" && now >= recovery.nextAt && gameSocket?.readyState === WebSocket.OPEN) {
       try {
