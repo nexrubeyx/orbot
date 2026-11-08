@@ -376,6 +376,7 @@
           </section>
           <section class="page" data-section="training" hidden>
             <h2>Treino</h2>
+            <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo, sem usar habilidades.</p>
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
             <div class="training-delay">
@@ -393,7 +394,6 @@
             <label class="pref"><input class="training-city-potions" type="checkbox"> Ir à cidade com menos de 10 poções de HP ou MP</label>
             <p class="hint">Na cidade, vende os itens selecionados e faz o refill configurado em Loja / Refill.</p>
             <label class="pref"><input class="auto-loot-gold" type="checkbox"> Coletar ouro automaticamente</label>
-            <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint training-status" role="status"></p>
           </section>
           <section class="page" data-section="focus" hidden>
