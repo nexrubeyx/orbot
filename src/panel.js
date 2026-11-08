@@ -385,7 +385,7 @@
             <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo.</p>
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
-            <label class="attack-range">Tempo parado para aproximar do waypoint (minutos)<input class="training-idle-minutes" type="number" min="0" max="1440" step="0.1" value="0"></label>
+            <label class="attack-range">Tempo parado para aproximar do waypoint (minutos)<input class="training-idle-minutes" type="number" min="0" max="1440" step="1" value="0"></label>
             <div class="hint">Use 0 para desativar. Requer um waypoint no andar atual.</div>
             <div class="training-delay">
               <div class="training-delay-title">Intervalo entre alvos</div>
