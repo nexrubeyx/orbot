@@ -2039,7 +2039,7 @@
           y: outcome.target.y,
           floor: myself.floor,
           waypointIndex: current.index,
-          deadlineAt: Date.now() + Math.max(3000, Math.min(15000, outcome.steps * 700 + 1000))
+          deadlineAt: Date.now() + 1000
         };
       }
       if (waypointMoveFailures >= 3) {
