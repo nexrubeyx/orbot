@@ -2057,22 +2057,6 @@
     let order = sameFloor.findIndex(entry => entry.index === huntWaypointIndex);
     if (order < 0) order = 0;
     let current = sameFloor[order];
-    const waypointBlockedByEntity = [...entities.values()].some(entity =>
-      String(entity.id) !== String(myself.id)
-      && entity.k !== 3 && !entity.tr
-      && Number.isInteger(entity.x) && Number.isInteger(entity.y)
-      && entity.x === current.point.x && entity.y === current.point.y
-      && (entity.f == null || entity.f === myself.floor));
-    if (waypointBlockedByEntity && sameFloor.length > 1) {
-      order = (order + 1) % sameFloor.length;
-      current = sameFloor[order];
-      setHuntWaypointIndex(current.index);
-      waypointMovePending = null;
-      waypointNoProgressFailures = 0;
-      waypointMoveFailures = 0;
-      nextWaypointMoveAt = 0;
-      mod.log("info", `${label}: waypoint bloqueado por entidade; mudando imediatamente para o waypoint ${current.index + 1}.`);
-    }
     huntState.currentWaypoint = {
       active: true,
       index: current.index + 1,
@@ -2107,7 +2091,7 @@
         mod.log("warn", `${label}: o movimento para (${waypointMovePending.x}, ${waypointMovePending.y}) não chegou a tempo.`);
         waypointMovePending = null;
         waypointNoProgressFailures++;
-        if (waypointNoProgressFailures >= 3) {
+        if (waypointNoProgressFailures >= 8) {
           mod.log("warn", `${label}: waypoint ${current.index + 1} sem progresso; pulando para o próximo ponto.`);
           setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
           waypointNoProgressFailures = 0;
@@ -2173,10 +2157,10 @@
           y: outcome.target.y,
           floor: myself.floor,
           waypointIndex: current.index,
-          deadlineAt: Date.now() + 1000
+          deadlineAt: Date.now() + Math.min(20000, 3000 + (outcome.steps ?? 1) * 800)
         };
       }
-      if (waypointMoveFailures >= 3) {
+      if (waypointMoveFailures >= 8) {
         mod.log("warn", `${label}: waypoint ${current.index + 1} sem rota válida; pulando para o próximo ponto.`);
         setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
         waypointMovePending = null;
