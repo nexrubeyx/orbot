@@ -371,9 +371,14 @@
           </section>
           <section class="page" data-section="training" hidden>
             <h2>Treino</h2>
-            <p class="hint">Procura alvos em até 4 tiles, aproxima-se até o alcance de ataque e coleta loot próximo, sem usar habilidades.</p>
+            <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo, sem usar habilidades.</p>
+            <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
             <label class="attack-range">Classe do treino<select class="training-class"><option value="mage">Mage — 4 tiles</option><option value="melee">Melee — 1 tile</option><option value="distance">Distance — 4 tiles</option></select></label>
             <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver alvos próximos</label>
+            <label class="pref"><input class="training-city-bag" type="checkbox"> Ir à cidade com mochila cheia</label>
+            <label class="pref"><input class="training-city-arrows" type="checkbox"> Ir à cidade sem flechas</label>
+            <label class="pref"><input class="training-city-potions" type="checkbox"> Ir à cidade com menos de 10 poções de HP ou MP</label>
+            <p class="hint">Na cidade, vende os itens selecionados e faz o refill configurado em Loja / Refill.</p>
             <label class="pref"><input class="auto-loot-gold" type="checkbox"> Coletar ouro automaticamente</label>
             <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint training-status" role="status"></p>
@@ -564,7 +569,9 @@
   const autoLootGoldToggles = root.querySelectorAll(".auto-loot-gold");
   const trainingStatus = root.querySelector(".training-status");
   const trainingClass = root.querySelector(".training-class");
+  const trainingRadius = root.querySelector(".training-radius");
   const trainingWaypoints = root.querySelector(".training-waypoints");
+  const trainingCityOptions = { bag: root.querySelector(".training-city-bag"), arrows: root.querySelector(".training-city-arrows"), potions: root.querySelector(".training-city-potions") };
   const focusToggle = root.querySelector(".focus-toggle");
   const focusSkillToggle = root.querySelector(".focus-skill-toggle");
   const focusFollowToggle = root.querySelector(".focus-follow-toggle");
@@ -1041,8 +1048,12 @@
     huntToggle.textContent = active && !trainingActive ? "Parar caça" : lureActive ? "Parar lure" : "Iniciar caça";
     huntToggle.dataset.active = String((active && !trainingActive) || lureActive);
     for (const toggle of autoLootGoldToggles) toggle.checked = hunt?.autoLootGold !== false;
+    if (root.activeElement !== trainingRadius) trainingRadius.value = String(hunt?.trainingRadius ?? 4);
     trainingClass.value = hunt?.trainingClass ?? "melee";
     trainingWaypoints.checked = !!hunt?.trainingWaypoints;
+    trainingCityOptions.bag.checked = hunt?.trainingCityBag !== false;
+    trainingCityOptions.arrows.checked = hunt?.trainingCityArrows !== false;
+    trainingCityOptions.potions.checked = !!hunt?.trainingCityPotions;
     trainingToggle.textContent = trainingActive ? "Parar treino" : "Iniciar treino";
     trainingToggle.dataset.active = String(trainingActive);
     trainingStatus.textContent = trainingActive ? (hunt?.status ?? "Treino ativo") : "Treino desligado";
@@ -1307,8 +1318,16 @@
     syncHuntUI();
   });
   const saveTrainingOptions = () => window.mod?.setTrainingOptions?.(trainingClass.value, trainingWaypoints.checked);
+  trainingRadius.addEventListener("change", () => {
+    const outcome = window.mod?.setTrainingRadius?.(trainingRadius.value);
+    if (!outcome?.ok) {
+      trainingRadius.value = String(window.mod?.hunt?.trainingRadius ?? 4);
+      trainingStatus.textContent = outcome?.error ?? "Não foi possível salvar o raio.";
+    }
+  });
   trainingClass.addEventListener("change", saveTrainingOptions);
   trainingWaypoints.addEventListener("change", saveTrainingOptions);
+  for (const [option, toggle] of Object.entries(trainingCityOptions)) toggle.addEventListener("change", () => window.mod?.setTrainingCityOption?.(option, toggle.checked));
   trainingToggle.addEventListener("click", () => {
     const hunt = window.mod?.hunt;
     if (hunt?.training && (hunt.enabled || hunt.resumeAfterReturn)) window.mod.stopHunt();
@@ -1317,7 +1336,7 @@
       return;
     } else {
       const types = Object.keys(window.mod?.targets ?? {}).filter(type => window.mod.targets[type]);
-      const outcome = window.mod?.startHuntTargets?.(types, 4, false, true);
+      const outcome = window.mod?.startHuntTargets?.(types, hunt?.trainingRadius ?? 4, false, true);
       if (!outcome?.ok) { trainingStatus.textContent = outcome?.error ?? "API de treino indisponível."; return; }
     }
     syncHuntUI();

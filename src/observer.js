@@ -125,6 +125,10 @@
   huntState.training = false;
   huntState.trainingClass = "melee";
   huntState.trainingWaypoints = false;
+  huntState.trainingRadius = 4;
+  huntState.trainingCityBag = true;
+  huntState.trainingCityArrows = true;
+  huntState.trainingCityPotions = false;
   huntState.status = "Parado";
   const focusState = mod.focus ?? (mod.focus = { enabled: false, useSkill: false, followTarget: true, status: "Focar desligado" });
   focusState.enabled = false;
@@ -161,6 +165,12 @@
     const trainingClass = localStorage.getItem("fantasy-mod-training-class");
     if (["mage", "melee", "distance"].includes(trainingClass)) huntState.trainingClass = trainingClass;
     huntState.trainingWaypoints = localStorage.getItem("fantasy-mod-training-waypoints") === "true";
+    const previousCityReturn = localStorage.getItem("fantasy-mod-training-city-return") !== "false";
+    huntState.trainingCityBag = (localStorage.getItem("fantasy-mod-training-city-bag") ?? String(previousCityReturn)) === "true";
+    huntState.trainingCityArrows = (localStorage.getItem("fantasy-mod-training-city-arrows") ?? String(previousCityReturn)) === "true";
+    huntState.trainingCityPotions = localStorage.getItem("fantasy-mod-training-city-potions") === "true";
+    const trainingRadius = Number(localStorage.getItem("fantasy-mod-training-radius"));
+    if (Number.isInteger(trainingRadius) && trainingRadius >= 1 && trainingRadius <= 100) huntState.trainingRadius = trainingRadius;
     localStorage.setItem("fantasy-mod-lure-enabled", "false");
     huntState.lureCount = Math.max(1, Math.min(50, Number(localStorage.getItem("fantasy-mod-lure-count")) || 5));
     huntState.lureStepTiles = Math.max(1, Math.min(10, Number(localStorage.getItem("fantasy-mod-lure-step-tiles")) || 3));
@@ -288,6 +298,22 @@
       localStorage.setItem("fantasy-mod-training-waypoints", String(huntState.trainingWaypoints));
     } catch {}
     return { ok: true };
+  };
+  mod.setTrainingCityOption = (option, enabled) => {
+    const settings = { bag: "trainingCityBag", arrows: "trainingCityArrows", potions: "trainingCityPotions" };
+    const key = settings[option];
+    if (!key) return { ok: false, error: "Opção de retorno inválida." };
+    huntState[key] = !!enabled;
+    try { localStorage.setItem(`fantasy-mod-training-city-${option}`, String(huntState[key])); } catch {}
+    return { ok: true, enabled: huntState[key] };
+  };
+  mod.setTrainingRadius = radius => {
+    const value = Number(radius);
+    if (!Number.isInteger(value) || value < 1 || value > 100) return { ok: false, error: "O raio deve ser um número inteiro entre 1 e 100 tiles." };
+    huntState.trainingRadius = value;
+    if (huntState.training) huntState.radius = value;
+    try { localStorage.setItem("fantasy-mod-training-radius", String(value)); } catch {}
+    return { ok: true, radius: value };
   };
   mod.setHuntAttackRange = range => {
     const value = Number(range);
@@ -853,6 +879,7 @@
       deathRecovery = null;
       resumeHuntAfterReturn = false;
       resumeLureAfterReturn = false;
+      trainingCityTrip = false;
     }
     huntState.enabled = false;
     huntState.currentWaypoint = null;
@@ -947,6 +974,7 @@
       }
     }
   }
+  let trainingCityTrip = false;
   let fullBagTravelStarted = false;
   let fullBagTravelPending = false;
   let fullBagTravelStage = 0;
@@ -1329,7 +1357,7 @@
     shopFinishTimer = setTimeout(() => {
       shopFinishTimer = 0;
       suppressShopReopenUntilReturn = true;
-      if (huntState.refillAfterSale) {
+      if (huntState.refillAfterSale || trainingCityTrip) {
         shopVisitFinishing = false;
         refillReturnTo = savedHuntPosition ? { ...savedHuntPosition } : null;
         refillTrip = {
@@ -1622,7 +1650,7 @@
     return true;
   }
   function processShopAutoSell() {
-    if (!huntState.autoSell || !activeSellShop || activeSellShop.buys !== true || !mod.inventory.known) return false;
+    if (!(huntState.autoSell || trainingCityTrip) || !activeSellShop || activeSellShop.buys !== true || !mod.inventory.known) return false;
     const bag = mod.inventory.bag ?? [];
     const signature = JSON.stringify(bag);
     if (shopSellWaiting) {
@@ -1681,9 +1709,15 @@
     const inventoryFull = mod.inventory.known && mod.inventory.full;
     const arrowsExhausted = myself.arrows != null
       && Number.isFinite(Number(myself.arrows)) && Number(myself.arrows) <= 0;
-    const returnForArrows = arrowsExhausted;
-    const needsCityTrip = inventoryFull || arrowsExhausted;
-    const reason = returnForArrows ? "Flechas acabaram" : "Mochila cheia";
+    const training = huntState.training;
+    const lowPotions = training && huntState.trainingCityPotions && ["hp", "mp"].some(kind => {
+      const { count } = potionStatus(kind);
+      return count != null && count < 10;
+    });
+    const returnForArrows = arrowsExhausted && (!training || huntState.trainingCityArrows);
+    const returnForBag = inventoryFull && (!training || huntState.trainingCityBag);
+    const needsCityTrip = returnForBag || returnForArrows || lowPotions;
+    const reason = returnForArrows ? "Flechas acabaram" : returnForBag ? "Mochila cheia" : "Poções abaixo de 10";
     if (!needsCityTrip && fullBagTravelStage !== 1) {
       fullBagTravelStarted = false;
       fullBagTravelPending = false;
@@ -1712,6 +1746,8 @@
         resumeLureAfterReturn = false;
         mod.log("warn", "Não foi possível salvar a posição de retorno da caça.");
       }
+      trainingCityTrip = training;
+      if (trainingCityTrip) huntState.autoSellInProgress = window.__fantasyAutoSellInProgress = true;
       arrowsDepletionReturn = returnForArrows;
       mod.stopHunt("Caça pausada durante a viagem para a cidade.", true);
       fullBagTravelPending = true;
@@ -1719,7 +1755,8 @@
     huntState.status = `${reason}; indo para a cidade`;
     huntState.lootStatus = returnForArrows
       ? "Sem flechas; viajando para a cidade"
-      : `Mochila cheia (${mod.inventory.used}/${mod.inventory.capacity}); viajando para a loja`;
+      : returnForBag ? `Mochila cheia (${mod.inventory.used}/${mod.inventory.capacity}); viajando para a loja`
+        : "Poções abaixo de 10; viajando para a loja";
     if (gameSocket?.readyState !== WebSocket.OPEN) return true;
     try {
       if (fullBagTravelStage === 0) {
@@ -2287,6 +2324,7 @@
     shopFinishTimer = 0;
     shopVisitFinishing = false;
     arrowsDepletionReturn = false;
+    trainingCityTrip = false;
     huntState.autoSellInProgress = window.__fantasyAutoSellInProgress = false;
     deathRecovery = { stage: "respawn", nextAt: Date.now() + 3500, socket: gameSocket };
     huntState.status = "Morte detectada; aguardando renascimento";
@@ -2564,7 +2602,7 @@
           followWaypointRoute("Treino · waypoints");
           return;
         }
-        huntState.status = "Treino: procurando alvos em até 4 tiles";
+        huntState.status = `Treino: procurando alvos em até ${huntState.radius} tiles`;
         return;
       }
       if (huntState.waypointsEnabled) {
@@ -2716,6 +2754,7 @@
       resumeHuntAfterReturn = false;
       resumeLureAfterReturn = false;
       arrowsDepletionReturn = false;
+      trainingCityTrip = false;
       suppressShopReopenUntilReturn = false;
       suppressShopDisplay = false;
       refillReturnTo = null;
@@ -2758,7 +2797,7 @@
         mod.log("info", "Nenhum NPC encontrado em até 2 tiles da loja; continuarei procurando.");
       }
       const gearMerchant = nearbyNpcs.find(npc => normalizeName(npc.name).trim() === "gear merchant");
-      if (huntState.autoSell && gearMerchant && !fullBagNpcInteractionSent && gameSocket?.readyState === WebSocket.OPEN) {
+      if ((huntState.autoSell || trainingCityTrip) && gearMerchant && !fullBagNpcInteractionSent && gameSocket?.readyState === WebSocket.OPEN) {
         gearMerchantNpcId = gearMerchant.id;
         huntState.autoSellInProgress = true;
         window.__fantasyAutoSellInProgress = true;
@@ -3131,7 +3170,7 @@
       }
       return;
     }
-    if (packet?.t === "shop" && packet.buys === true && huntState.autoSell
+    if (packet?.t === "shop" && packet.buys === true && (huntState.autoSell || trainingCityTrip)
       && gearMerchantNpcId != null && String(packet.npc) === String(gearMerchantNpcId)) {
       // Intercept the screen before the game's onmessage handler calls show().
       suppressShopDisplay = true;
