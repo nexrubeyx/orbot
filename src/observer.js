@@ -227,14 +227,14 @@
       if (!Number.isInteger(myself.x) || !Number.isInteger(myself.y) || !Number.isInteger(myself.floor)) return { ok: false, error: "Aguardando a posição do personagem." };
       const point = { x: myself.x, y: myself.y, floor: myself.floor };
       const last = mod.waypoints.at(-1);
-      if (last && (last.floor !== point.floor || waypointDistance(last, point) > 14)) return { ok: false, error: "O último waypoint deve estar no mesmo andar e a até 14 tiles. Aproxime-se ou limpe a rota." };
+      if (last && (last.floor !== point.floor || waypointDistance(last, point) > 9)) return { ok: false, error: "O último waypoint deve estar no mesmo andar e a até 9 tiles. Aproxime-se ou limpe a rota." };
       if (!last || waypointDistance(last, point) > 0) mod.addWaypoint(point.x, point.y, point.floor);
       recordingPreviousPosition = point;
       recording.enabled = true;
-      recording.status = "Gravando: ande para adicionar waypoints a cada 14 tiles.";
+      recording.status = "Gravando: ande para adicionar waypoints a cada 9 tiles.";
     } else {
       const last = mod.waypoints.at(-1), point = recordingPreviousPosition;
-      if (recording.enabled && last && point && last.floor === point.floor && waypointDistance(last, point) > 0 && waypointDistance(last, point) <= 14) mod.addWaypoint(point.x, point.y, point.floor);
+      if (recording.enabled && last && point && last.floor === point.floor && waypointDistance(last, point) > 0 && waypointDistance(last, point) <= 9) mod.addWaypoint(point.x, point.y, point.floor);
       recording.enabled = false;
       recordingPreviousPosition = null;
       recording.status = "Gravação encerrada.";
@@ -245,14 +245,14 @@
     const recording = mod.waypointRecording;
     if (!recording.enabled || !Number.isInteger(myself.x) || !Number.isInteger(myself.y) || !Number.isInteger(myself.floor)) return;
     const point = { x: myself.x, y: myself.y, floor: myself.floor }, last = mod.waypoints.at(-1);
-    if (!last || last.floor !== point.floor || (waypointDistance(last, point) > 14 && (!recordingPreviousPosition || waypointDistance(last, recordingPreviousPosition) > 14))) {
+    if (!last || last.floor !== point.floor || (waypointDistance(last, point) > 9 && (!recordingPreviousPosition || waypointDistance(last, recordingPreviousPosition) > 9))) {
       recording.enabled = false;
       recording.status = "Gravação interrompida: mudança de andar ou salto de posição. Confira a rota.";
       recordingPreviousPosition = null;
       return;
     }
-    if (waypointDistance(last, point) >= 14) {
-      const next = waypointDistance(last, point) === 14 ? point : recordingPreviousPosition;
+    if (waypointDistance(last, point) >= 9) {
+      const next = waypointDistance(last, point) === 9 ? point : recordingPreviousPosition;
       if (waypointDistance(last, next) > 0) mod.addWaypoint(next.x, next.y, next.floor);
     }
     recordingPreviousPosition = point;
@@ -2366,7 +2366,9 @@
       title.style.fontSize = "11px";
       const position = document.createElement("span");
       const waypoint = document.createElement("span");
-      panel.append(title, position, waypoint);
+      const gold = document.createElement("span");
+      const loops = document.createElement("span");
+      panel.append(title, position, waypoint, gold, loops);
       hud.append(panel);
     }
     const playerRect = playerCard.getBoundingClientRect();
@@ -2378,7 +2380,8 @@
     if (panel.style.left !== left) panel.style.left = left;
     if (panel.style.top !== top) panel.style.top = top;
     if (panel.style.width !== width) panel.style.width = width;
-    const [, positionLine, waypointLine] = panel.children;
+    while (panel.children.length < 5) panel.append(document.createElement("span"));
+    const [, positionLine, waypointLine, goldLine, loopsLine] = panel.children;
     const positionText = Number.isInteger(myself.x) && Number.isInteger(myself.y)
       ? `Posição: (${myself.x}, ${myself.y}) · andar ${myself.floor ?? "?"}`
       : "Posição: aguardando dados";
@@ -2388,6 +2391,12 @@
       : "Waypoint: parado";
     if (positionLine.textContent !== positionText) positionLine.textContent = positionText;
     if (waypointLine.textContent !== waypointText) waypointLine.textContent = waypointText;
+    const goldText = myself.gold != null && Number.isFinite(Number(myself.gold))
+      ? `Ouro: ${Number(myself.gold).toLocaleString("pt-BR")}` : "Ouro: aguardando dados";
+    if (goldLine.textContent !== goldText) goldLine.textContent = goldText;
+    loopsLine.hidden = !huntState.waypointReverseEnabled;
+    const loopsText = `Voltas: ${waypointCompletedLoops}/${huntState.waypointReverseLoops}`;
+    if (loopsLine.textContent !== loopsText) loopsLine.textContent = loopsText;
   }
   setInterval(syncHudStatusPanel, 250);
 
@@ -2813,6 +2822,7 @@
       potions: playerStats.potions ?? myself.potions ?? {},
       bestPotion: playerStats.bestPotion ?? myself.bestPotion ?? {},
       arrows: playerStats.arrows ?? myself.arrows ?? null,
+      gold: playerStats.gold ?? myself.gold ?? null,
       arrowItemId: 3,
       potionCounts: { hp: potionStatus("hp"), mp: potionStatus("mp") },
       vida: hp,
