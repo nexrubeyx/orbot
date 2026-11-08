@@ -139,6 +139,17 @@
     huntWaypointIndex = index;
     huntState.waypointIndex = index;
   };
+  let waypointReverseDirection = false;
+  let waypointRoundStarted = false;
+  let waypointRouteFloor = null;
+  huntState.waypointRounds = 0;
+  huntState.waypointReverseEvery = 0;
+  const resetWaypointRounds = () => {
+    waypointRoundStarted = false;
+    waypointRouteFloor = null;
+    huntState.waypointRounds = 0;
+    waypointReverseDirection = false;
+  };
   let nextWaypointMoveAt = 0;
   let waypointMovePending = null;
   let waypointMoveFailures = 0;
@@ -155,6 +166,8 @@
     if (Array.isArray(savedWaypoints)) mod.waypoints = savedWaypoints.filter(point =>
       Number.isInteger(point?.x) && Number.isInteger(point?.y) && Number.isInteger(point?.floor));
     huntState.waypointsEnabled = localStorage.getItem("fantasy-mod-waypoints-enabled") === "true";
+    const reverseEvery = Number(localStorage.getItem("fantasy-mod-waypoint-reverse-every"));
+    huntState.waypointReverseEvery = Number.isInteger(reverseEvery) && reverseEvery > 0 ? reverseEvery : 0;
     localStorage.setItem("fantasy-mod-lure-enabled", "false");
     huntState.lureCount = Math.max(1, Math.min(50, Number(localStorage.getItem("fantasy-mod-lure-count")) || 5));
     huntState.lureStepTiles = Math.max(1, Math.min(10, Number(localStorage.getItem("fantasy-mod-lure-step-tiles")) || 3));
@@ -170,6 +183,7 @@
     if (!Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(floor)) {
       return { ok: false, error: "Informe X e Y inteiros e aguarde a posição/andar do personagem." };
     }
+    resetWaypointRounds();
     mod.waypoints.push({ x, y, floor });
     saveWaypoints();
     setHuntWaypointIndex(0);
@@ -180,6 +194,7 @@
   };
   mod.removeWaypoint = index => {
     if (!Number.isInteger(index) || index < 0 || index >= mod.waypoints.length) return { ok: false, error: "Waypoint inválido." };
+    resetWaypointRounds();
     mod.waypoints.splice(index, 1);
     saveWaypoints();
     setHuntWaypointIndex(Math.min(huntWaypointIndex, Math.max(0, mod.waypoints.length - 1)));
@@ -189,6 +204,7 @@
     return { ok: true, count: mod.waypoints.length };
   };
   mod.clearWaypoints = () => {
+    resetWaypointRounds();
     mod.waypoints = [];
     saveWaypoints();
     setHuntWaypointIndex(0);
@@ -196,6 +212,14 @@
     waypointNoProgressFailures = 0;
     waypointMovePending = null;
     return { ok: true };
+  };
+  mod.setWaypointReverseEvery = value => {
+    const rounds = Number(value);
+    if (!Number.isInteger(rounds) || rounds < 0 || rounds > 9999) return { ok: false, error: "Informe entre 0 e 9999 voltas." };
+    huntState.waypointReverseEvery = rounds;
+    resetWaypointRounds();
+    try { localStorage.setItem("fantasy-mod-waypoint-reverse-every", String(rounds)); } catch {}
+    return { ok: true, rounds };
   };
   mod.setWaypointPatrol = enabled => {
     huntState.waypointsEnabled = !!enabled;
@@ -1910,8 +1934,15 @@
       huntState.status = `${label}: cadastre pelo menos dois waypoints`;
       return true;
     }
-    const sameFloor = mod.waypoints.map((point, index) => ({ point, index }))
+    if (waypointRouteFloor !== myself.floor) {
+      waypointRoundStarted = false;
+      huntState.waypointRounds = 0;
+      waypointRouteFloor = myself.floor;
+    }
+    let sameFloor = mod.waypoints.map((point, index) => ({ point, index }))
       .filter(({ point }) => point.floor === myself.floor);
+    const mainWaypointIndex = sameFloor[0]?.index;
+    if (waypointReverseDirection) sameFloor.reverse();
     if (!sameFloor.length) {
       huntState.status = `${label}: waypoints cadastrados em outro andar`;
       return true;
@@ -1975,7 +2006,7 @@
         waypointNoProgressFailures++;
         if (waypointNoProgressFailures >= 3) {
           mod.log("warn", `${label}: waypoint ${current.index + 1} sem progresso; pulando para o próximo ponto.`);
-          setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
+              setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
           waypointNoProgressFailures = 0;
           waypointMoveFailures = 0;
           nextWaypointMoveAt = 0;
@@ -1985,6 +2016,17 @@
       }
     }
     if (distance <= arrivalTolerance) {
+      if (sameFloor.length > 1 && current.index === mainWaypointIndex && waypointRoundStarted) {
+        huntState.waypointRounds++;
+        if (huntState.waypointReverseEvery > 0 && huntState.waypointRounds >= huntState.waypointReverseEvery) {
+          waypointReverseDirection = !waypointReverseDirection;
+          huntState.waypointRounds = 0;
+          sameFloor.reverse();
+          order = sameFloor.findIndex(entry => entry.index === current.index);
+          mod.log("info", `${label}: ordem dos waypoints invertida após as voltas configuradas.`);
+        }
+      }
+      if (sameFloor.length > 1) waypointRoundStarted = true;
       order = (order + 1) % sameFloor.length;
       setHuntWaypointIndex(sameFloor[order].index);
       nextWaypointMoveAt = 0;
@@ -2044,7 +2086,7 @@
       }
       if (waypointMoveFailures >= 3) {
         mod.log("warn", `${label}: waypoint ${current.index + 1} sem rota válida; pulando para o próximo ponto.`);
-        setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
+          setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
         waypointMovePending = null;
         waypointMoveFailures = 0;
         waypointNoProgressFailures = 0;

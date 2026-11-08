@@ -431,6 +431,9 @@
           <section class="page" data-section="waypoints" hidden>
             <h2>Waypoints</h2>
             <label class="pref"><input class="waypoint-patrol-toggle" type="checkbox"> Percorrer quando não houver alvos</label>
+            <label>Inverter ordem a cada quantas voltas? (0 desativa)
+              <input class="waypoint-reverse-every" type="number" min="0" max="9999" step="1">
+            </label>
             <div class="fields waypoint-fields">
               <label>Tile X<input class="waypoint-x" type="number" step="1"></label>
               <label>Tile Y<input class="waypoint-y" type="number" step="1"></label>
@@ -537,6 +540,7 @@
   const configFile = root.querySelector(".config-file");
   const configResult = root.querySelector(".config-result");
   const waypointPatrolToggle = root.querySelector(".waypoint-patrol-toggle");
+  const waypointReverseEvery = root.querySelector(".waypoint-reverse-every");
   const waypointLureToggle = root.querySelector(".waypoint-lure-toggle");
   const lureCountInput = root.querySelector(".lure-count-input");
   const lureStepInput = root.querySelector(".lure-step-input");
@@ -608,6 +612,7 @@
   };
   setRefillStatus(window.mod?.refill?.status ?? "Pronto");
   waypointPatrolToggle.checked = !!window.mod?.hunt?.waypointsEnabled;
+  waypointReverseEvery.value = String(window.mod?.hunt?.waypointReverseEvery ?? 0);
   waypointLureToggle.checked = !!window.mod?.hunt?.lureEnabled;
   lureCountInput.value = String(window.mod?.hunt?.lureCount ?? 5);
   lureStepInput.value = String(window.mod?.hunt?.lureStepTiles ?? 3);
@@ -873,6 +878,16 @@
   root.querySelector(".loot-select-none").addEventListener("click", () => {
     window.mod?.setLootItemsEnabled?.(false);
     showLootItems();
+  });
+  waypointReverseEvery.addEventListener("change", () => {
+    const value = waypointReverseEvery.value.trim();
+    const outcome = value ? window.mod?.setWaypointReverseEvery?.(Number(value)) : null;
+    if (!outcome?.ok) {
+      waypointResult.textContent = outcome?.error ?? "Informe entre 0 e 9999 voltas.";
+      waypointReverseEvery.value = String(window.mod?.hunt?.waypointReverseEvery ?? 0);
+    } else {
+      waypointResult.textContent = outcome.rounds ? `Ordem invertida a cada ${outcome.rounds} volta(s).` : "Inversão automática desativada.";
+    }
   });
   waypointPatrolToggle.addEventListener("change", () => {
     const outcome = window.mod?.setWaypointPatrol?.(waypointPatrolToggle.checked);
