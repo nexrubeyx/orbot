@@ -2256,7 +2256,8 @@
       title.style.fontSize = "11px";
       const position = document.createElement("span");
       const waypoint = document.createElement("span");
-      panel.append(title, position, waypoint);
+      const rounds = document.createElement("span");
+      panel.append(title, position, waypoint, rounds);
       hud.append(panel);
     }
     const playerRect = playerCard.getBoundingClientRect();
@@ -2268,7 +2269,8 @@
     if (panel.style.left !== left) panel.style.left = left;
     if (panel.style.top !== top) panel.style.top = top;
     if (panel.style.width !== width) panel.style.width = width;
-    const [, positionLine, waypointLine] = panel.children;
+    if (panel.children.length < 4) panel.append(document.createElement("span"));
+    const [, positionLine, waypointLine, roundsLine] = panel.children;
     const positionText = Number.isInteger(myself.x) && Number.isInteger(myself.y)
       ? `Posição: (${myself.x}, ${myself.y}) · andar ${myself.floor ?? "?"}`
       : "Posição: aguardando dados";
@@ -2277,8 +2279,11 @@
       ? `Indo para waypoint ${waypoint.index}/${waypoint.total}: (${waypoint.x}, ${waypoint.y}) · andar ${waypoint.floor}`
       : "Waypoint: parado";
     if (positionLine.textContent !== positionText) positionLine.textContent = positionText;
-    const waypointStatus = `${waypointText} · voltas: ${huntState.waypointTotalRounds}`;
-    if (waypointLine.textContent !== waypointStatus) waypointLine.textContent = waypointStatus;
+    if (waypointLine.textContent !== waypointText) waypointLine.textContent = waypointText;
+    const roundsText = huntState.waypointReverseEnabled
+      ? `Voltas: ${huntState.waypointRounds}/${huntState.waypointReverseEvery}`
+      : `Voltas: ${huntState.waypointTotalRounds} · inversão desligada`;
+    if (roundsLine.textContent !== roundsText) roundsLine.textContent = roundsText;
   }
   setInterval(syncHudStatusPanel, 250);
 
