@@ -822,6 +822,7 @@
   };
   mod.stopHunt = (reason = "Caça parada pelo usuário.", preserveResume = false) => {
     if (!preserveResume) {
+      deathRecovery = null;
       resumeHuntAfterReturn = false;
       resumeLureAfterReturn = false;
     }
@@ -933,6 +934,7 @@
   let suppressShopReopenUntilReturn = false;
   let resumeHuntAfterReturn = false;
   let resumeLureAfterReturn = false;
+  let deathRecovery = null;
   Object.defineProperty(huntState, "resumeAfterReturn", { configurable: true, get: () => resumeHuntAfterReturn });
   let fullBagArrivalLogged = false;
   let fullBagNpcNamesLogged = false;
@@ -2223,6 +2225,121 @@
   }
   setInterval(syncHudStatusPanel, 250);
 
+  function beginDeathRecovery() {
+    if (deathRecovery || !(huntState.enabled || huntState.lureEnabled || resumeHuntAfterReturn)) return;
+    const destination = savedHuntPosition ?? firstHuntWaypoint() ?? (
+      Number.isInteger(myself.x) && Number.isInteger(myself.y) && Number.isInteger(myself.floor)
+        ? { x: myself.x, y: myself.y, floor: myself.floor } : null);
+    if (!destination) {
+      mod.stopHunt("Morte detectada, mas não há posição conhecida para retornar à caça.");
+      huntState.status = "Morte detectada; posição de retorno indisponível";
+      return;
+    }
+    const lure = huntState.lureEnabled || resumeLureAfterReturn;
+    mod.stopHunt("Morte detectada; iniciando recuperação.", true);
+    savedHuntPosition = { ...destination };
+    huntState.returnPosition = { ...destination };
+    resumeHuntAfterReturn = true;
+    resumeLureAfterReturn = !!lure;
+    fullBagTravelPending = fullBagTravelStarted = returnTravelPending = returnTravelStarted = false;
+    fullBagTravelStage = returnTravelStage = 0;
+    refillTrip = null;
+    refillPurchaseQueue = [];
+    refillReturnTo = null;
+    activeSellShop = null;
+    if (shopFinishTimer) clearTimeout(shopFinishTimer);
+    shopFinishTimer = 0;
+    shopVisitFinishing = false;
+    arrowsDepletionReturn = false;
+    huntState.autoSellInProgress = window.__fantasyAutoSellInProgress = false;
+    deathRecovery = { stage: "respawn", nextAt: Date.now() + 3500, socket: gameSocket };
+    huntState.status = "Morte detectada; aguardando renascimento";
+  }
+
+  async function chooseDeathRecoveryChannel(recovery) {
+    try {
+      const response = await fetch("/api/canais", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (deathRecovery !== recovery) return;
+      const channels = Array.isArray(data.canais) ? data.canais : [];
+      const pathId = Number(new URL(recovery.socket.url).pathname.match(/\/ws\/(\d+)\/?$/)?.[1]);
+      let storedId = 0;
+      try { storedId = Number(localStorage.getItem("fantasy.canal")); } catch {}
+      const currentId = pathId || storedId || Number(data.atual);
+      const allowed = channels.filter(channel => ["na", "sa"].includes(channel.region)
+        && Number.isFinite(Number(channel.id))).sort((a, b) => Number(a.id) - Number(b.id));
+      if (!currentId) throw new Error("canal atual desconhecido");
+      const currentIndex = allowed.findIndex(channel => Number(channel.id) === currentId);
+      const next = currentIndex < 0 ? allowed[0] : allowed[(currentIndex + 1) % allowed.length];
+      if (!next || Number(next.id) === currentId) throw new Error("nenhum outro canal disponível nas Américas");
+      if (gameSocket !== recovery.socket || gameSocket?.readyState !== WebSocket.OPEN) throw new Error("conexão do jogo indisponível");
+      recovery.channelId = next.id;
+      recovery.stage = "channelReply";
+      recovery.nextAt = Date.now() + 15000;
+      gameSocket.send(JSON.stringify({ t: "canal", id: next.id }));
+      huntState.status = `Renascido; trocando para ${next.name ?? `canal ${next.id}`}`;
+      mod.log("info", huntState.status);
+    } catch (error) {
+      if (deathRecovery !== recovery) return;
+      recovery.stage = "chooseChannel";
+      recovery.nextAt = Date.now() + 10000;
+      huntState.status = `Aguardando troca de servidor: ${error.message}`;
+      mod.log("warn", huntState.status);
+    }
+  }
+
+  function processDeathRecovery() {
+    const recovery = deathRecovery;
+    if (!recovery) return false;
+    const now = Date.now();
+    if (recovery.stage === "respawn" && !myself.dead) {
+      recovery.stage = "chooseChannel";
+      recovery.nextAt = now;
+    }
+    if (recovery.stage === "respawn" && now >= recovery.nextAt && gameSocket?.readyState === WebSocket.OPEN) {
+      try {
+        gameSocket.send(JSON.stringify({ t: "respawn" }));
+        recovery.nextAt = now + 5000;
+        huntState.status = "Aguardando confirmação do renascimento";
+      } catch (error) { recovery.nextAt = now + 5000; mod.log("warn", `Falha ao renascer: ${error.message}`); }
+    }
+    if (recovery.stage === "chooseChannel" && now >= recovery.nextAt) {
+      recovery.stage = "fetching";
+      chooseDeathRecoveryChannel(recovery);
+    }
+    if (recovery.stage === "channelReply" && now >= recovery.nextAt) {
+      recovery.stage = "chooseChannel";
+      recovery.nextAt = now + 5000;
+      huntState.status = "Troca de servidor sem resposta; tentando novamente";
+    }
+    return true;
+  }
+
+  function handleDeathRecoveryPacket(socket, packet) {
+    const recovery = deathRecovery;
+    if (!recovery) return;
+    if (socket === recovery.socket && packet.t === "canal" && recovery.stage === "channelReply") {
+      if (packet.ok && String(packet.id) === String(recovery.channelId)) {
+        recovery.stage = "reconnect";
+        huntState.status = "Servidor alterado; aguardando reconexão";
+      } else {
+        recovery.stage = "chooseChannel";
+        recovery.nextAt = Date.now() + 10000;
+        huntState.status = `Troca de servidor recusada: ${packet.reason ?? packet.key ?? "tente novamente"}`;
+        mod.log("warn", huntState.status);
+      }
+    }
+    if (recovery.stage === "reconnect" && socket !== recovery.socket && socket === gameSocket
+        && packet.t === "snap" && !myself.dead && (packet.you || packet.yd)) {
+      deathRecovery = null;
+      returnTravelPending = true;
+      returnTravelStage = 0;
+      huntState.status = "Reconectado; preparando retorno à caça";
+      mod.log("info", huntState.status);
+    }
+  }
+
   let nextLootCatalogUpdateAt = 0;
   setInterval(() => {
     logHuntProgress();
@@ -2230,10 +2347,8 @@
       nextLootCatalogUpdateAt = Date.now() + 2000;
       mod.updateLootCatalog();
     }
-    if (myself.dead) {
-      if (huntState.enabled || huntState.lureEnabled || resumeHuntAfterReturn) mod.stopHunt("Caça e lure interrompidos: o personagem morreu.");
-      return;
-    }
+    if (myself.dead) beginDeathRecovery();
+    if (processDeathRecovery() || myself.dead) return;
     resendTravelAfterFloorChange();
     if (processTravelCombat()) return;
     if (processShopAutoSell()) return;
@@ -2496,9 +2611,13 @@
       target: Object.hasOwn(playerStats, "target") ? playerStats.target : myself.target ?? null,
       updatedAt: Date.now()
     });
-    if (myself.dead && (huntState.enabled || huntState.lureEnabled)) {
-      mod.stopHunt("Caça e lure interrompidos: o personagem morreu.");
+    const playerDied = (message.ev ?? []).some(event => !Array.isArray(event)
+      && event?.type === "playerdeath" && entityId != null && String(event.id) === String(entityId));
+    if (playerDied) {
+      myself.dead = true;
+      playerStats.dead = true;
     }
+    if (myself.dead) beginDeathRecovery();
     if (returnTravelStarted && savedHuntPosition
       && myself.floor === savedHuntPosition.floor
       && myself.x === savedHuntPosition.x && myself.y === savedHuntPosition.y) {
@@ -2776,11 +2895,12 @@
     };
   }
 
-  function finishRecord(packet) {
+  function finishRecord(packet, socket) {
     if (packet.direction === "RECEBIDO" && packet.decoded) {
       updateMyself(packet.decoded);
       updateInventory(packet.decoded);
       updateShop(packet.decoded);
+      handleDeathRecoveryPacket(socket, packet.decoded);
     }
     if (packet.decodeError) mod.log("warn", `Pacote WebSocket recebido não foi decodificado: ${packet.decodeError}`);
     packets.push(packet);
@@ -2804,7 +2924,7 @@
     // not snapshots. The game's assets.mjs identifies this stream with t:"k".
     if (assetSockets.has(socket) && data instanceof ArrayBuffer) {
       packet.channel = "assets";
-      finishRecord(packet);
+      finishRecord(packet, socket);
       return;
     }
     if (direction === "RECEBIDO" && data instanceof ArrayBuffer) {
@@ -2816,10 +2936,10 @@
             codec.decoder = gameCodec;
             try { packet.decoded = gameCodec.decode(bytes); }
             catch (error) { packet.decodeError = error.message; }
-            finishRecord(packet);
+            finishRecord(packet, socket);
           }, error => {
             packet.decodeError = `decoder WebAssembly indisponível: ${error?.message ?? error}`;
-            finishRecord(packet);
+            finishRecord(packet, socket);
           });
           return;
         } else packet.decoded = decodeLegacyGamePacket(bytes);
@@ -2842,7 +2962,7 @@
         mod.log("error", `Não foi possível iniciar o codec WebAssembly v2: ${error?.message ?? error}`);
       });
     }
-    finishRecord(packet);
+    finishRecord(packet, socket);
   }
 
   function updateInventory(packet) {
