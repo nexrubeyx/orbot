@@ -139,16 +139,6 @@
     huntWaypointIndex = index;
     huntState.waypointIndex = index;
   };
-  let waypointRoundStarted = false;
-  let waypointRoundLeftMain = false;
-  let waypointRouteFloor = null;
-  huntState.waypointTotalRounds = 0;
-  const resetWaypointRounds = () => {
-    waypointRoundStarted = false;
-    waypointRoundLeftMain = false;
-    waypointRouteFloor = null;
-    huntState.waypointTotalRounds = 0;
-  };
   let nextWaypointMoveAt = 0;
   let waypointMovePending = null;
   let waypointMoveFailures = 0;
@@ -180,7 +170,6 @@
     if (!Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(floor)) {
       return { ok: false, error: "Informe X e Y inteiros e aguarde a posição/andar do personagem." };
     }
-    resetWaypointRounds();
     mod.waypoints.push({ x, y, floor });
     saveWaypoints();
     setHuntWaypointIndex(0);
@@ -191,7 +180,6 @@
   };
   mod.removeWaypoint = index => {
     if (!Number.isInteger(index) || index < 0 || index >= mod.waypoints.length) return { ok: false, error: "Waypoint inválido." };
-    resetWaypointRounds();
     mod.waypoints.splice(index, 1);
     saveWaypoints();
     setHuntWaypointIndex(Math.min(huntWaypointIndex, Math.max(0, mod.waypoints.length - 1)));
@@ -201,7 +189,6 @@
     return { ok: true, count: mod.waypoints.length };
   };
   mod.clearWaypoints = () => {
-    resetWaypointRounds();
     mod.waypoints = [];
     saveWaypoints();
     setHuntWaypointIndex(0);
@@ -1779,7 +1766,6 @@
     }
     initialHuntTravel = { point: firstWaypoint, stage: 0, secondAt: 0 };
     huntTravelArrival = null;
-    resetWaypointRounds();
     waypointMovePending = null;
     setHuntWaypointIndex(0);
     nextWaypointMoveAt = 0;
@@ -1925,15 +1911,8 @@
       huntState.status = `${label}: cadastre pelo menos dois waypoints`;
       return true;
     }
-    if (waypointRouteFloor !== myself.floor) {
-      waypointRoundStarted = false;
-      waypointRoundLeftMain = false;
-      huntState.waypointTotalRounds = 0;
-      waypointRouteFloor = myself.floor;
-    }
     let sameFloor = mod.waypoints.map((point, index) => ({ point, index }))
       .filter(({ point }) => point.floor === myself.floor);
-    const mainWaypointIndex = sameFloor[0]?.index;
     if (!sameFloor.length) {
       huntState.status = `${label}: waypoints cadastrados em outro andar`;
       return true;
@@ -2007,17 +1986,6 @@
       }
     }
     if (distance <= arrivalTolerance) {
-      if (sameFloor.length > 1 && current.index === mainWaypointIndex && waypointRoundStarted && waypointRoundLeftMain) {
-        huntState.waypointTotalRounds++;
-      }
-      if (sameFloor.length > 1) {
-        if (current.index === mainWaypointIndex) {
-          waypointRoundStarted = true;
-          waypointRoundLeftMain = false;
-        } else if (waypointRoundStarted) {
-          waypointRoundLeftMain = true;
-        }
-      }
       order = (order + 1) % sameFloor.length;
       setHuntWaypointIndex(sameFloor[order].index);
       nextWaypointMoveAt = 0;
@@ -2234,8 +2202,7 @@
       title.style.fontSize = "11px";
       const position = document.createElement("span");
       const waypoint = document.createElement("span");
-      const rounds = document.createElement("span");
-      panel.append(title, position, waypoint, rounds);
+      panel.append(title, position, waypoint);
       hud.append(panel);
     }
     const playerRect = playerCard.getBoundingClientRect();
@@ -2247,8 +2214,7 @@
     if (panel.style.left !== left) panel.style.left = left;
     if (panel.style.top !== top) panel.style.top = top;
     if (panel.style.width !== width) panel.style.width = width;
-    if (panel.children.length < 4) panel.append(document.createElement("span"));
-    const [, positionLine, waypointLine, roundsLine] = panel.children;
+    const [, positionLine, waypointLine] = panel.children;
     const positionText = Number.isInteger(myself.x) && Number.isInteger(myself.y)
       ? `Posição: (${myself.x}, ${myself.y}) · andar ${myself.floor ?? "?"}`
       : "Posição: aguardando dados";
@@ -2258,8 +2224,6 @@
       : "Waypoint: parado";
     if (positionLine.textContent !== positionText) positionLine.textContent = positionText;
     if (waypointLine.textContent !== waypointText) waypointLine.textContent = waypointText;
-    const roundsText = `Voltas: ${huntState.waypointTotalRounds}`;
-    if (roundsLine.textContent !== roundsText) roundsLine.textContent = roundsText;
   }
   setInterval(syncHudStatusPanel, 250);
 
