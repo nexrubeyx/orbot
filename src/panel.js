@@ -1372,6 +1372,7 @@
   topButton.innerHTML = '<span aria-hidden="true" style="font-size:calc(var(--px) * 10)">⚙</span><small>Robo</small>';
   topButton.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); open(); });
   const placeTopButton = () => {
+    if (topButton.isConnected && topButton.parentElement?.matches("nav.topo")) return;
     const nav = document.querySelector(".hud nav.topo");
     if (!nav || topButton.parentElement === nav) return;
     const mapButton = nav.querySelector("a.bbutton_minimap");

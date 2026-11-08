@@ -1991,7 +1991,7 @@
       waypointMovePending = null;
       waypointMoveFailures = 0;
       waypointNoProgressFailures = 0;
-      if (!lureRoute) {
+      if (sameFloor.length === 1) {
         huntState.status = `${label}: waypoint ${current.index + 1}/${mod.waypoints.length} alcançado`;
         return true;
       }
@@ -2031,9 +2031,7 @@
       huntState.status = outcome.ok
         ? `${label}: ${detour ? "desviando de destino bloqueado; " : ""}indo para waypoint ${current.index + 1}/${mod.waypoints.length}`
         : outcome.error;
-      nextWaypointMoveAt = Date.now() + (outcome.ok
-        ? (lureRoute ? 0 : 3500)
-        : 1200);
+      nextWaypointMoveAt = Date.now() + (outcome.ok ? 0 : 1200);
       waypointMoveFailures = outcome.ok ? 0 : waypointMoveFailures + 1;
       if (outcome.ok && outcome.target) {
         waypointMovePending = {
@@ -2209,23 +2207,32 @@
     const playerRect = playerCard.getBoundingClientRect();
     const timers = hud.querySelector(".temporizadores");
     const timersBottom = timers?.getClientRects().length ? timers.getBoundingClientRect().bottom : playerRect.bottom;
-    panel.style.left = `${playerRect.left}px`;
-    panel.style.top = `${Math.max(playerRect.bottom, timersBottom) + 5}px`;
-    panel.style.width = `${playerRect.width}px`;
+    const left = `${playerRect.left}px`;
+    const top = `${Math.max(playerRect.bottom, timersBottom) + 5}px`;
+    const width = `${playerRect.width}px`;
+    if (panel.style.left !== left) panel.style.left = left;
+    if (panel.style.top !== top) panel.style.top = top;
+    if (panel.style.width !== width) panel.style.width = width;
     const [, positionLine, waypointLine] = panel.children;
-    positionLine.textContent = Number.isInteger(myself.x) && Number.isInteger(myself.y)
+    const positionText = Number.isInteger(myself.x) && Number.isInteger(myself.y)
       ? `Posição: (${myself.x}, ${myself.y}) · andar ${myself.floor ?? "?"}`
       : "Posição: aguardando dados";
     const waypoint = huntState.currentWaypoint;
-    waypointLine.textContent = waypoint?.active
+    const waypointText = waypoint?.active
       ? `Indo para waypoint ${waypoint.index}/${waypoint.total}: (${waypoint.x}, ${waypoint.y}) · andar ${waypoint.floor}`
       : "Waypoint: parado";
+    if (positionLine.textContent !== positionText) positionLine.textContent = positionText;
+    if (waypointLine.textContent !== waypointText) waypointLine.textContent = waypointText;
   }
   setInterval(syncHudStatusPanel, 250);
 
+  let nextLootCatalogUpdateAt = 0;
   setInterval(() => {
     logHuntProgress();
-    mod.updateLootCatalog();
+    if (Date.now() >= nextLootCatalogUpdateAt) {
+      nextLootCatalogUpdateAt = Date.now() + 2000;
+      mod.updateLootCatalog();
+    }
     if (myself.dead) {
       if (huntState.enabled || huntState.lureEnabled) mod.stopHunt("Caça e lure interrompidos: o personagem morreu.");
       return;
