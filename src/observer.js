@@ -203,6 +203,46 @@
     waypointMovePending = null;
     return { ok: true, waypoint: mod.waypoints.at(-1), count: mod.waypoints.length };
   };
+  mod.waypointRecording = { enabled: false, status: "Gravação desligada" };
+  let recordingPreviousPosition = null;
+  const waypointDistance = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+  mod.setWaypointRecording = enabled => {
+    const recording = mod.waypointRecording;
+    if (enabled) {
+      if (huntState.enabled || huntState.lureEnabled || huntState.resumeAfterReturn) return { ok: false, error: "Pare a caça ou o treino antes de gravar waypoints." };
+      if (!Number.isInteger(myself.x) || !Number.isInteger(myself.y) || !Number.isInteger(myself.floor)) return { ok: false, error: "Aguardando a posição do personagem." };
+      const point = { x: myself.x, y: myself.y, floor: myself.floor };
+      const last = mod.waypoints.at(-1);
+      if (last && (last.floor !== point.floor || waypointDistance(last, point) > 14)) return { ok: false, error: "O último waypoint deve estar no mesmo andar e a até 14 tiles. Aproxime-se ou limpe a rota." };
+      if (!last || waypointDistance(last, point) > 0) mod.addWaypoint(point.x, point.y, point.floor);
+      recordingPreviousPosition = point;
+      recording.enabled = true;
+      recording.status = "Gravando: ande para adicionar waypoints a cada 14 tiles.";
+    } else {
+      const last = mod.waypoints.at(-1), point = recordingPreviousPosition;
+      if (recording.enabled && last && point && last.floor === point.floor && waypointDistance(last, point) > 0 && waypointDistance(last, point) <= 14) mod.addWaypoint(point.x, point.y, point.floor);
+      recording.enabled = false;
+      recordingPreviousPosition = null;
+      recording.status = "Gravação encerrada.";
+    }
+    return { ok: true, enabled: recording.enabled };
+  };
+  function recordWaypointPosition() {
+    const recording = mod.waypointRecording;
+    if (!recording.enabled || !Number.isInteger(myself.x) || !Number.isInteger(myself.y) || !Number.isInteger(myself.floor)) return;
+    const point = { x: myself.x, y: myself.y, floor: myself.floor }, last = mod.waypoints.at(-1);
+    if (!last || last.floor !== point.floor || (waypointDistance(last, point) > 14 && (!recordingPreviousPosition || waypointDistance(last, recordingPreviousPosition) > 14))) {
+      recording.enabled = false;
+      recording.status = "Gravação interrompida: mudança de andar ou salto de posição. Confira a rota.";
+      recordingPreviousPosition = null;
+      return;
+    }
+    if (waypointDistance(last, point) >= 14) {
+      const next = waypointDistance(last, point) === 14 ? point : recordingPreviousPosition;
+      if (waypointDistance(last, next) > 0) mod.addWaypoint(next.x, next.y, next.floor);
+    }
+    recordingPreviousPosition = point;
+  }
   mod.removeWaypoint = index => {
     if (!Number.isInteger(index) || index < 0 || index >= mod.waypoints.length) return { ok: false, error: "Waypoint inválido." };
     mod.waypoints.splice(index, 1);
@@ -2756,6 +2796,7 @@
       target: Object.hasOwn(playerStats, "target") ? playerStats.target : myself.target ?? null,
       updatedAt: Date.now()
     });
+    recordWaypointPosition();
     const playerDied = (message.ev ?? []).some(event => !Array.isArray(event)
       && event?.type === "playerdeath" && entityId != null && String(event.id) === String(entityId));
     if (playerDied) {

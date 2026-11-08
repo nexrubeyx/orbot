@@ -462,6 +462,7 @@
             <label class="pref"><input class="waypoint-patrol-toggle" type="checkbox"> Percorrer quando não houver alvos</label>
             <div class="waypoint-actions" style="grid-template-columns:1fr">
               <button class="waypoint-current">Adicionar posição atual</button>
+              <button class="waypoint-record" type="button">Iniciar gravação ao andar</button>
             </div>
             <div class="waypoint-actions waypoint-file-actions">
               <button class="waypoint-export" type="button">Exportar waypoints</button>
@@ -567,6 +568,7 @@
   const attackRangeSelect = root.querySelector(".attack-range-select");
   const lureSpecialToggle = root.querySelector(".lure-special-toggle");
   const waypointResult = root.querySelector(".waypoint-result");
+  const waypointRecord = root.querySelector(".waypoint-record");
   const huntAttackAny = root.querySelector(".hunt-attack-any");
   const huntAutoSell = root.querySelector(".hunt-auto-sell");
   const refillAfterSale = root.querySelector(".refill-after-sale");
@@ -1058,6 +1060,10 @@
     const lureActive = !!hunt?.lureEnabled;
     waypointLureToggle.checked = lureActive;
     waypointPatrolToggle.checked = !!hunt?.waypointsEnabled;
+    const recording = window.mod?.waypointRecording;
+    waypointRecord.textContent = recording?.enabled ? "Parar gravação" : "Iniciar gravação ao andar";
+    waypointRecord.dataset.active = String(!!recording?.enabled);
+    if (recording?.enabled || recording?.status?.startsWith("Gravação interrompida")) waypointResult.textContent = recording.status;
     huntAttackAny.checked = !!hunt?.attackAny;
     const trainingActive = active && !!hunt?.training;
     huntToggle.textContent = active && !trainingActive ? "Parar caça" : lureActive ? "Parar lure" : "Iniciar caça";
@@ -1301,6 +1307,12 @@
   targetSearch.addEventListener("input", showTargets);
   root.querySelector(".targets-all").addEventListener("click", () => { window.mod?.setTargetsEnabled?.(true); targetList.dataset.signature = ""; showTargets(); });
   root.querySelector(".targets-none").addEventListener("click", () => { window.mod?.setTargetsEnabled?.(false); targetList.dataset.signature = ""; showTargets(); });
+  waypointRecord.addEventListener("click", () => {
+    const outcome = window.mod?.setWaypointRecording?.(!window.mod?.waypointRecording?.enabled);
+    waypointResult.textContent = outcome?.ok ? window.mod.waypointRecording.status : (outcome?.error ?? "Gravação indisponível.");
+    syncHuntUI();
+    showWaypoints();
+  });
   root.querySelector(".waypoint-current").addEventListener("click", () => {
     const me = window.mod?.myself;
     if (!Number.isInteger(me?.x) || !Number.isInteger(me?.y)) {
