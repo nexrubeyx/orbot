@@ -126,6 +126,8 @@
   huntState.trainingClass = "melee";
   huntState.trainingEliteEnabled = false;
   huntState.trainingEliteClass = "melee";
+  huntState.trainingExhaustedEnabled = false;
+  huntState.trainingExhaustedClass = "melee";
   huntState.trainingWaypoints = false;
   huntState.trainingRadius = 4;
   huntState.trainingIdleMinutes = 0;
@@ -190,6 +192,9 @@
     huntState.trainingEliteEnabled = localStorage.getItem("fantasy-mod-training-elite-enabled") === "true";
     const eliteClass = localStorage.getItem("fantasy-mod-training-elite-class");
     if (["mage", "melee", "distance"].includes(eliteClass)) huntState.trainingEliteClass = eliteClass;
+    huntState.trainingExhaustedEnabled = localStorage.getItem("fantasy-mod-training-exhausted-enabled") === "true";
+    const exhaustedClass = localStorage.getItem("fantasy-mod-training-exhausted-class");
+    if (["mage", "melee", "distance"].includes(exhaustedClass)) huntState.trainingExhaustedClass = exhaustedClass;
     huntState.trainingWaypoints = localStorage.getItem("fantasy-mod-training-waypoints") === "true";
     const previousCityReturn = localStorage.getItem("fantasy-mod-training-city-return") !== "false";
     huntState.trainingCityBag = (localStorage.getItem("fantasy-mod-training-city-bag") ?? String(previousCityReturn)) === "true";
@@ -412,7 +417,21 @@
       localStorage.setItem("fantasy-mod-training-elite-enabled", String(huntState.trainingEliteEnabled));
       localStorage.setItem("fantasy-mod-training-elite-class", combatClass);
     } catch {}
-    if (!enabled) finishTrainingElite();
+    if (!enabled && trainingElite?.kind !== "exhausted") finishTrainingElite();
+    return { ok: true };
+  };
+  mod.setTrainingExhaustedOptions = (enabled, combatClass) => {
+    if (!["mage", "melee", "distance"].includes(combatClass)) return { ok: false, error: "Classe de combate inválida." };
+    huntState.trainingExhaustedEnabled = !!enabled;
+    huntState.trainingExhaustedClass = combatClass;
+    try {
+      localStorage.setItem("fantasy-mod-training-exhausted-enabled", String(!!enabled));
+      localStorage.setItem("fantasy-mod-training-exhausted-class", combatClass);
+    } catch {}
+    if (!enabled) {
+      exhaustedTargetId = null;
+      if (trainingElite?.kind === "exhausted") finishTrainingElite();
+    }
     return { ok: true };
   };
   mod.setTrainingTargetDelay = (minSeconds, maxSeconds) => {
@@ -1029,6 +1048,7 @@
 
   let huntTargetId = null;
   let trainingElite = null;
+  let exhaustedTargetId = null;
   const trainingEliteAttackers = new Map();
   const classIds = { melee: 0, distance: 1, mage: 2 };
   function sendTrainingClass(classId) {
@@ -1041,6 +1061,7 @@
   function finishTrainingElite() {
     if (trainingElite) sendTrainingClass(trainingElite.previousClass);
     trainingElite = null;
+    exhaustedTargetId = null;
     trainingEliteAttackers.clear();
   }
   let nextTrainingTargetAt = 0;
@@ -2818,7 +2839,7 @@
       return;
     }
     const visibleCreatures = mod.creaturesNearby(100);
-    if (huntState.training && huntState.trainingEliteEnabled) {
+    if (huntState.training && (huntState.trainingEliteEnabled || huntState.trainingExhaustedEnabled)) {
       for (const [id, until] of trainingEliteAttackers) if (until <= Date.now()) trainingEliteAttackers.delete(id);
       if (trainingElite && !visibleCreatures.some(creature => String(creature.id) === String(trainingElite.id))) {
         const remainingAttackers = new Map(trainingEliteAttackers);
@@ -2829,22 +2850,25 @@
         huntTargetSent = null;
       }
       if (!trainingElite) {
-        const elite = visibleCreatures.find(creature => trainingEliteAttackers.has(String(creature.id)) && isEliteCreature(creature));
+        const elite = huntState.trainingEliteEnabled && visibleCreatures.find(creature => trainingEliteAttackers.has(String(creature.id)) && isEliteCreature(creature));
+        const exhausted = huntState.trainingExhaustedEnabled && visibleCreatures.find(creature => String(creature.id) === String(exhaustedTargetId));
+        const combatTarget = elite || exhausted;
         const previousClass = playerStats.cls ?? playerStats.cl ?? myself.cls;
-        if (elite && Number.isInteger(previousClass)) {
-          trainingElite = { id: elite.id, previousClass, sentAt: 0 };
-          huntTargetId = elite.id;
+        if (combatTarget && Number.isInteger(previousClass)) {
+          trainingElite = { id: combatTarget.id, previousClass, sentAt: 0, kind: elite ? "elite" : "exhausted" };
+          exhaustedTargetId = null;
+          huntTargetId = combatTarget.id;
           huntTargetSent = null;
           nextHuntMoveAt = 0;
           pursuitGoal = null;
         }
       }
       if (trainingElite && Date.now() - trainingElite.sentAt >= 1200) {
-        const desired = classIds[huntState.trainingEliteClass];
+        const desired = classIds[trainingElite.kind === "exhausted" ? huntState.trainingExhaustedClass : huntState.trainingEliteClass];
         if ((playerStats.cls ?? playerStats.cl ?? myself.cls) !== desired && sendTrainingClass(desired)) trainingElite.sentAt = Date.now();
       }
     } else if (trainingElite) finishTrainingElite();
-    const activeClass = trainingElite ? huntState.trainingEliteClass : huntState.trainingClass;
+    const activeClass = trainingElite ? (trainingElite.kind === "exhausted" ? huntState.trainingExhaustedClass : huntState.trainingEliteClass) : huntState.trainingClass;
     const attackRange = huntState.training ? (activeClass === "melee" ? 1 : 4) : huntState.attackRange;
     let target = huntTargetId == null
       ? null
@@ -2910,8 +2934,8 @@
     }
     ensureHuntTarget(target);
     if (target.distance <= attackRange && hasAttackLine(myself.x, myself.y, target)) {
-      huntState.status = `${trainingElite ? "Elite: atacando" : "Atacando"} ${target.name}`;
-      if (trainingElite && Number(playerStats.cls ?? playerStats.cl) === classIds[huntState.trainingEliteClass]) {
+      huntState.status = `${trainingElite?.kind === "exhausted" ? "Exausto: atacando" : trainingElite ? "Elite: atacando" : "Atacando"} ${target.name}`;
+      if (trainingElite?.kind === "elite" && Number(playerStats.cls ?? playerStats.cl) === classIds[huntState.trainingEliteClass]) {
         const outcome = mod.useHuntSpecial();
         if (!outcome.ok && !/cooldown/i.test(outcome.error ?? "")) huntState.status += ` · ${outcome.error}`;
       }
@@ -3314,6 +3338,19 @@
         reconnectPending = false;
       }
       updateMyself(packet.decoded);
+      if (huntState.enabled && huntState.training && huntState.trainingExhaustedEnabled && !trainingElite
+          && huntTargetId != null && packet.decoded.t === "snap") {
+        const events = packet.decoded.ev ?? [];
+        const selfId = entityIdForAttack(packet.decoded);
+        const hasNotice = events.some(event => event?.type === "notice" && String(event.id) === String(selfId)
+          && /este monstro está exausto|this monster is exhausted|este monstruo está agotado/i.test(event.key ?? event.text ?? ""));
+        const hitTarget = events.some(event => {
+          const from = Array.isArray(event) ? event[0] : event?.from;
+          const to = Array.isArray(event) ? event[1] : event?.to;
+          return from != null && to != null && String(from) === String(selfId) && String(to) === String(huntTargetId);
+        });
+        if (hasNotice && hitTarget) exhaustedTargetId = huntTargetId;
+      }
       updateInventory(packet.decoded);
       updateShop(packet.decoded);
       handleDeathRecoveryPacket(socket, packet.decoded);

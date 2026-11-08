@@ -399,6 +399,9 @@
             <label class="pref"><input class="training-elite-enabled" type="checkbox"> Trocar de classe quando um elite atacar</label>
             <label class="attack-range">Classe para combater elite<select class="training-elite-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
             <p class="hint">Prioriza o elite, usa a habilidade especial e retorna à classe anterior após o combate. Para Mage, ative o especial automático no jogo.</p>
+            <label class="pref"><input class="training-exhausted-enabled" type="checkbox"> Matar monstros exaustos</label>
+            <label class="attack-range">Classe para monstros exaustos<select class="training-exhausted-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
+            <p class="hint">Troca de classe ao detectar o aviso de exaustão e volta à classe anterior após o combate, sem usar habilidade especial.</p>
             <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver alvos próximos</label>
             <label class="pref"><input class="training-city-bag" type="checkbox"> Ir à cidade com mochila cheia</label>
             <label class="pref"><input class="training-city-arrows" type="checkbox"> Ir à cidade sem flechas</label>
@@ -607,6 +610,8 @@
   const trainingClass = root.querySelector(".training-class");
   const trainingEliteEnabled = root.querySelector(".training-elite-enabled");
   const trainingEliteClass = root.querySelector(".training-elite-class");
+  const trainingExhaustedEnabled = root.querySelector(".training-exhausted-enabled");
+  const trainingExhaustedClass = root.querySelector(".training-exhausted-class");
   const trainingRadius = root.querySelector(".training-radius");
   const trainingIdleMinutes = root.querySelector(".training-idle-minutes");
   const trainingTargetDelayMin = root.querySelector(".training-target-delay-min");
@@ -1121,6 +1126,9 @@
     trainingEliteEnabled.checked = !!hunt?.trainingEliteEnabled;
     trainingEliteClass.value = hunt?.trainingEliteClass ?? "melee";
     trainingEliteClass.disabled = !trainingEliteEnabled.checked;
+    trainingExhaustedEnabled.checked = !!hunt?.trainingExhaustedEnabled;
+    trainingExhaustedClass.value = hunt?.trainingExhaustedClass ?? "melee";
+    trainingExhaustedClass.disabled = !trainingExhaustedEnabled.checked;
     trainingWaypoints.checked = !!hunt?.trainingWaypoints;
     trainingCityOptions.bag.checked = hunt?.trainingCityBag !== false;
     trainingCityOptions.arrows.checked = hunt?.trainingCityArrows !== false;
@@ -1430,6 +1438,12 @@
   };
   trainingEliteEnabled.addEventListener("change", saveTrainingEliteOptions);
   trainingEliteClass.addEventListener("change", saveTrainingEliteOptions);
+  const saveTrainingExhaustedOptions = () => {
+    window.mod?.setTrainingExhaustedOptions?.(trainingExhaustedEnabled.checked, trainingExhaustedClass.value);
+    trainingExhaustedClass.disabled = !trainingExhaustedEnabled.checked;
+  };
+  trainingExhaustedEnabled.addEventListener("change", saveTrainingExhaustedOptions);
+  trainingExhaustedClass.addEventListener("change", saveTrainingExhaustedOptions);
   trainingWaypoints.addEventListener("change", saveTrainingOptions);
   for (const [option, toggle] of Object.entries(trainingCityOptions)) toggle.addEventListener("change", () => window.mod?.setTrainingCityOption?.(option, toggle.checked));
   trainingToggle.addEventListener("click", () => {
