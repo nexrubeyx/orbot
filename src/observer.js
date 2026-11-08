@@ -2564,7 +2564,7 @@
           followWaypointRoute("Treino · waypoints");
           return;
         }
-        huntState.status = "Treino: procurando alvos em até 8 tiles";
+        huntState.status = "Treino: procurando alvos em até 4 tiles";
         return;
       }
       if (huntState.waypointsEnabled) {
