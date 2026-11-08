@@ -431,15 +431,11 @@
           <section class="page" data-section="waypoints" hidden>
             <h2>Waypoints</h2>
             <label class="pref"><input class="waypoint-patrol-toggle" type="checkbox"> Percorrer quando não houver alvos</label>
-            <label>Inverter ordem a cada quantas voltas? (0 desativa)
-              <input class="waypoint-reverse-every" type="number" min="0" max="9999" step="1">
+            <label class="pref"><input class="waypoint-reverse-toggle" type="checkbox"> Inverter ordem dos waypoints</label>
+            <label>Inverter a cada quantas voltas?
+              <input class="waypoint-reverse-every" type="number" min="1" max="9999" step="1">
             </label>
-            <div class="fields waypoint-fields">
-              <label>Tile X<input class="waypoint-x" type="number" step="1"></label>
-              <label>Tile Y<input class="waypoint-y" type="number" step="1"></label>
-            </div>
-            <div class="waypoint-actions">
-              <button class="waypoint-add">Adicionar coordenadas</button>
+            <div class="waypoint-actions" style="grid-template-columns:1fr">
               <button class="waypoint-current">Adicionar posição atual</button>
             </div>
             <div class="waypoint-actions waypoint-file-actions">
@@ -541,6 +537,7 @@
   const configResult = root.querySelector(".config-result");
   const waypointPatrolToggle = root.querySelector(".waypoint-patrol-toggle");
   const waypointReverseEvery = root.querySelector(".waypoint-reverse-every");
+  const waypointReverseToggle = root.querySelector(".waypoint-reverse-toggle");
   const waypointLureToggle = root.querySelector(".waypoint-lure-toggle");
   const lureCountInput = root.querySelector(".lure-count-input");
   const lureStepInput = root.querySelector(".lure-step-input");
@@ -612,7 +609,8 @@
   };
   setRefillStatus(window.mod?.refill?.status ?? "Pronto");
   waypointPatrolToggle.checked = !!window.mod?.hunt?.waypointsEnabled;
-  waypointReverseEvery.value = String(window.mod?.hunt?.waypointReverseEvery ?? 0);
+  waypointReverseEvery.value = String(window.mod?.hunt?.waypointReverseEvery ?? 1);
+  waypointReverseToggle.checked = !!window.mod?.hunt?.waypointReverseEnabled;
   waypointLureToggle.checked = !!window.mod?.hunt?.lureEnabled;
   lureCountInput.value = String(window.mod?.hunt?.lureCount ?? 5);
   lureStepInput.value = String(window.mod?.hunt?.lureStepTiles ?? 3);
@@ -879,14 +877,23 @@
     window.mod?.setLootItemsEnabled?.(false);
     showLootItems();
   });
+  waypointReverseToggle.addEventListener("change", () => {
+    const outcome = window.mod?.setWaypointReverseEnabled?.(waypointReverseToggle.checked);
+    if (!outcome?.ok) {
+      waypointReverseToggle.checked = !!window.mod?.hunt?.waypointReverseEnabled;
+      waypointResult.textContent = "API de waypoints indisponível.";
+    } else {
+      waypointResult.textContent = outcome.enabled ? "Inversão automática ativada." : "Inversão automática desativada.";
+    }
+  });
   waypointReverseEvery.addEventListener("change", () => {
     const value = waypointReverseEvery.value.trim();
     const outcome = value ? window.mod?.setWaypointReverseEvery?.(Number(value)) : null;
     if (!outcome?.ok) {
-      waypointResult.textContent = outcome?.error ?? "Informe entre 0 e 9999 voltas.";
-      waypointReverseEvery.value = String(window.mod?.hunt?.waypointReverseEvery ?? 0);
+      waypointResult.textContent = outcome?.error ?? "Informe entre 1 e 9999 voltas.";
+      waypointReverseEvery.value = String(window.mod?.hunt?.waypointReverseEvery ?? 1);
     } else {
-      waypointResult.textContent = outcome.rounds ? `Ordem invertida a cada ${outcome.rounds} volta(s).` : "Inversão automática desativada.";
+      waypointResult.textContent = `Ordem configurada para inverter a cada ${outcome.rounds} volta(s).`;
     }
   });
   waypointPatrolToggle.addEventListener("change", () => {
@@ -1270,19 +1277,12 @@
   targetSearch.addEventListener("input", showTargets);
   root.querySelector(".targets-all").addEventListener("click", () => { window.mod?.setTargetsEnabled?.(true); targetList.dataset.signature = ""; showTargets(); });
   root.querySelector(".targets-none").addEventListener("click", () => { window.mod?.setTargetsEnabled?.(false); targetList.dataset.signature = ""; showTargets(); });
-  root.querySelector(".waypoint-add").addEventListener("click", () => {
-    const xValue = root.querySelector(".waypoint-x").value.trim();
-    const yValue = root.querySelector(".waypoint-y").value.trim();
-    addWaypoint(xValue ? Number(xValue) : NaN, yValue ? Number(yValue) : NaN);
-  });
   root.querySelector(".waypoint-current").addEventListener("click", () => {
     const me = window.mod?.myself;
     if (!Number.isInteger(me?.x) || !Number.isInteger(me?.y)) {
       waypointResult.textContent = "Aguardando a posição do personagem.";
       return;
     }
-    root.querySelector(".waypoint-x").value = String(me.x);
-    root.querySelector(".waypoint-y").value = String(me.y);
     addWaypoint(me.x, me.y);
   });
   creatureRadius.addEventListener("change", showCreatures);

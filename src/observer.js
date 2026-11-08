@@ -143,7 +143,8 @@
   let waypointRoundStarted = false;
   let waypointRouteFloor = null;
   huntState.waypointRounds = 0;
-  huntState.waypointReverseEvery = 0;
+  huntState.waypointReverseEvery = 1;
+  huntState.waypointReverseEnabled = false;
   const resetWaypointRounds = () => {
     waypointRoundStarted = false;
     waypointRouteFloor = null;
@@ -167,7 +168,9 @@
       Number.isInteger(point?.x) && Number.isInteger(point?.y) && Number.isInteger(point?.floor));
     huntState.waypointsEnabled = localStorage.getItem("fantasy-mod-waypoints-enabled") === "true";
     const reverseEvery = Number(localStorage.getItem("fantasy-mod-waypoint-reverse-every"));
-    huntState.waypointReverseEvery = Number.isInteger(reverseEvery) && reverseEvery > 0 ? reverseEvery : 0;
+    huntState.waypointReverseEvery = Number.isInteger(reverseEvery) && reverseEvery > 0 && reverseEvery <= 9999 ? reverseEvery : 1;
+    const reverseEnabled = localStorage.getItem("fantasy-mod-waypoint-reverse-enabled");
+    huntState.waypointReverseEnabled = reverseEnabled === null ? reverseEvery > 0 : reverseEnabled === "true";
     localStorage.setItem("fantasy-mod-lure-enabled", "false");
     huntState.lureCount = Math.max(1, Math.min(50, Number(localStorage.getItem("fantasy-mod-lure-count")) || 5));
     huntState.lureStepTiles = Math.max(1, Math.min(10, Number(localStorage.getItem("fantasy-mod-lure-step-tiles")) || 3));
@@ -215,11 +218,17 @@
   };
   mod.setWaypointReverseEvery = value => {
     const rounds = Number(value);
-    if (!Number.isInteger(rounds) || rounds < 0 || rounds > 9999) return { ok: false, error: "Informe entre 0 e 9999 voltas." };
+    if (!Number.isInteger(rounds) || rounds < 1 || rounds > 9999) return { ok: false, error: "Informe entre 1 e 9999 voltas." };
     huntState.waypointReverseEvery = rounds;
     resetWaypointRounds();
     try { localStorage.setItem("fantasy-mod-waypoint-reverse-every", String(rounds)); } catch {}
     return { ok: true, rounds };
+  };
+  mod.setWaypointReverseEnabled = enabled => {
+    huntState.waypointReverseEnabled = !!enabled;
+    resetWaypointRounds();
+    try { localStorage.setItem("fantasy-mod-waypoint-reverse-enabled", String(huntState.waypointReverseEnabled)); } catch {}
+    return { ok: true, enabled: huntState.waypointReverseEnabled };
   };
   mod.setWaypointPatrol = enabled => {
     huntState.waypointsEnabled = !!enabled;
@@ -2018,7 +2027,7 @@
     if (distance <= arrivalTolerance) {
       if (sameFloor.length > 1 && current.index === mainWaypointIndex && waypointRoundStarted) {
         huntState.waypointRounds++;
-        if (huntState.waypointReverseEvery > 0 && huntState.waypointRounds >= huntState.waypointReverseEvery) {
+        if (huntState.waypointReverseEnabled && huntState.waypointRounds >= huntState.waypointReverseEvery) {
           waypointReverseDirection = !waypointReverseDirection;
           huntState.waypointRounds = 0;
           sameFloor.reverse();
