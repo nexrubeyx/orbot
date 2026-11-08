@@ -2069,7 +2069,6 @@
         active: true, index: current.index + 1, total: mod.waypoints.length,
         x: current.point.x, y: current.point.y, floor: current.point.floor, label
       };
-      if (current.point.x === myself.x && current.point.y === myself.y) return true;
     }
     if (Date.now() >= nextWaypointMoveAt) {
       const maxAdvance = lureRoute ? huntState.lureStepTiles : 20;
