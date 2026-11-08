@@ -2060,6 +2060,11 @@
         active: true, index: current.index + 1, total: mod.waypoints.length,
         x: current.point.x, y: current.point.y, floor: current.point.floor, label
       };
+      // The reversed route may start at the point just reached. Process that
+      // arrival on the next update instead of requesting a move to our own tile.
+      if (Math.max(Math.abs(current.point.x - myself.x), Math.abs(current.point.y - myself.y)) <= arrivalTolerance) {
+        return true;
+      }
     }
     if (Date.now() >= nextWaypointMoveAt) {
       const maxAdvance = lureRoute ? huntState.lureStepTiles : 20;
@@ -2102,7 +2107,7 @@
       }
       if (waypointMoveFailures >= 3) {
         mod.log("warn", `${label}: waypoint ${current.index + 1} sem rota válida; pulando para o próximo ponto.`);
-          setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
+        setHuntWaypointIndex(sameFloor[(order + 1) % sameFloor.length].index);
         waypointMovePending = null;
         waypointMoveFailures = 0;
         waypointNoProgressFailures = 0;
