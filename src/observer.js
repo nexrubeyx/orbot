@@ -146,12 +146,12 @@
   huntState.waypointTotalRounds = 0;
   huntState.waypointReverseEvery = 1;
   huntState.waypointReverseEnabled = false;
-  const resetWaypointRounds = () => {
+  const resetWaypointRounds = (resetDirection = true) => {
     waypointRoundStarted = false;
     waypointRouteFloor = null;
     huntState.waypointRounds = 0;
     huntState.waypointTotalRounds = 0;
-    waypointReverseDirection = false;
+    if (resetDirection) waypointReverseDirection = false;
   };
   let nextWaypointMoveAt = 0;
   let waypointMovePending = null;
@@ -222,7 +222,7 @@
     const rounds = Number(value);
     if (!Number.isInteger(rounds) || rounds < 1 || rounds > 9999) return { ok: false, error: "Informe entre 1 e 9999 voltas." };
     huntState.waypointReverseEvery = rounds;
-    resetWaypointRounds();
+    resetWaypointRounds(false);
     try { localStorage.setItem("fantasy-mod-waypoint-reverse-every", String(rounds)); } catch {}
     return { ok: true, rounds };
   };
@@ -2028,7 +2028,6 @@
       }
     }
     if (distance <= arrivalTolerance) {
-      let reversed = false;
       if (sameFloor.length > 1 && current.index === mainWaypointIndex && waypointRoundStarted) {
         huntState.waypointRounds++;
         huntState.waypointTotalRounds++;
@@ -2036,13 +2035,11 @@
           waypointReverseDirection = !waypointReverseDirection;
           huntState.waypointRounds = 0;
           sameFloor.reverse();
-          // Start at the first point of the newly ordered route.
-          order = -1;
-          reversed = true;
+          order = sameFloor.findIndex(entry => entry.index === current.index);
           mod.log("info", `${label}: ordem dos waypoints invertida após as voltas configuradas.`);
         }
       }
-      if (sameFloor.length > 1) waypointRoundStarted = !reversed;
+      if (sameFloor.length > 1) waypointRoundStarted = current.index !== mainWaypointIndex;
       order = (order + 1) % sameFloor.length;
       setHuntWaypointIndex(sameFloor[order].index);
       nextWaypointMoveAt = 0;
@@ -2060,11 +2057,6 @@
         active: true, index: current.index + 1, total: mod.waypoints.length,
         x: current.point.x, y: current.point.y, floor: current.point.floor, label
       };
-      // The reversed route may start at the point just reached. Process that
-      // arrival on the next update instead of requesting a move to our own tile.
-      if (Math.max(Math.abs(current.point.x - myself.x), Math.abs(current.point.y - myself.y)) <= arrivalTolerance) {
-        return true;
-      }
     }
     if (Date.now() >= nextWaypointMoveAt) {
       const maxAdvance = lureRoute ? huntState.lureStepTiles : 20;
