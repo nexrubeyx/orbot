@@ -370,7 +370,9 @@
           </section>
           <section class="page" data-section="training" hidden>
             <h2>Treino</h2>
-            <p class="hint">Ataca as criaturas selecionadas em Alvos quando estiverem ao alcance, sem se mover ou usar habilidades. Usa o tipo de ataque configurado na caça.</p>
+            <p class="hint">Ataca os alvos ao alcance sem persegui-los ou usar habilidades e coleta loot próximo.</p>
+            <label class="attack-range">Classe do treino<select class="training-class"><option value="mage">Mage — 4 tiles</option><option value="melee">Melee — 1 tile</option><option value="distance">Distance — 4 tiles</option></select></label>
+            <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver criaturas próximas</label>
             <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint training-status" role="status"></p>
           </section>
@@ -558,6 +560,8 @@
   const huntToggle = root.querySelector(".hunt-toggle");
   const trainingToggle = root.querySelector(".training-toggle");
   const trainingStatus = root.querySelector(".training-status");
+  const trainingClass = root.querySelector(".training-class");
+  const trainingWaypoints = root.querySelector(".training-waypoints");
   const focusToggle = root.querySelector(".focus-toggle");
   const focusSkillToggle = root.querySelector(".focus-skill-toggle");
   const focusFollowToggle = root.querySelector(".focus-follow-toggle");
@@ -1033,6 +1037,8 @@
     const trainingActive = active && !!hunt?.training;
     huntToggle.textContent = active && !trainingActive ? "Parar caça" : lureActive ? "Parar lure" : "Iniciar caça";
     huntToggle.dataset.active = String((active && !trainingActive) || lureActive);
+    trainingClass.value = hunt?.trainingClass ?? "melee";
+    trainingWaypoints.checked = !!hunt?.trainingWaypoints;
     trainingToggle.textContent = trainingActive ? "Parar treino" : "Iniciar treino";
     trainingToggle.dataset.active = String(trainingActive);
     trainingStatus.textContent = trainingActive ? (hunt?.status ?? "Treino ativo") : "Treino desligado";
@@ -1292,6 +1298,9 @@
     }
     syncHuntUI();
   });
+  const saveTrainingOptions = () => window.mod?.setTrainingOptions?.(trainingClass.value, trainingWaypoints.checked);
+  trainingClass.addEventListener("change", saveTrainingOptions);
+  trainingWaypoints.addEventListener("change", saveTrainingOptions);
   trainingToggle.addEventListener("click", () => {
     const hunt = window.mod?.hunt;
     if (hunt?.training && (hunt.enabled || hunt.resumeAfterReturn)) window.mod.stopHunt();

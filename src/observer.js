@@ -123,6 +123,8 @@
   huntState.enabled = false;
   huntState.lureEnabled = false;
   huntState.training = false;
+  huntState.trainingClass = "melee";
+  huntState.trainingWaypoints = false;
   huntState.status = "Parado";
   const focusState = mod.focus ?? (mod.focus = { enabled: false, useSkill: false, followTarget: true, status: "Focar desligado" });
   focusState.enabled = false;
@@ -156,6 +158,9 @@
     if (Array.isArray(savedWaypoints)) mod.waypoints = savedWaypoints.filter(point =>
       Number.isInteger(point?.x) && Number.isInteger(point?.y) && Number.isInteger(point?.floor));
     huntState.waypointsEnabled = localStorage.getItem("fantasy-mod-waypoints-enabled") === "true";
+    const trainingClass = localStorage.getItem("fantasy-mod-training-class");
+    if (["mage", "melee", "distance"].includes(trainingClass)) huntState.trainingClass = trainingClass;
+    huntState.trainingWaypoints = localStorage.getItem("fantasy-mod-training-waypoints") === "true";
     localStorage.setItem("fantasy-mod-lure-enabled", "false");
     huntState.lureCount = Math.max(1, Math.min(50, Number(localStorage.getItem("fantasy-mod-lure-count")) || 5));
     huntState.lureStepTiles = Math.max(1, Math.min(10, Number(localStorage.getItem("fantasy-mod-lure-step-tiles")) || 3));
@@ -273,6 +278,16 @@
       localStorage.setItem("fantasy-mod-lure-waypoint-pause", String(pause));
     } catch {}
     return { ok: true, stepTiles: step, moveDelayMs: delay, waypointPauseMs: pause };
+  };
+  mod.setTrainingOptions = (trainingClass, waypoints) => {
+    if (!["mage", "melee", "distance"].includes(trainingClass)) return { ok: false, error: "Classe de treino inválida." };
+    huntState.trainingClass = trainingClass;
+    huntState.trainingWaypoints = !!waypoints;
+    try {
+      localStorage.setItem("fantasy-mod-training-class", trainingClass);
+      localStorage.setItem("fantasy-mod-training-waypoints", String(huntState.trainingWaypoints));
+    } catch {}
+    return { ok: true };
   };
   mod.setHuntAttackRange = range => {
     const value = Number(range);
@@ -1071,7 +1086,7 @@
     });
   }
   function processAutoLoot(target) {
-    if (!huntState.autoLoot) {
+    if (!huntState.autoLoot && !huntState.training) {
       huntState.lootStatus = huntState.lureEnabled
         ? `Reunindo criaturas: ${huntState.lureProgress.current}/${huntState.lureProgress.target}`
         : "Desativado";
@@ -2506,7 +2521,8 @@
       }
       return;
     }
-    const inTrainingRange = creature => !huntState.training || (creature.distance <= huntState.attackRange && hasAttackLine(myself.x, myself.y, creature));
+    const attackRange = huntState.training ? (huntState.trainingClass === "melee" ? 1 : 4) : huntState.attackRange;
+    const inTrainingRange = creature => !huntState.training || (creature.distance <= attackRange && hasAttackLine(myself.x, myself.y, creature));
     let target = huntTargetId == null
       ? null
       : mod.creaturesNearby(1000).find(creature => String(creature.id) === String(huntTargetId)
@@ -2523,11 +2539,15 @@
       target = nextTarget;
     }
     if (!target) huntLootId = null;
-    if (!huntState.training && processAutoLoot(target)) return;
+    if (processAutoLoot(target)) return;
     if (!target) {
       huntTargetId = null;
       huntTargetSent = null;
       if (huntState.training) {
+        if (huntState.trainingWaypoints && !mod.creaturesNearby(huntState.radius).length) {
+          followWaypointRoute("Treino · waypoints");
+          return;
+        }
         huntState.status = "Treino: aguardando criatura ao alcance";
         return;
       }
@@ -2548,7 +2568,7 @@
       pursuitGoal = null;
     }
     ensureHuntTarget(target);
-    if (target.distance <= huntState.attackRange && hasAttackLine(myself.x, myself.y, target)) {
+    if (target.distance <= attackRange && hasAttackLine(myself.x, myself.y, target)) {
       huntState.status = `Atacando ${target.name}`;
       return;
     }
