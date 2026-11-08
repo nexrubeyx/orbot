@@ -122,6 +122,7 @@
   const huntState = mod.hunt ?? (mod.hunt = { enabled: false, names: [], types: [], radius: 11, status: "Parado" });
   huntState.enabled = false;
   huntState.lureEnabled = false;
+  huntState.training = false;
   huntState.status = "Parado";
   const focusState = mod.focus ?? (mod.focus = { enabled: false, useSkill: false, followTarget: true, status: "Focar desligado" });
   focusState.enabled = false;
@@ -205,6 +206,7 @@
   };
   mod.setLureEnabled = (enabled, reason = null) => {
     const wasHunting = !!(huntState.enabled || huntState.lureEnabled);
+    if (enabled && huntState.training && wasHunting) return { ok: false, error: "Pare o treino antes de ativar o lure." };
     if (enabled) {
       const routeByFloor = new Map();
       for (const point of mod.waypoints) {
@@ -297,6 +299,7 @@
     return { ok: true, option, enabled: focusState[option] };
   };
   mod.setFocusEnabled = enabled => {
+    if (enabled && huntState.training && (huntState.enabled || resumeHuntAfterReturn)) return { ok: false, error: "Pare o treino antes de ativar Focar." };
     focusState.enabled = !!enabled;
     focusState.status = focusState.enabled ? "Focar ativo; selecione um target no jogo." : "Focar desligado";
     if (focusState.enabled) {
@@ -781,6 +784,7 @@
     if (!list.length) return { ok: false, error: "Informe pelo menos um nome de criatura." };
     const range = Number(radius);
     if (!Number.isFinite(range) || range < 1 || range > 100) return { ok: false, error: "O raio deve ficar entre 1 e 100 tiles." };
+    huntState.training = false;
     huntState.names = [...new Set(list)];
     huntState.types = [];
     huntState.radius = Math.floor(range);
@@ -793,12 +797,17 @@
     queueInitialHuntTravel();
     return { ok: true, names: huntState.names, radius: huntState.radius };
   };
-  mod.startHuntTargets = (types = Object.keys(mod.targets).filter(type => mod.targets[type]), radius = huntState.radius, useLure = false) => {
+  mod.startHuntTargets = (types = Object.keys(mod.targets).filter(type => mod.targets[type]), radius = huntState.radius, useLure = false, training = false) => {
     if (myself.dead) return { ok: false, error: "O personagem morreu; a caça não pode ser iniciada." };
     const list = [...new Set((Array.isArray(types) ? types : []).map(String))];
     if (!list.length && !huntState.attackAny) return { ok: false, error: "Ative uma criatura em Alvos ou habilite atacar qualquer criatura." };
     const range = Number(radius);
     if (!Number.isFinite(range) || range < 1 || range > 100) return { ok: false, error: "O raio deve ficar entre 1 e 100 tiles." };
+    huntState.training = !!training;
+    if (huntState.training) {
+      if (huntState.lureEnabled) mod.setLureEnabled(false);
+      mod.setFocusEnabled(false);
+    }
     huntState.types = list;
     huntState.names = [];
     huntState.radius = Math.floor(range);
@@ -813,7 +822,8 @@
     }
     huntState.status = "Caça ativa";
     try { localStorage.setItem("fantasy-mod-hunt-radius", String(huntState.radius)); } catch {}
-    queueInitialHuntTravel();
+    if (!huntState.training) queueInitialHuntTravel();
+    else { initialHuntTravel = null; huntTravelArrival = null; huntState.status = "Treino ativo"; }
     return { ok: true, types: list, radius: huntState.radius, lureEnabled: huntState.lureEnabled };
   };
   mod.stopHunt = (reason = "Caça parada pelo usuário.", preserveResume = false) => {
@@ -2230,7 +2240,8 @@
   function beginDeathRecovery() {
     if (deathRecovery?.origin === "refill" && myself.dead) deathRecovery = null;
     if (deathRecovery || !(huntState.enabled || huntState.lureEnabled || resumeHuntAfterReturn)) return;
-    const destination = savedHuntPosition ?? firstHuntWaypoint() ?? (
+    const destination = savedHuntPosition ?? (huntState.training && Number.isInteger(myself.x) && Number.isInteger(myself.y) && Number.isInteger(myself.floor)
+      ? { x: myself.x, y: myself.y, floor: myself.floor } : null) ?? firstHuntWaypoint() ?? (
       Number.isInteger(myself.x) && Number.isInteger(myself.y) && Number.isInteger(myself.floor)
         ? { x: myself.x, y: myself.y, floor: myself.floor } : null);
     if (!destination) {
@@ -2495,25 +2506,31 @@
       }
       return;
     }
+    const inTrainingRange = creature => !huntState.training || (creature.distance <= huntState.attackRange && hasAttackLine(myself.x, myself.y, creature));
     let target = huntTargetId == null
       ? null
       : mod.creaturesNearby(1000).find(creature => String(creature.id) === String(huntTargetId)
-        && canHunt(creature));
+        && canHunt(creature) && inTrainingRange(creature));
     if (!target && huntTargetId != null) {
+      if (huntState.training && gameSocket?.readyState === WebSocket.OPEN) gameSocket.send(JSON.stringify({ t: "untarget" }));
       huntTargetId = null;
       huntTargetSent = null;
       nextHuntMoveAt = 0;
     }
     // Keep the current target unless a valid creature is strictly closer.
-    const nextTarget = creaturesWithinPathRadius(huntState.radius).find(canHunt);
+    const nextTarget = creaturesWithinPathRadius(huntState.radius).find(creature => canHunt(creature) && inTrainingRange(creature));
     if (!target) {
       target = nextTarget;
     }
     if (!target) huntLootId = null;
-    if (processAutoLoot(target)) return;
+    if (!huntState.training && processAutoLoot(target)) return;
     if (!target) {
       huntTargetId = null;
       huntTargetSent = null;
+      if (huntState.training) {
+        huntState.status = "Treino: aguardando criatura ao alcance";
+        return;
+      }
       if (huntState.waypointsEnabled) {
         followWaypointRoute("Waypoints");
         return;

@@ -310,6 +310,7 @@
           <button class="side-link" data-page="creatures">Criaturas</button>
           <button class="side-link" data-page="targets">Alvos</button>
           <button class="side-link" data-page="hunt">Sistema de caça</button>
+          <button class="side-link" data-page="training">Treino</button>
           <button class="side-link" data-page="focus">Focar</button>
           <button class="side-link" data-page="refill">Loja / Refill</button>
           <button class="side-link" data-page="waypoints">Waypoints</button>
@@ -366,6 +367,12 @@
                 <p class="hunt-status lure-route-status">Lure desligado</p>
               </div>
             </div>
+          </section>
+          <section class="page" data-section="training" hidden>
+            <h2>Treino</h2>
+            <p class="hint">Ataca as criaturas selecionadas em Alvos quando estiverem ao alcance, sem se mover ou usar habilidades. Usa o tipo de ataque configurado na caça.</p>
+            <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
+            <p class="hint training-status" role="status"></p>
           </section>
           <section class="page" data-section="focus" hidden>
             <h2>Focar</h2>
@@ -549,6 +556,8 @@
   const refillItemList = root.querySelector(".refill-item-list");
   const lootItemList = root.querySelector(".loot-item-list");
   const huntToggle = root.querySelector(".hunt-toggle");
+  const trainingToggle = root.querySelector(".training-toggle");
+  const trainingStatus = root.querySelector(".training-status");
   const focusToggle = root.querySelector(".focus-toggle");
   const focusSkillToggle = root.querySelector(".focus-skill-toggle");
   const focusFollowToggle = root.querySelector(".focus-follow-toggle");
@@ -1021,8 +1030,12 @@
     waypointLureToggle.checked = lureActive;
     waypointPatrolToggle.checked = !!hunt?.waypointsEnabled;
     huntAttackAny.checked = !!hunt?.attackAny;
-    huntToggle.textContent = active ? "Parar caça" : lureActive ? "Parar lure" : "Iniciar caça";
-    huntToggle.dataset.active = String(active || lureActive);
+    const trainingActive = active && !!hunt?.training;
+    huntToggle.textContent = active && !trainingActive ? "Parar caça" : lureActive ? "Parar lure" : "Iniciar caça";
+    huntToggle.dataset.active = String((active && !trainingActive) || lureActive);
+    trainingToggle.textContent = trainingActive ? "Parar treino" : "Iniciar treino";
+    trainingToggle.dataset.active = String(trainingActive);
+    trainingStatus.textContent = trainingActive ? (hunt?.status ?? "Treino ativo") : "Treino desligado";
     const focus = window.mod?.focus;
     focusToggle.textContent = focus?.enabled ? "Parar Focar" : "Iniciar Focar";
     focusToggle.dataset.active = String(!!focus?.enabled);
@@ -1267,11 +1280,28 @@
     }
   });
   huntToggle.addEventListener("click", () => {
+    if (window.mod?.hunt?.training && (window.mod.hunt.enabled || window.mod.hunt.resumeAfterReturn)) {
+      huntStatus.textContent = "Pare o treino antes de iniciar a caça.";
+      return;
+    }
     if (window.mod?.hunt?.enabled || window.mod?.hunt?.lureEnabled || window.mod?.hunt?.resumeAfterReturn) window.mod.stopHunt();
     else {
       const types = Object.keys(window.mod?.targets ?? {}).filter(type => window.mod.targets[type]);
       const outcome = window.mod?.startHuntTargets?.(types, 11, true);
       if (!outcome?.ok) huntStatus.textContent = outcome?.error ?? "API de caça indisponível.";
+    }
+    syncHuntUI();
+  });
+  trainingToggle.addEventListener("click", () => {
+    const hunt = window.mod?.hunt;
+    if (hunt?.training && (hunt.enabled || hunt.resumeAfterReturn)) window.mod.stopHunt();
+    else if (hunt?.enabled || hunt?.lureEnabled || hunt?.resumeAfterReturn) {
+      trainingStatus.textContent = "Pare a caça antes de iniciar o treino.";
+      return;
+    } else {
+      const types = Object.keys(window.mod?.targets ?? {}).filter(type => window.mod.targets[type]);
+      const outcome = window.mod?.startHuntTargets?.(types, 11, false, true);
+      if (!outcome?.ok) { trainingStatus.textContent = outcome?.error ?? "API de treino indisponível."; return; }
     }
     syncHuntUI();
   });
