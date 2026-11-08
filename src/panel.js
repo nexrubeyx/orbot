@@ -431,10 +431,6 @@
           <section class="page" data-section="waypoints" hidden>
             <h2>Waypoints</h2>
             <label class="pref"><input class="waypoint-patrol-toggle" type="checkbox"> Percorrer quando não houver alvos</label>
-            <label class="pref"><input class="waypoint-reverse-toggle" type="checkbox"> Inverter ordem dos waypoints</label>
-            <label>Inverter a cada quantas voltas?
-              <input class="waypoint-reverse-every" type="number" min="1" max="9999" step="1">
-            </label>
             <div class="waypoint-actions" style="grid-template-columns:1fr">
               <button class="waypoint-current">Adicionar posição atual</button>
             </div>
@@ -537,8 +533,6 @@
   const configFile = root.querySelector(".config-file");
   const configResult = root.querySelector(".config-result");
   const waypointPatrolToggle = root.querySelector(".waypoint-patrol-toggle");
-  const waypointReverseEvery = root.querySelector(".waypoint-reverse-every");
-  const waypointReverseToggle = root.querySelector(".waypoint-reverse-toggle");
   const waypointLureToggle = root.querySelector(".waypoint-lure-toggle");
   const lureCountInput = root.querySelector(".lure-count-input");
   const lureStepInput = root.querySelector(".lure-step-input");
@@ -610,8 +604,6 @@
   };
   setRefillStatus(window.mod?.refill?.status ?? "Pronto");
   waypointPatrolToggle.checked = !!window.mod?.hunt?.waypointsEnabled;
-  waypointReverseEvery.value = String(window.mod?.hunt?.waypointReverseEvery ?? 1);
-  waypointReverseToggle.checked = !!window.mod?.hunt?.waypointReverseEnabled;
   waypointLureToggle.checked = !!window.mod?.hunt?.lureEnabled;
   lureCountInput.value = String(window.mod?.hunt?.lureCount ?? 5);
   lureStepInput.value = String(window.mod?.hunt?.lureStepTiles ?? 3);
@@ -878,25 +870,6 @@
     window.mod?.setLootItemsEnabled?.(false);
     showLootItems();
   });
-  waypointReverseToggle.addEventListener("change", () => {
-    const outcome = window.mod?.setWaypointReverseEnabled?.(waypointReverseToggle.checked);
-    if (!outcome?.ok) {
-      waypointReverseToggle.checked = !!window.mod?.hunt?.waypointReverseEnabled;
-      waypointResult.textContent = "API de waypoints indisponível.";
-    } else {
-      waypointResult.textContent = outcome.enabled ? "Inversão automática ativada." : "Inversão automática desativada.";
-    }
-  });
-  waypointReverseEvery.addEventListener("change", () => {
-    const value = waypointReverseEvery.value.trim();
-    const outcome = value ? window.mod?.setWaypointReverseEvery?.(Number(value)) : null;
-    if (!outcome?.ok) {
-      waypointResult.textContent = outcome?.error ?? "Informe entre 1 e 9999 voltas.";
-      waypointReverseEvery.value = String(window.mod?.hunt?.waypointReverseEvery ?? 1);
-    } else {
-      waypointResult.textContent = `Ordem configurada para inverter a cada ${outcome.rounds} volta(s).`;
-    }
-  });
   waypointPatrolToggle.addEventListener("change", () => {
     const outcome = window.mod?.setWaypointPatrol?.(waypointPatrolToggle.checked);
     if (!outcome?.ok) waypointResult.textContent = "API de waypoints indisponível.";
@@ -1067,9 +1040,7 @@
     lureCountDisplay.textContent = `${current}/${target}`;
     lureProgressFill.style.width = `${Math.min(100, current / target * 100)}%`;
     const waypointRoundsText = `Voltas: ${hunt?.waypointTotalRounds ?? 0}`;
-    const reverseProgress = hunt?.waypointReverseEnabled
-      ? ` · até inverter: ${hunt.waypointRounds ?? 0}/${hunt.waypointReverseEvery ?? 1}` : "";
-    root.querySelector(".waypoint-rounds").textContent = waypointRoundsText + reverseProgress;
+    root.querySelector(".waypoint-rounds").textContent = waypointRoundsText;
     huntStatus.textContent = `${hunt?.status ?? "Sistema de caça indisponível"} · ${waypointRoundsText}`;
     const returnPosition = hunt?.returnPosition;
     root.querySelector(".hunt-return-position").textContent = returnPosition
