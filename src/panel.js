@@ -394,6 +394,9 @@
               <p class="hint">Um tempo é sorteado entre os dois valores.</p>
             </div>
             <label class="attack-range">Classe do treino<select class="training-class"><option value="mage">Mage — 4 tiles</option><option value="melee">Melee — 1 tile</option><option value="distance">Distance — 4 tiles</option></select></label>
+            <label class="pref"><input class="training-elite-enabled" type="checkbox"> Trocar de classe quando um elite atacar</label>
+            <label class="attack-range">Classe para combater elite<select class="training-elite-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
+            <p class="hint">Prioriza o elite e retorna à classe anterior após o combate.</p>
             <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver alvos próximos</label>
             <label class="pref"><input class="training-city-bag" type="checkbox"> Ir à cidade com mochila cheia</label>
             <label class="pref"><input class="training-city-arrows" type="checkbox"> Ir à cidade sem flechas</label>
@@ -600,6 +603,8 @@
   const autoLootGoldToggles = root.querySelectorAll(".auto-loot-gold");
   const trainingStatus = root.querySelector(".training-status");
   const trainingClass = root.querySelector(".training-class");
+  const trainingEliteEnabled = root.querySelector(".training-elite-enabled");
+  const trainingEliteClass = root.querySelector(".training-elite-class");
   const trainingRadius = root.querySelector(".training-radius");
   const trainingTargetDelayMin = root.querySelector(".training-target-delay-min");
   const trainingTargetDelayMax = root.querySelector(".training-target-delay-max");
@@ -1109,6 +1114,9 @@
     if (root.activeElement !== trainingTargetDelayMin) trainingTargetDelayMin.value = String(hunt?.trainingTargetDelayMin ?? 0);
     if (root.activeElement !== trainingTargetDelayMax) trainingTargetDelayMax.value = String(hunt?.trainingTargetDelayMax ?? 0);
     trainingClass.value = hunt?.trainingClass ?? "melee";
+    trainingEliteEnabled.checked = !!hunt?.trainingEliteEnabled;
+    trainingEliteClass.value = hunt?.trainingEliteClass ?? "melee";
+    trainingEliteClass.disabled = !trainingEliteEnabled.checked;
     trainingWaypoints.checked = !!hunt?.trainingWaypoints;
     trainingCityOptions.bag.checked = hunt?.trainingCityBag !== false;
     trainingCityOptions.arrows.checked = hunt?.trainingCityArrows !== false;
@@ -1401,6 +1409,12 @@
     }
   });
   trainingClass.addEventListener("change", saveTrainingOptions);
+  const saveTrainingEliteOptions = () => {
+    window.mod?.setTrainingEliteOptions?.(trainingEliteEnabled.checked, trainingEliteClass.value);
+    trainingEliteClass.disabled = !trainingEliteEnabled.checked;
+  };
+  trainingEliteEnabled.addEventListener("change", saveTrainingEliteOptions);
+  trainingEliteClass.addEventListener("change", saveTrainingEliteOptions);
   trainingWaypoints.addEventListener("change", saveTrainingOptions);
   for (const [option, toggle] of Object.entries(trainingCityOptions)) toggle.addEventListener("change", () => window.mod?.setTrainingCityOption?.(option, toggle.checked));
   trainingToggle.addEventListener("click", () => {

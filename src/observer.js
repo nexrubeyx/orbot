@@ -124,6 +124,8 @@
   huntState.lureEnabled = false;
   huntState.training = false;
   huntState.trainingClass = "melee";
+  huntState.trainingEliteEnabled = false;
+  huntState.trainingEliteClass = "melee";
   huntState.trainingWaypoints = false;
   huntState.trainingRadius = 4;
   huntState.trainingTargetDelayMin = 0;
@@ -183,6 +185,9 @@
     if (Number.isInteger(reverseLoops) && reverseLoops >= 1 && reverseLoops <= 1000) huntState.waypointReverseLoops = reverseLoops;
     const trainingClass = localStorage.getItem("fantasy-mod-training-class");
     if (["mage", "melee", "distance"].includes(trainingClass)) huntState.trainingClass = trainingClass;
+    huntState.trainingEliteEnabled = localStorage.getItem("fantasy-mod-training-elite-enabled") === "true";
+    const eliteClass = localStorage.getItem("fantasy-mod-training-elite-class");
+    if (["mage", "melee", "distance"].includes(eliteClass)) huntState.trainingEliteClass = eliteClass;
     huntState.trainingWaypoints = localStorage.getItem("fantasy-mod-training-waypoints") === "true";
     const previousCityReturn = localStorage.getItem("fantasy-mod-training-city-return") !== "false";
     huntState.trainingCityBag = (localStorage.getItem("fantasy-mod-training-city-bag") ?? String(previousCityReturn)) === "true";
@@ -394,6 +399,17 @@
     huntState[key] = !!enabled;
     try { localStorage.setItem(`fantasy-mod-training-city-${option}`, String(huntState[key])); } catch {}
     return { ok: true, enabled: huntState[key] };
+  };
+  mod.setTrainingEliteOptions = (enabled, combatClass) => {
+    if (!["mage", "melee", "distance"].includes(combatClass)) return { ok: false, error: "Classe de combate inválida." };
+    huntState.trainingEliteEnabled = !!enabled;
+    huntState.trainingEliteClass = combatClass;
+    try {
+      localStorage.setItem("fantasy-mod-training-elite-enabled", String(huntState.trainingEliteEnabled));
+      localStorage.setItem("fantasy-mod-training-elite-class", combatClass);
+    } catch {}
+    if (!enabled) finishTrainingElite();
+    return { ok: true };
   };
   mod.setTrainingTargetDelay = (minSeconds, maxSeconds) => {
     const min = Number(minSeconds), max = Number(maxSeconds);
@@ -977,6 +993,7 @@
     return { ok: true, types: list, radius: huntState.radius, lureEnabled: huntState.lureEnabled };
   };
   mod.stopHunt = (reason = "Caça parada pelo usuário.", preserveResume = false) => {
+    finishTrainingElite();
     if (!preserveResume) {
       deathRecovery = null;
       resumeHuntAfterReturn = false;
@@ -995,6 +1012,21 @@
   };
 
   let huntTargetId = null;
+  let trainingElite = null;
+  const trainingEliteAttackers = new Map();
+  const classIds = { melee: 0, distance: 1, mage: 2 };
+  function sendTrainingClass(classId) {
+    if (!Number.isInteger(classId) || gameSocket?.readyState !== WebSocket.OPEN) return false;
+    const packet = { t: "class", c: classId };
+    if (typeof window.gameDebug?.send === "function") window.gameDebug.send(packet);
+    else gameSocket.send(JSON.stringify(packet));
+    return true;
+  }
+  function finishTrainingElite() {
+    if (trainingElite) sendTrainingClass(trainingElite.previousClass);
+    trainingElite = null;
+    trainingEliteAttackers.clear();
+  }
   let nextTrainingTargetAt = 0;
   let nextHuntMoveAt = 0;
   let nextFocusMoveAt = 0;
@@ -2691,11 +2723,39 @@
       }
       return;
     }
-    const attackRange = huntState.training ? (huntState.trainingClass === "melee" ? 1 : 4) : huntState.attackRange;
+    const visibleCreatures = mod.creaturesNearby(100);
+    if (huntState.training && huntState.trainingEliteEnabled) {
+      for (const [id, until] of trainingEliteAttackers) if (until <= Date.now()) trainingEliteAttackers.delete(id);
+      if (trainingElite && !visibleCreatures.some(creature => String(creature.id) === String(trainingElite.id))) {
+        const remainingAttackers = new Map(trainingEliteAttackers);
+        remainingAttackers.delete(String(trainingElite.id));
+        finishTrainingElite();
+        for (const [id, until] of remainingAttackers) trainingEliteAttackers.set(id, until);
+        huntTargetId = null;
+        huntTargetSent = null;
+      }
+      if (!trainingElite) {
+        const elite = visibleCreatures.find(creature => trainingEliteAttackers.has(String(creature.id)) && isEliteCreature(creature));
+        const previousClass = playerStats.cls ?? playerStats.cl ?? myself.cls;
+        if (elite && Number.isInteger(previousClass)) {
+          trainingElite = { id: elite.id, previousClass, sentAt: 0 };
+          huntTargetId = elite.id;
+          huntTargetSent = null;
+          nextHuntMoveAt = 0;
+          pursuitGoal = null;
+        }
+      }
+      if (trainingElite && Date.now() - trainingElite.sentAt >= 1200) {
+        const desired = classIds[huntState.trainingEliteClass];
+        if ((playerStats.cls ?? playerStats.cl ?? myself.cls) !== desired && sendTrainingClass(desired)) trainingElite.sentAt = Date.now();
+      }
+    } else if (trainingElite) finishTrainingElite();
+    const activeClass = trainingElite ? huntState.trainingEliteClass : huntState.trainingClass;
+    const attackRange = huntState.training ? (activeClass === "melee" ? 1 : 4) : huntState.attackRange;
     let target = huntTargetId == null
       ? null
       : mod.creaturesNearby(1000).find(creature => String(creature.id) === String(huntTargetId)
-        && canHunt(creature) && (!huntState.training || creature.distance <= huntState.radius));
+        && (trainingElite && String(creature.id) === String(trainingElite.id) || canHunt(creature)));
     if (!target && huntTargetId != null) {
       if (huntState.training) {
         const delay = huntState.trainingTargetDelayMin + Math.random() * (huntState.trainingTargetDelayMax - huntState.trainingTargetDelayMin);
@@ -2756,7 +2816,7 @@
     }
     ensureHuntTarget(target);
     if (target.distance <= attackRange && hasAttackLine(myself.x, myself.y, target)) {
-      huntState.status = `Atacando ${target.name}`;
+      huntState.status = `${trainingElite ? "Elite: atacando" : "Atacando"} ${target.name}`;
       return;
     }
     if (Date.now() < nextHuntMoveAt) {
@@ -2807,6 +2867,11 @@
     for (const event of message.ev ?? []) {
       const from = Array.isArray(event) ? event[0] : event?.from;
       const to = Array.isArray(event) ? event[1] : event?.to;
+      if (huntState.enabled && huntState.training && huntState.trainingEliteEnabled && from != null && to != null
+        && String(to) === String(entityIdForAttack(message))) {
+        const attacker = [...entities].find(([id]) => String(id) === String(from))?.[1];
+        if (attacker?.k === 1 && isEliteCreature({ id: from, type: attacker.ty })) trainingEliteAttackers.set(String(from), now + 10000);
+      }
       if (from == null || to == null || String(from) === String(entityIdForAttack(message))) continue;
       const attacker = [...entities].find(([id]) => String(id) === String(from))?.[1];
       const victim = [...entities].find(([id]) => String(id) === String(to))?.[1];
