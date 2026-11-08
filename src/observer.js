@@ -1801,6 +1801,8 @@
     }
     initialHuntTravel = { point: firstWaypoint, stage: 0, secondAt: 0 };
     huntTravelArrival = null;
+    resetWaypointRounds();
+    waypointMovePending = null;
     setHuntWaypointIndex(0);
     nextWaypointMoveAt = 0;
     huntState.status = `Preparando viagem para o waypoint inicial (${firstWaypoint.x}, ${firstWaypoint.y})`;
@@ -2057,6 +2059,7 @@
         active: true, index: current.index + 1, total: mod.waypoints.length,
         x: current.point.x, y: current.point.y, floor: current.point.floor, label
       };
+      if (current.point.x === myself.x && current.point.y === myself.y) return true;
     }
     if (Date.now() >= nextWaypointMoveAt) {
       const maxAdvance = lureRoute ? huntState.lureStepTiles : 20;
