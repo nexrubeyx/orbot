@@ -212,6 +212,11 @@
       .lure-count { max-width:150px; margin-top:9px; }
       .lure-settings { display:grid; grid-template-columns:minmax(0,150px); gap:7px; margin-top:9px; }
       .attack-range { max-width:170px; margin-top:9px; }
+      .training-delay { margin-top:10px; padding:9px; border:1px solid var(--luz); background:var(--painel); }
+      .training-delay-title { color:var(--ui); font-size:12px; font-weight:650; }
+      .training-delay-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:6px; }
+      .training-delay-fields label { min-width:0; color:var(--ui-2); font-size:11px; }
+      .training-delay .hint { margin-top:7px; }
       select { width:100%; margin-top:3px; padding:7px; border:1px solid var(--luz); border-radius:0; background:var(--slot); color:var(--ui); }
       .console-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:var(--ui-2); font-size:11px; }
       .console-toolbar button { padding:5px 8px; border:1px solid var(--luz); border-radius:0; background:#3d3328; color:var(--ui); cursor:pointer; }
@@ -373,9 +378,14 @@
             <h2>Treino</h2>
             <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo, sem usar habilidades.</p>
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
-            <label class="attack-range">Intervalo mínimo entre alvos (segundos)<input class="training-target-delay-min" type="number" min="0" max="60" step="0.1" value="0"></label>
-            <label class="attack-range">Intervalo máximo entre alvos (segundos)<input class="training-target-delay-max" type="number" min="0" max="60" step="0.1" value="0"></label>
-            <p class="hint">O intervalo é sorteado entre os valores mínimo e máximo.</p>
+            <div class="training-delay">
+              <div class="training-delay-title">Intervalo entre alvos</div>
+              <div class="training-delay-fields">
+                <label>Mínimo (s)<input class="training-target-delay-min" type="number" min="0" max="60" step="0.1" value="0"></label>
+                <label>Máximo (s)<input class="training-target-delay-max" type="number" min="0" max="60" step="0.1" value="0"></label>
+              </div>
+              <p class="hint">Um tempo é sorteado entre os dois valores.</p>
+            </div>
             <label class="attack-range">Classe do treino<select class="training-class"><option value="mage">Mage — 4 tiles</option><option value="melee">Melee — 1 tile</option><option value="distance">Distance — 4 tiles</option></select></label>
             <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver alvos próximos</label>
             <label class="pref"><input class="training-city-bag" type="checkbox"> Ir à cidade com mochila cheia</label>
