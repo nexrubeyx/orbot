@@ -1628,6 +1628,12 @@
         : !mod.inventory.known ? (collectGold ? "Aguardando dados da mochila; apenas ouro pode ser coletado" : "Aguardando dados da mochila") : "Caçando; nenhum drop próximo";
       return false;
     }
+    if (huntState.lureEnabled && waypointMovePending) {
+      // Collecting a drop can replace the walk command or leave the route
+      // waiting for a tile the character has already moved away from.
+      waypointMovePending = null;
+      nextWaypointMoveAt = 0;
+    }
     const id = loot.entity.id;
     if (String(huntLootId) !== String(id)) {
       huntLootId = id;
