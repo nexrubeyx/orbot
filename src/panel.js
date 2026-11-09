@@ -518,6 +518,8 @@
               <label class="pref"><input class="auto-switch-server" type="checkbox"> Trocar de servidor após morrer ou finalizar o refill</label>
               <p class="hint">Usa servidores das Américas do Norte e do Sul antes de retornar à caça.</p>
               <label class="pref"><input class="auto-reconnect" type="checkbox"> Reconectar automaticamente</label>
+              <label class="pref"><input class="auto-confirmation" type="checkbox"> Responder confirmação de monstro</label>
+              <p class="hint">Compara os sprites das opções. Se a imagem for ambígua ou pedir texto, responda manualmente.</p>
               <label class="pref"><input class="auto-refresh" type="checkbox"> Atualizar estado automaticamente</label>
             </div>
           </section>
@@ -633,6 +635,7 @@
   const autoMana = root.querySelector(".auto-mana");
   const autoSwitchServer = root.querySelector(".auto-switch-server");
   const autoReconnect = root.querySelector(".auto-reconnect");
+  const autoConfirmation = root.querySelector(".auto-confirmation");
   const hpThreshold = root.querySelector(".hp-threshold");
   const mpThreshold = root.querySelector(".mp-threshold");
   const sideLinks = [...root.querySelectorAll(".side-link")];
@@ -654,6 +657,7 @@
   autoMana.checked = readPreference("auto-mana", "false") === "true";
   autoSwitchServer.checked = readPreference("auto-switch-server", "true") === "true";
   autoReconnect.checked = readPreference("auto-reconnect", "false") === "true";
+  autoConfirmation.checked = readPreference("auto-confirmation", "true") === "true";
   hpThreshold.value = readPreference("heal-threshold", "50");
   mpThreshold.value = readPreference("mana-threshold", "30");
   huntAutoSell.checked = !!window.mod?.hunt?.autoSell;
@@ -896,6 +900,7 @@
   autoMana.addEventListener("change", persistAutomation);
   autoSwitchServer.addEventListener("change", () => savePreference("auto-switch-server", autoSwitchServer.checked));
   autoReconnect.addEventListener("change", () => savePreference("auto-reconnect", autoReconnect.checked));
+  autoConfirmation.addEventListener("change", () => savePreference("auto-confirmation", autoConfirmation.checked));
   hpThreshold.addEventListener("change", () => { hpThreshold.value = String(Math.max(5, Math.min(95, Number(hpThreshold.value) || 50))); persistAutomation(); });
   mpThreshold.addEventListener("change", () => { mpThreshold.value = String(Math.max(5, Math.min(95, Number(mpThreshold.value) || 30))); persistAutomation(); });
   autoRefresh.addEventListener("change", () => {

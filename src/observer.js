@@ -16,6 +16,154 @@
   let monsterAssets = null;
   let translatedMonsterNames = {};
   let monsterCatalog = [];
+  // Confirmation recognition stays in this script because all bot loaders use
+  // a fixed list of four scripts. The pixel matcher has no browser dependencies.
+  function confirmationTemplate(image) {
+    const { width, height, data } = image;
+    const pixels = [];
+    let left = width, top = height, right = -1, bottom = -1;
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const at = (y * width + x) * 4;
+      if (data[at + 3] < 240) continue;
+      pixels.push([x, y, data[at], data[at + 1], data[at + 2]]);
+      left = Math.min(left, x); top = Math.min(top, y);
+      right = Math.max(right, x); bottom = Math.max(bottom, y);
+    }
+    if (pixels.length < 24) return null;
+    const w = right - left + 1, h = bottom - top + 1;
+    const count = Math.min(96, pixels.length);
+    const samples = Array.from({ length: count }, (_, i) => {
+      const [x, y, ...rgb] = pixels[Math.floor(i * pixels.length / count)];
+      return [(x - left + .5) / w, (y - top + .5) / h, ...rgb];
+    });
+    // Spread the cheap first pass over the entire sprite, not just its head.
+    const ordered = [];
+    for (let offset = 0; offset < 8; offset++) for (let i = offset; i < count; i += 8) ordered.push(samples[i]);
+    return { width: w, height: h, samples: ordered };
+  }
+
+  async function matchConfirmationImage(image, templates, columns, isActive, yieldTask) {
+    const { width, height, data } = image;
+    if (!Number.isInteger(columns) || columns < 2 || columns > 12 || !templates.length) return null;
+    const scores = Array(columns).fill(0);
+    const scoreAt = (points, x, y, count, minimum) => {
+      let error = 0;
+      const budget = count * (1 - minimum);
+      for (let i = 0; i < count; i++) {
+        const [dx, dy, r, g, b] = points[i];
+        const at = ((y + dy) * width + x + dx) * 4;
+        error += Math.min(1, Math.max(Math.abs(data[at] - r), Math.abs(data[at + 1] - g), Math.abs(data[at + 2] - b)) / 80);
+        if (error > budget) return 0;
+      }
+      return 1 - error / count;
+    };
+    for (const template of templates) {
+      const longest = Math.max(template.width, template.height);
+      const maximum = Math.floor(Math.min(width / columns, height) * .96);
+      for (let size = 12; size <= maximum; size += Math.max(1, Math.floor(size * .04))) {
+        await yieldTask();
+        if (!isActive()) return null;
+        const w = Math.max(1, Math.round(template.width * size / longest));
+        const h = Math.max(1, Math.round(template.height * size / longest));
+        const step = Math.max(1, Math.floor(size / 20));
+        for (const flip of [false, true]) {
+          const points = template.samples.map(([x, y, ...rgb]) => [
+            Math.min(w - 1, Math.floor((flip ? 1 - x : x) * w)), Math.min(h - 1, Math.floor(y * h)), ...rgb
+          ]);
+          for (let column = 0; column < columns; column++) {
+            const start = Math.ceil(column * width / columns);
+            const end = Math.floor((column + 1) * width / columns) - w;
+            let candidate = null;
+            for (let y = 0; y <= height - h; y += step) for (let x = start; x <= end; x += step) {
+              if (scoreAt(points, x, y, Math.min(16, points.length), .6) < .6) continue;
+              const score = scoreAt(points, x, y, points.length, Math.max(.6, candidate?.score ?? 0));
+              if (score > (candidate?.score ?? .6)) candidate = { x, y, score };
+            }
+            if (!candidate) continue;
+            // Recover translations between the coarse grid positions.
+            for (let y = Math.max(0, candidate.y - step + 1); y <= Math.min(height - h, candidate.y + step - 1); y++) {
+              for (let x = Math.max(start, candidate.x - step + 1); x <= Math.min(end, candidate.x + step - 1); x++) {
+                scores[column] = Math.max(scores[column], scoreAt(points, x, y, points.length, scores[column]));
+              }
+            }
+          }
+        }
+      }
+    }
+    if (!isActive()) return null;
+    const ranked = scores.map((score, index) => ({ score, index })).sort((a, b) => b.score - a.score);
+    const [best, second] = ranked;
+    // These are similarity thresholds, not calibrated probabilities.
+    return { index: best.index, score: best.score, margin: best.score - second.score,
+      confident: best.score >= .82 && best.score - second.score >= .12, scores };
+  }
+
+  function createConfirmationController(deps) {
+    let current = null;
+    const state = { active: false, status: "Aguardando confirmação", result: null };
+    const reset = socket => {
+      if (socket && current?.socket !== socket) return;
+      current = null;
+      state.active = false;
+      state.status = "Aguardando confirmação";
+      state.result = null;
+    };
+    const answered = socket => {
+      if (current?.socket !== socket) return;
+      current.sent = true;
+      state.status = "Resposta enviada; aguardando o jogo";
+    };
+    const receive = (socket, packet) => {
+      if (packet?.t !== "vq" || !deps.isSocket(socket)) return;
+      if (!packet.i) { reset(socket); return; }
+      if (current?.socket === socket && current.image === packet.i && current.name === packet.n) return;
+      const job = current = { socket, image: packet.i, name: packet.n, sent: false,
+        until: deps.now() + Math.max(0, Number(packet.s) || 0) * 1000 - 1000 };
+      state.active = true;
+      state.result = null;
+      const active = () => current === job && !job.sent && deps.enabled() && deps.isSocket(socket) && deps.now() < job.until;
+      state.status = "Analisando confirmação de monstro";
+      const manual = reason => {
+        if (current !== job || job.sent) return;
+        state.status = `Confirmação manual: ${reason}`;
+        deps.log("warn", state.status);
+      };
+      if (!deps.enabled()) { manual("resposta automática desativada"); return; }
+      if (packet.k !== 1 || !Number.isInteger(packet.c) || packet.c < 2 || packet.c > 12 || !packet.n) {
+        manual("tipo de desafio não reconhecido"); return;
+      }
+      Promise.resolve().then(async () => {
+        const templates = deps.templates(packet.n);
+        if (!templates.length) { manual("sprite do monstro indisponível"); return; }
+        const image = await deps.decode(packet.i);
+        if (!active()) return;
+        const result = await deps.match(image, templates, packet.c, active, deps.yieldTask);
+        if (!active()) return;
+        state.result = result;
+        if (!result?.confident) { manual("comparação visual inconclusiva"); return; }
+        const maxWaitSeconds = Math.min(20, Math.floor((job.until - deps.now() - 1) / 1000));
+        if (maxWaitSeconds < 5) { manual("tempo insuficiente para aguardar pelo menos 5 segundos"); return; }
+        const waitSeconds = 5 + Math.floor(deps.random() * (maxWaitSeconds - 4));
+        state.status = `Confirmação reconhecida; aguardando ${waitSeconds} s para responder`;
+        deps.log("info", state.status);
+        await deps.wait(waitSeconds * 1000);
+        if (!active()) { manual("espera cancelada ou prazo encerrado"); return; }
+        job.sent = true;
+        deps.send(socket, { t: "va", a: result.index });
+        state.status = `Opção ${result.index + 1} enviada; aguardando o jogo`;
+        deps.log("info", `Confirmação: ${packet.n}, opção ${result.index + 1} (semelhança ${result.score.toFixed(2)}).`);
+      }).catch(error => {
+        if (current !== job) return;
+        // Never retry automatically: a send error may occur after transmission.
+        state.status = `Confirmação manual: ${error?.message ?? error}`;
+        deps.log("warn", state.status);
+      }).finally(() => {
+        if (current === job && !job.sent && state.status === "Analisando confirmação de monstro") manual("análise interrompida ou prazo encerrado");
+      });
+    };
+    return { state, receive, answered, reset };
+  }
+  // End of browser-independent confirmation helpers.
   let potionReadyAt = 0;
   let currentWalls = [];
   let playerId = null;
@@ -34,6 +182,69 @@
     window.dispatchEvent(new CustomEvent("__fantasy_mod_console_update"));
     return entry;
   };
+  const confirmationEnabled = () => {
+    try { return localStorage.getItem("fantasy-mod-auto-confirmation") !== "false"; } catch { return true; }
+  };
+  const confirmation = createConfirmationController({
+    enabled: confirmationEnabled,
+    now: () => Date.now(),
+    random: () => Math.random(),
+    wait: milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)),
+    isSocket: socket => socket === gameSocket && socket?.readyState === NativeWebSocket.OPEN && !assetSockets.has(socket),
+    log: (level, message) => mod.log(level, message),
+    send: (socket, packet) => socket.send(JSON.stringify(packet)),
+    yieldTask: () => new Promise(resolve => setTimeout(resolve, 0)),
+    match: matchConfirmationImage,
+    templates: name => {
+      const normalize = value => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+      const wanted = normalize(name);
+      const monsters = (monsterAssets?.monsters ?? []).filter(monster => {
+        const raw = monster.name ?? monster.n ?? monster.label;
+        const names = typeof raw === "string" ? [raw, ...Object.values(translatedMonsterNames[raw] ?? {})] : Object.values(raw ?? {});
+        return names.some(value => normalize(value) === wanted);
+      });
+      const atlas = monsterAssets?.c8;
+      if (!atlas) return [];
+      const indices = new Set(monsters.flatMap(monster => (monster.anims ?? []).flat(2)).filter(Number.isInteger));
+      const templates = [];
+      const seen = new Set();
+      for (const index of indices) {
+        const frame = monsterAssets?.entities?.monsters?.[index];
+        if (!Array.isArray(frame) || frame.length < 4) continue;
+        const [x, y, width, height] = frame;
+        const key = [x, y, width, height].join(",");
+        if (seen.has(key) || ![x, y, width, height].every(Number.isInteger) || width < 1 || height < 1 || width > 256 || height > 256) continue;
+        seen.add(key);
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        context.drawImage(atlas, x, y, width, height, 0, 0, width, height);
+        const template = confirmationTemplate(context.getImageData(0, 0, width, height));
+        if (template) templates.push(template);
+      }
+      return templates;
+    },
+    decode: base64 => new Promise((resolve, reject) => {
+      if (typeof base64 !== "string" || base64.length > 4000000) { reject(new Error("imagem inválida")); return; }
+      const image = new Image();
+      image.onerror = () => reject(new Error("não foi possível ler a imagem"));
+      image.onload = () => {
+        try {
+          if (!image.naturalWidth || !image.naturalHeight || image.naturalWidth > 2048 || image.naturalHeight > 1024) throw new Error("dimensões da imagem não suportadas");
+          const scale = Math.min(1, 640 / image.naturalWidth, 256 / image.naturalHeight);
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          context.imageSmoothingEnabled = false;
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          resolve(context.getImageData(0, 0, canvas.width, canvas.height));
+        } catch (error) { reject(error); }
+      };
+      image.src = `data:image/png;base64,${base64}`;
+    })
+  });
+  mod.confirmation = confirmation.state;
   if (!window.__fantasyModErrorHooks) {
     window.__fantasyModErrorHooks = true;
     window.addEventListener("error", event => {
@@ -2706,6 +2917,10 @@
   let nextLootCatalogUpdateAt = 0;
   setInterval(() => {
     huntState.trainingIdleRemainingSeconds = null;
+    if (confirmation.state.active) {
+      huntState.status = confirmation.state.status;
+      return;
+    }
     logHuntProgress();
     if (Date.now() >= nextLootCatalogUpdateAt) {
       nextLootCatalogUpdateAt = Date.now() + 2000;
@@ -3333,7 +3548,9 @@
 
   function finishRecord(packet, socket) {
     if (packet.direction === "RECEBIDO" && packet.decoded) {
+      confirmation.receive(socket, packet.decoded);
       if (packet.decoded.t === "kick") {
+        confirmation.reset(socket);
         intentionalCloses.add(socket);
         reconnectPending = false;
       }
@@ -3556,7 +3773,9 @@
             const outgoing = JSON.parse(data);
             if (outgoing?.t === "k") assetSockets.add(this);
             else if (outgoing?.t) gameSocket = this;
+            if (outgoing?.t === "va") confirmation.answered(this);
             if (outgoing?.t === "logout") {
+              confirmation.reset(this);
               intentionalCloses.add(this);
               reconnectPending = false;
             }
@@ -3596,6 +3815,7 @@
         if (isGameSocket) mod.log("info", "WebSocket do jogo conectado.");
       });
       socket.addEventListener("close", event => {
+        confirmation.reset(socket);
         update();
         if (isGameSocket && !assetSockets.has(socket)) mod.log("warn", `WebSocket do jogo fechado (código ${event.code}${event.reason ? `: ${event.reason}` : ""}).`);
         if (socket === gameSocket && !assetSockets.has(socket) && !intentionalCloses.has(socket)
