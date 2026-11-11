@@ -292,6 +292,19 @@
       .training-delay-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:6px; }
       .training-delay-fields label { min-width:0; color:var(--ui-2); font-size:11px; }
       .training-delay .hint { margin-top:7px; }
+      .training-mobs { display:grid; gap:7px; padding:9px; border:1px solid var(--luz); background:var(--slot); }
+      .training-mobs > strong { color:var(--ouro-claro); font-size:12px; }
+      .training-mob-head,.training-mob-row { display:grid; grid-template-columns:32px minmax(0,1fr) 54px 62px; align-items:center; gap:7px; }
+      .training-mob-head { color:var(--ui-2); font-size:9px; text-align:center; }
+      .training-mob-head span:nth-child(2) { text-align:left; }
+      .training-mob-list { display:grid; gap:4px; max-height:200px; overflow:auto; }
+      .training-mob-row { min-height:38px; padding:4px; border:1px solid var(--luz); background:var(--poco); }
+      .training-mob-row img,.training-mob-icon { width:30px; height:30px; object-fit:contain; image-rendering:pixelated; }
+      .training-mob-icon { display:grid; place-items:center; color:var(--ouro); }
+      .training-mob-name { overflow:hidden; color:var(--ui); font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+      .training-mob-name small { display:block; color:var(--ui-2); font-size:9px; }
+      .training-mob-row label { display:grid; place-items:center; cursor:pointer; }
+      .training-mob-row input { width:16px; height:16px; accent-color:var(--ouro); }
       select { width:100%; margin-top:3px; padding:7px; border:1px solid var(--luz); border-radius:0; background:var(--slot); color:var(--ui); }
       .console-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:var(--ui-2); font-size:11px; }
       .console-toolbar button { padding:5px 8px; border:1px solid var(--luz); border-radius:0; background:#3d3328; color:var(--ui); cursor:pointer; }
@@ -433,7 +446,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.32</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.33</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -506,6 +519,13 @@
             <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo.</p>
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
+            <div class="training-mobs">
+              <strong>Escolher mobs próximos</strong>
+              <p class="hint">Treinar usa a classe do treino. Combater troca para a classe escolhida abaixo e volta depois de matar o mob.</p>
+              <div class="training-mob-head"><span></span><span>Mob</span><span>Treinar</span><span>Combater</span></div>
+              <div class="training-mob-list" aria-live="polite"></div>
+              <label class="attack-range">Classe para mobs de combate<select class="training-combat-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
+            </div>
             <label class="attack-range">Tempo parado para aproximar do waypoint (minutos)<input class="training-idle-minutes" type="number" min="0" max="1440" step="1" value="0"></label>
             <div class="hint">Use 0 para desativar. Requer um waypoint no andar atual.</div>
             <div class="training-delay">
@@ -819,6 +839,8 @@
   const autoLootGoldToggles = root.querySelectorAll(".auto-loot-gold");
   const trainingStatus = root.querySelector(".training-status");
   const trainingClass = root.querySelector(".training-class");
+  const trainingCombatClass = root.querySelector(".training-combat-class");
+  const trainingMobList = root.querySelector(".training-mob-list");
   const trainingEliteEnabled = root.querySelector(".training-elite-enabled");
   const trainingEliteClass = root.querySelector(".training-elite-class");
   const trainingExhaustedEnabled = root.querySelector(".training-exhausted-enabled");
@@ -940,6 +962,7 @@
     for (const link of sideLinks) link.dataset.active = String(link.dataset.page === name);
     try { localStorage.setItem("fantasy-mod-panel-page", name); } catch {}
     if (name === "console") showConsole();
+    if (name === "training") renderTrainingMobs();
   };
   let initialPage = "creatures";
   try { initialPage = localStorage.getItem("fantasy-mod-panel-page") ?? initialPage; } catch {}
@@ -1438,6 +1461,7 @@
     if (root.activeElement !== trainingTargetDelayMin) trainingTargetDelayMin.value = String(hunt?.trainingTargetDelayMin ?? 0);
     if (root.activeElement !== trainingTargetDelayMax) trainingTargetDelayMax.value = String(hunt?.trainingTargetDelayMax ?? 0);
     trainingClass.value = hunt?.trainingClass ?? "melee";
+    trainingCombatClass.value = hunt?.trainingCombatClass ?? "melee";
     trainingEliteEnabled.checked = !!hunt?.trainingEliteEnabled;
     trainingEliteClass.value = hunt?.trainingEliteClass ?? "melee";
     trainingEliteClass.disabled = !trainingEliteEnabled.checked;
@@ -1455,6 +1479,7 @@
       ? ` · Aproximação em ${Math.floor(idleSeconds / 60)}:${String(idleSeconds % 60).padStart(2, "0")}`
       : "";
     trainingStatus.textContent = trainingActive ? `${hunt?.status ?? "Treino ativo"}${idleCountdown}` : "Treino desligado";
+    if (!backdrop.hidden && root.querySelector('[data-section="training"]')?.hidden === false) renderTrainingMobs();
     const focus = window.mod?.focus;
     focusToggle.textContent = focus?.enabled ? "Parar Focar" : "Iniciar Focar";
     focusToggle.dataset.active = String(!!focus?.enabled);
@@ -1837,6 +1862,72 @@
   });
   waypointMapCanvas.addEventListener("pointercancel", () => { mapView.drag = null; waypointMapCanvas.dataset.dragging = "false"; });
 
+  function renderTrainingMobs() {
+    const hunt = window.mod?.hunt;
+    const trainingTypes = new Set((hunt?.trainingMobTypes ?? []).map(String));
+    const combatTypes = new Set((hunt?.trainingCombatMobTypes ?? []).map(String));
+    const catalog = new Map((window.mod?.monsterCatalog ?? []).map(mob => [String(mob.type), mob]));
+    const nearby = new Map();
+    for (const mob of window.mod?.creaturesNearby?.(30) ?? []) {
+      if (mob.type == null) continue;
+      const type = String(mob.type);
+      const current = nearby.get(type);
+      if (current) {
+        current.count++;
+        current.distance = Math.min(current.distance, mob.distance);
+      } else nearby.set(type, { type, name: mob.name, distance: mob.distance, count: 1 });
+    }
+    const types = [...new Set([...nearby.keys(), ...trainingTypes, ...combatTypes])];
+    types.sort((a, b) => (nearby.get(a)?.distance ?? Infinity) - (nearby.get(b)?.distance ?? Infinity)
+      || (catalog.get(a)?.name ?? a).localeCompare(catalog.get(b)?.name ?? b));
+    const signature = JSON.stringify([types.map(type => [type, nearby.get(type)?.count, nearby.get(type)?.distance]), [...trainingTypes], [...combatTypes]]);
+    if (trainingMobList.dataset.signature === signature) return;
+    trainingMobList.dataset.signature = signature;
+    trainingMobList.replaceChildren();
+    if (!types.length) {
+      const empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent = "Nenhum mob visto a até 30 tiles. A lista aparecerá quando houver criaturas por perto.";
+      trainingMobList.append(empty);
+      return;
+    }
+    for (const type of types) {
+      const row = document.createElement("div");
+      row.className = "training-mob-row";
+      const mob = nearby.get(type);
+      const entry = catalog.get(type);
+      const icon = entry?.sprite ? document.createElement("img") : document.createElement("span");
+      if (entry?.sprite) { icon.src = entry.sprite; icon.alt = ""; }
+      else { icon.className = "training-mob-icon"; icon.textContent = "◇"; }
+      const name = document.createElement("span");
+      name.className = "training-mob-name";
+      name.textContent = entry?.name ?? mob?.name ?? `Criatura ${type}`;
+      const detail = document.createElement("small");
+      detail.textContent = mob ? `${mob.count} perto · ${mob.distance} tile(s) · tipo ${type}` : `Fora da visão · tipo ${type}`;
+      name.append(detail);
+      row.append(icon, name);
+      for (const [kind, selected] of [["training", trainingTypes], ["combat", combatTypes]]) {
+        const label = document.createElement("label");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = selected.has(type);
+        checkbox.setAttribute("aria-label", `${kind === "training" ? "Treinar" : "Trocar classe para combater"} ${entry?.name ?? mob?.name ?? type}`);
+        checkbox.addEventListener("change", () => {
+          const next = new Set((kind === "training" ? hunt.trainingMobTypes : hunt.trainingCombatMobTypes).map(String));
+          if (checkbox.checked) next.add(type);
+          else next.delete(type);
+          const outcome = window.mod?.setTrainingMobTypes?.(kind, [...next]);
+          if (!outcome?.ok) trainingStatus.textContent = outcome?.error ?? "Não foi possível salvar os mobs do treino.";
+          trainingMobList.dataset.signature = "";
+          renderTrainingMobs();
+        });
+        label.append(checkbox);
+        row.append(label);
+      }
+      trainingMobList.append(row);
+    }
+  }
+
   function showTargets() {
     const catalog = window.mod?.monsterCatalog ?? [];
     const filter = targetSearch.value.trim().toLocaleLowerCase();
@@ -2018,6 +2109,13 @@
     }
   });
   trainingClass.addEventListener("change", saveTrainingOptions);
+  trainingCombatClass.addEventListener("change", () => {
+    const outcome = window.mod?.setTrainingCombatClass?.(trainingCombatClass.value);
+    if (!outcome?.ok) {
+      trainingCombatClass.value = window.mod?.hunt?.trainingCombatClass ?? "melee";
+      trainingStatus.textContent = outcome?.error ?? "Não foi possível salvar a classe de combate.";
+    }
+  });
   const saveTrainingEliteOptions = () => {
     window.mod?.setTrainingEliteOptions?.(trainingEliteEnabled.checked, trainingEliteClass.value);
     trainingEliteClass.disabled = !trainingEliteEnabled.checked;
@@ -2039,7 +2137,7 @@
       trainingStatus.textContent = "Pare a caça antes de iniciar o treino.";
       return;
     } else {
-      const types = Object.keys(window.mod?.targets ?? {}).filter(type => window.mod.targets[type]);
+      const types = [...(hunt?.trainingMobTypes ?? []), ...(hunt?.trainingCombatMobTypes ?? [])];
       const outcome = window.mod?.startHuntTargets?.(types, hunt?.trainingRadius ?? 4, false, true);
       if (!outcome?.ok) { trainingStatus.textContent = outcome?.error ?? "API de treino indisponível."; return; }
     }

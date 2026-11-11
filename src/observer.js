@@ -335,6 +335,9 @@
   huntState.lureEnabled = false;
   huntState.training = false;
   huntState.trainingClass = "melee";
+  huntState.trainingMobTypes = [];
+  huntState.trainingCombatMobTypes = [];
+  huntState.trainingCombatClass = "melee";
   huntState.trainingEliteEnabled = false;
   huntState.trainingEliteClass = "melee";
   huntState.trainingExhaustedEnabled = false;
@@ -402,6 +405,12 @@
     if (Number.isInteger(reverseLoops) && reverseLoops >= 1 && reverseLoops <= 1000) huntState.waypointReverseLoops = reverseLoops;
     const trainingClass = localStorage.getItem("fantasy-mod-training-class");
     if (["mage", "melee", "distance"].includes(trainingClass)) huntState.trainingClass = trainingClass;
+    const trainingMobTypes = JSON.parse(localStorage.getItem("fantasy-mod-training-mob-types") ?? "null");
+    if (Array.isArray(trainingMobTypes)) huntState.trainingMobTypes = trainingMobTypes.map(String);
+    const trainingCombatMobTypes = JSON.parse(localStorage.getItem("fantasy-mod-training-combat-mob-types") ?? "[]");
+    if (Array.isArray(trainingCombatMobTypes)) huntState.trainingCombatMobTypes = trainingCombatMobTypes.map(String);
+    const trainingCombatClass = localStorage.getItem("fantasy-mod-training-combat-class");
+    if (["mage", "melee", "distance"].includes(trainingCombatClass)) huntState.trainingCombatClass = trainingCombatClass;
     huntState.trainingEliteEnabled = localStorage.getItem("fantasy-mod-training-elite-enabled") === "true";
     const eliteClass = localStorage.getItem("fantasy-mod-training-elite-class");
     if (["mage", "melee", "distance"].includes(eliteClass)) huntState.trainingEliteClass = eliteClass;
@@ -580,6 +589,11 @@
   };
   mod.targets ??= {};
   try { Object.assign(mod.targets, JSON.parse(localStorage.getItem("fantasy-mod-targets") ?? "{}")); } catch {}
+  try {
+    if (localStorage.getItem("fantasy-mod-training-mob-types") === null) {
+      huntState.trainingMobTypes = Object.keys(mod.targets).filter(type => mod.targets[type]);
+    }
+  } catch {}
   mod.setLureCount = count => {
     const value = Number(count);
     if (!Number.isInteger(value) || value < 1 || value > 50) return { ok: false, error: "A quantidade deve ficar entre 1 e 50 criaturas." };
@@ -617,6 +631,42 @@
     } catch {}
     return { ok: true };
   };
+  mod.setTrainingMobTypes = (kind, types) => {
+    if (kind !== "training" && kind !== "combat" || !Array.isArray(types) || types.length > 500
+      || types.some(type => !/^\d+$/.test(String(type)))) {
+      return { ok: false, error: "Lista de criaturas do treino inválida." };
+    }
+    const selected = [...new Set(types.map(String))];
+    if (kind === "training") {
+      huntState.trainingMobTypes = selected;
+      huntState.trainingCombatMobTypes = huntState.trainingCombatMobTypes.filter(type => !selected.includes(type));
+    } else {
+      huntState.trainingCombatMobTypes = selected;
+      huntState.trainingMobTypes = huntState.trainingMobTypes.filter(type => !selected.includes(type));
+    }
+    try {
+      localStorage.setItem("fantasy-mod-training-mob-types", JSON.stringify(huntState.trainingMobTypes));
+      localStorage.setItem("fantasy-mod-training-combat-mob-types", JSON.stringify(huntState.trainingCombatMobTypes));
+    } catch {}
+    if (huntState.enabled && huntState.training) {
+      huntState.types = [...new Set([...huntState.trainingMobTypes, ...huntState.trainingCombatMobTypes])];
+      if (trainingElite?.kind === "selected") {
+        const selectedTarget = mod.creaturesNearby(100).find(creature => String(creature.id) === String(trainingElite.id));
+        if (!selectedTarget || !huntState.trainingCombatMobTypes.includes(String(selectedTarget.type))) finishTrainingElite();
+      }
+      if (huntTargetId != null) {
+        const target = mod.creaturesNearby(100).find(creature => String(creature.id) === String(huntTargetId));
+        if (target && !huntState.types.includes(String(target.type))) huntTargetId = huntTargetSent = null;
+      }
+    }
+    return { ok: true };
+  };
+  mod.setTrainingCombatClass = combatClass => {
+    if (!["mage", "melee", "distance"].includes(combatClass)) return { ok: false, error: "Classe de combate inválida." };
+    huntState.trainingCombatClass = combatClass;
+    try { localStorage.setItem("fantasy-mod-training-combat-class", combatClass); } catch {}
+    return { ok: true };
+  };
   mod.setTrainingCityOption = (option, enabled) => {
     const settings = { bag: "trainingCityBag", arrows: "trainingCityArrows", potions: "trainingCityPotions" };
     const key = settings[option];
@@ -646,7 +696,7 @@
       localStorage.setItem("fantasy-mod-training-elite-enabled", String(huntState.trainingEliteEnabled));
       localStorage.setItem("fantasy-mod-training-elite-class", combatClass);
     } catch {}
-    if (!enabled && trainingElite?.kind !== "exhausted") finishTrainingElite();
+    if (!enabled && trainingElite?.kind === "elite") finishTrainingElite();
     return { ok: true };
   };
   mod.setTrainingExhaustedOptions = (enabled, combatClass) => {
@@ -750,7 +800,7 @@
     const key = String(type);
     mod.targets[key] = !!enabled;
     try { localStorage.setItem("fantasy-mod-targets", JSON.stringify(mod.targets)); } catch {}
-    if (huntState.enabled || huntState.lureEnabled) {
+    if ((huntState.enabled || huntState.lureEnabled) && !huntState.training) {
       huntState.names = [];
       huntState.types = Object.keys(mod.targets).filter(targetType => mod.targets[targetType]);
       try { localStorage.setItem("fantasy-mod-hunt-names", "[]"); } catch {}
@@ -760,7 +810,7 @@
   mod.setTargetsEnabled = enabled => {
     for (const creature of monsterCatalog) mod.targets[String(creature.type)] = !!enabled;
     try { localStorage.setItem("fantasy-mod-targets", JSON.stringify(mod.targets)); } catch {}
-    if (huntState.enabled || huntState.lureEnabled) {
+    if ((huntState.enabled || huntState.lureEnabled) && !huntState.training) {
       huntState.names = [];
       huntState.types = Object.keys(mod.targets).filter(targetType => mod.targets[targetType]);
       try { localStorage.setItem("fantasy-mod-hunt-names", "[]"); } catch {}
@@ -1288,7 +1338,10 @@
   };
   mod.startHuntTargets = (types = Object.keys(mod.targets).filter(type => mod.targets[type]), radius = huntState.radius, useLure = false, training = false) => {
     if (myself.dead) return { ok: false, error: "O personagem morreu; a caça não pode ser iniciada." };
-    const list = [...new Set((Array.isArray(types) ? types : []).map(String))];
+    const list = training
+      ? [...new Set([...huntState.trainingMobTypes, ...huntState.trainingCombatMobTypes])]
+      : [...new Set((Array.isArray(types) ? types : []).map(String))];
+    if (!list.length && training) return { ok: false, error: "Selecione pelo menos um mob para treinar ou combater na aba Treino." };
     if (!list.length && !huntState.attackAny) return { ok: false, error: "Ative uma criatura em Alvos ou habilite atacar qualquer criatura." };
     const range = Number(radius);
     if (!Number.isFinite(range) || range < 1 || range > 100) return { ok: false, error: "O raio deve ficar entre 1 e 100 tiles." };
@@ -3286,7 +3339,8 @@
     const wanted = huntState.names.map(normalizeName);
     const wantedTypes = (huntState.names.length
       ? (huntState.types ?? [])
-      : Object.keys(mod.targets ?? {}).filter(type => mod.targets[type])).map(String);
+      : huntState.training ? huntState.types
+        : Object.keys(mod.targets ?? {}).filter(type => mod.targets[type])).map(String);
     if (!huntState.names.length && wantedTypes.length) {
       for (const entry of monsterCatalog) {
         if (!wantedTypes.includes(String(entry.type))) continue;
@@ -3303,6 +3357,7 @@
       }
     }
     const matchesTarget = creature => {
+      if (huntState.training) return wantedTypes.includes(String(creature.type));
       if (huntState.attackAny) return true;
       const sourceNames = [creature.name, ...creature.aliases];
       const candidates = [
@@ -3384,7 +3439,7 @@
       return;
     }
     const visibleCreatures = mod.creaturesNearby(100);
-    if (huntState.training && (huntState.trainingEliteEnabled || huntState.trainingExhaustedEnabled)) {
+    if (huntState.training && (huntState.trainingEliteEnabled || huntState.trainingExhaustedEnabled || huntState.trainingCombatMobTypes.length)) {
       for (const [id, until] of trainingEliteAttackers) if (until <= Date.now()) trainingEliteAttackers.delete(id);
       if (trainingElite && !visibleCreatures.some(creature => String(creature.id) === String(trainingElite.id))) {
         const remainingAttackers = new Map(trainingEliteAttackers);
@@ -3397,10 +3452,13 @@
       if (!trainingElite) {
         const elite = huntState.trainingEliteEnabled && visibleCreatures.find(creature => trainingEliteAttackers.has(String(creature.id)) && isEliteCreature(creature));
         const exhausted = huntState.trainingExhaustedEnabled && visibleCreatures.find(creature => String(creature.id) === String(exhaustedTargetId));
-        const combatTarget = elite || exhausted;
+        const selected = huntState.trainingCombatMobTypes.length && creaturesWithinPathRadius(huntState.radius)
+          .find(creature => huntState.trainingCombatMobTypes.includes(String(creature.type))
+            && !isAttackedByAnotherPlayer(creature) && !isIgnoredAtBlockedPosition(creature));
+        const combatTarget = elite || exhausted || selected;
         const previousClass = playerStats.cls ?? playerStats.cl ?? myself.cls;
         if (combatTarget && Number.isInteger(previousClass)) {
-          trainingElite = { id: combatTarget.id, previousClass, sentAt: 0, kind: elite ? "elite" : "exhausted" };
+          trainingElite = { id: combatTarget.id, previousClass, sentAt: 0, kind: elite ? "elite" : exhausted ? "exhausted" : "selected" };
           exhaustedTargetId = null;
           huntTargetId = combatTarget.id;
           huntTargetSent = null;
@@ -3409,11 +3467,13 @@
         }
       }
       if (trainingElite && Date.now() - trainingElite.sentAt >= 1200) {
-        const desired = classIds[trainingElite.kind === "exhausted" ? huntState.trainingExhaustedClass : huntState.trainingEliteClass];
+        const desired = classIds[trainingElite.kind === "exhausted" ? huntState.trainingExhaustedClass
+          : trainingElite.kind === "selected" ? huntState.trainingCombatClass : huntState.trainingEliteClass];
         if ((playerStats.cls ?? playerStats.cl ?? myself.cls) !== desired && sendTrainingClass(desired)) trainingElite.sentAt = Date.now();
       }
     } else if (trainingElite) finishTrainingElite();
-    const activeClass = trainingElite ? (trainingElite.kind === "exhausted" ? huntState.trainingExhaustedClass : huntState.trainingEliteClass) : huntState.trainingClass;
+    const activeClass = trainingElite ? (trainingElite.kind === "exhausted" ? huntState.trainingExhaustedClass
+      : trainingElite.kind === "selected" ? huntState.trainingCombatClass : huntState.trainingEliteClass) : huntState.trainingClass;
     const attackRange = huntState.training ? (activeClass === "melee" ? 1 : 4) : huntState.attackRange;
     let target = huntTargetId == null
       ? null
@@ -3489,7 +3549,8 @@
     }
     ensureHuntTarget(target);
     if (target.distance <= attackRange && hasAttackLine(myself.x, myself.y, target)) {
-      huntState.status = `${trainingElite?.kind === "exhausted" ? "Exausto: atacando" : trainingElite ? "Elite: atacando" : "Atacando"} ${target.name}`;
+      huntState.status = `${trainingElite?.kind === "exhausted" ? "Exausto: atacando"
+        : trainingElite?.kind === "selected" ? "Classe de combate: atacando" : trainingElite ? "Elite: atacando" : "Atacando"} ${target.name}`;
       if (trainingElite?.kind === "elite" && Number(playerStats.cls ?? playerStats.cl) === classIds[huntState.trainingEliteClass]) {
         const outcome = mod.useHuntSpecial();
         if (!outcome.ok && !/cooldown/i.test(outcome.error ?? "")) huntState.status += ` · ${outcome.error}`;
