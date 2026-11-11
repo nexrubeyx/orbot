@@ -2274,7 +2274,7 @@
         attempt.quietSince = now;
         attempt.quietPosition = position;
       }
-      const remaining = 5000 - (now - attempt.quietSince);
+      const remaining = 12000 - (now - attempt.quietSince);
       if (remaining > 0) {
         huntState.status = `TP: área livre; aguardando ${Math.ceil(remaining / 1000)} s`;
         return true;

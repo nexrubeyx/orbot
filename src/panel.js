@@ -337,7 +337,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.17</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.18</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -541,7 +541,7 @@
                   </select></label>
                   <label>Pergaminho de Cidade<select class="city-tp-item"></select></label>
                 </div>
-                <p class="city-route-note">Antes do TP, o bot elimina mobs em até 10 tiles e espera 5 s com a área livre. O pergaminho leva 15 s para ativar.</p>
+                <p class="city-route-note">Antes do TP, o bot elimina mobs em até 10 tiles e espera 12 s com a área livre. O pergaminho leva 15 s para ativar.</p>
                 <p class="city-route-status" role="status"></p>
               </section>
               <strong>Poções</strong>
