@@ -385,9 +385,6 @@
   let nextWaypointMoveAt = 0;
   let waypointMovePending = null;
   let waypointTravel = null;
-  let waypointTravelRetryAt = 0;
-  let waypointMoveFailures = 0;
-  let waypointNoProgressFailures = 0;
   let lureArrivalWaypoint = null;
   let lureArrivalTolerance = 1;
   const lurePulledIds = new Set();
@@ -457,8 +454,6 @@
     mod.waypoints.push({ x, y, floor });
     saveWaypoints();
     setHuntWaypointIndex(0);
-    waypointMoveFailures = 0;
-    waypointNoProgressFailures = 0;
     waypointMovePending = null;
     return { ok: true, waypoint: mod.waypoints.at(-1), count: mod.waypoints.length };
   };
@@ -505,25 +500,19 @@
   mod.removeWaypoint = index => {
     if (!Number.isInteger(index) || index < 0 || index >= mod.waypoints.length) return { ok: false, error: "Waypoint inválido." };
     if (waypointTravel) { waypointTravel = null; stopGameMovement(); }
-    waypointTravelRetryAt = 0;
     resetWaypointDirection();
     mod.waypoints.splice(index, 1);
     saveWaypoints();
     setHuntWaypointIndex(Math.min(huntWaypointIndex, Math.max(0, mod.waypoints.length - 1)));
-    waypointMoveFailures = 0;
-    waypointNoProgressFailures = 0;
     waypointMovePending = null;
     return { ok: true, count: mod.waypoints.length };
   };
   mod.clearWaypoints = () => {
     if (waypointTravel) { waypointTravel = null; stopGameMovement(); }
-    waypointTravelRetryAt = 0;
     resetWaypointDirection();
     mod.waypoints = [];
     saveWaypoints();
     setHuntWaypointIndex(0);
-    waypointMoveFailures = 0;
-    waypointNoProgressFailures = 0;
     waypointMovePending = null;
     return { ok: true };
   };
@@ -585,8 +574,6 @@
     setHuntWaypointIndex(0);
     nextWaypointMoveAt = 0;
     waypointMovePending = null;
-    waypointMoveFailures = 0;
-    waypointNoProgressFailures = 0;
     lureArrivalWaypoint = null;
     lureArrivalTolerance = 1;
     mod.log("info", huntState.lureEnabled ? "Lure iniciado." : (reason ?? "Lure desativado pelo usuário."));
@@ -1382,7 +1369,6 @@
   mod.stopHunt = (reason = "Caça parada pelo usuário.", preserveResume = false) => {
     finishTrainingElite();
     waypointTravel = null;
-    waypointTravelRetryAt = 0;
     if (!preserveResume) {
       cancelHuntAutomation();
       if (focusState.enabled) mod.setFocusEnabled(false);
@@ -1691,7 +1677,6 @@
     nextFocusMoveAt = 0;
     waypointMovePending = lureArrivalWaypoint = null;
     waypointTravel = null;
-    waypointTravelRetryAt = 0;
     nextWaypointMoveAt = 0;
     activeSellShop = null;
     shopSellWaiting = false;
@@ -2830,9 +2815,7 @@
     const distance = Math.max(Math.abs(point.x - myself.x), Math.abs(point.y - myself.y));
     if (myself.floor === point.floor && distance <= 2) {
       waypointTravel = null;
-      waypointTravelRetryAt = 0;
       waypointMovePending = null;
-      waypointMoveFailures = waypointNoProgressFailures = 0;
       huntState.status = `Waypoint ${trip.waypointIndex + 1}: viagem concluída`;
       return false;
     }
@@ -2866,30 +2849,30 @@
         return true;
       }
       if (now >= trip.deadline) {
-        waypointTravel = null;
-        waypointTravelRetryAt = now + 15000;
+        trip.stage = 0;
+        trip.retryAt = now + 15000;
         stopGameMovement();
-        huntState.status = `Waypoint ${trip.waypointIndex + 1}: viagem sem chegada; tentando andar`;
+        huntState.status = `Waypoint ${trip.waypointIndex + 1}: viagem sem chegada; repetindo Travel`;
         mod.log("warn", huntState.status);
-        return false;
+        return true;
       }
       huntState.status = `Waypoint ${trip.waypointIndex + 1}: aguardando chegada da viagem`;
       return true;
     } catch (error) {
-      waypointTravel = null;
-      waypointTravelRetryAt = now + 15000;
+      trip.stage = 0;
+      trip.retryAt = now + 15000;
+      stopGameMovement();
       huntState.status = `Falha ao viajar para o waypoint: ${error?.message ?? error}`;
       mod.log("warn", huntState.status);
-      return false;
+      return true;
     }
   }
   function startWaypointTravel(entry, label) {
     waypointMovePending = null;
-    waypointMoveFailures = waypointNoProgressFailures = 0;
     nextWaypointMoveAt = 0;
     waypointTravel = {
       point: { ...entry.point }, waypointIndex: entry.index,
-      stage: 0, retryAt: waypointTravelRetryAt
+      stage: 0, retryAt: 0
     };
     mod.log("info", `${label}: iniciando Travel para waypoint ${entry.index + 1} (${entry.point.x}, ${entry.point.y}).`);
     return processWaypointTravel();
@@ -2947,19 +2930,14 @@
       } else if (myself.x === waypointMovePending.x && myself.y === waypointMovePending.y
         || distance <= arrivalTolerance) {
         waypointMovePending = null;
-        waypointNoProgressFailures = 0;
       } else if (Date.now() < waypointMovePending.deadlineAt) {
         huntState.status = `${label}: aguardando chegada ao tile (${waypointMovePending.x}, ${waypointMovePending.y})`;
         return true;
       } else {
         mod.log("warn", `${label}: o movimento para (${waypointMovePending.x}, ${waypointMovePending.y}) não chegou a tempo.`);
         waypointMovePending = null;
-        waypointNoProgressFailures++;
-        if (waypointNoProgressFailures >= 8) {
-          mod.log("warn", `${label}: waypoint ${current.index + 1} sem progresso; iniciando Travel para o mesmo ponto.`);
-          return startWaypointTravel(current, label);
-        }
-        nextWaypointMoveAt = 0;
+        mod.log("warn", `${label}: iniciando Travel para o waypoint ${current.index + 1} após a primeira falha de chegada.`);
+        return startWaypointTravel(current, label);
       }
     }
     if (distance <= arrivalTolerance) {
@@ -2983,8 +2961,6 @@
       setHuntWaypointIndex(sameFloor[order].index);
       nextWaypointMoveAt = 0;
       waypointMovePending = null;
-      waypointMoveFailures = 0;
-      waypointNoProgressFailures = 0;
       if (Date.now() < waypointReversePauseUntil) {
         huntState.status = `${label}: aguardando ${((waypointReversePauseUntil - Date.now()) / 1000).toFixed(1)} s após inversão`;
         return true;
@@ -3004,7 +2980,7 @@
     if (Date.now() >= nextWaypointMoveAt) {
       const remaining = Math.max(Math.abs(current.point.x - myself.x), Math.abs(current.point.y - myself.y));
       if ((!lureRoute || huntState.lureProgress.current === 0) && !keepTargetInRange
-        && remaining > 20 && Date.now() >= waypointTravelRetryAt) {
+        && remaining > 20) {
         return startWaypointTravel(current, label);
       }
       const maxAdvance = lureRoute ? huntState.lureStepTiles : 20;
@@ -3012,31 +2988,16 @@
         x: myself.x + Math.max(-maxAdvance, Math.min(maxAdvance, current.point.x - myself.x)),
         y: myself.y + Math.max(-maxAdvance, Math.min(maxAdvance, current.point.y - myself.y))
       };
-      let outcome = keepTargetInRange
+      const outcome = keepTargetInRange
         ? moveAlongWaypointInTargetRange(destination, keepTargetInRange)
         : mod.move(destination.x, destination.y, { requireExact: true });
-      let detour = false;
-      if (!outcome.ok && !keepTargetInRange) {
-        const candidates = [];
-        for (let radius = 1; radius <= 4; radius++) {
-          for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
-            if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
-            candidates.push({ x: destination.x + dx, y: destination.y + dy });
-          }
-        }
-        candidates.sort((a, b) => Math.max(Math.abs(a.x - current.point.x), Math.abs(a.y - current.point.y))
-          - Math.max(Math.abs(b.x - current.point.x), Math.abs(b.y - current.point.y)));
-        for (const candidate of candidates) {
-          outcome = mod.move(candidate.x, candidate.y, { requireExact: true });
-          if (outcome.ok) { detour = true; break; }
-        }
+      if (!outcome.ok) {
+        mod.log("warn", `${label}: falha ao mover para o waypoint ${current.index + 1} (${outcome.error ?? "sem rota"}); iniciando Travel.`);
+        return startWaypointTravel(current, label);
       }
-      huntState.status = outcome.ok
-        ? `${label}: ${detour ? "desviando de destino bloqueado; " : ""}indo para waypoint ${current.index + 1}/${mod.waypoints.length}`
-        : outcome.error;
-      nextWaypointMoveAt = Date.now() + (outcome.ok ? 0 : 1200);
-      waypointMoveFailures = outcome.ok ? 0 : waypointMoveFailures + 1;
-      if (outcome.ok && outcome.target) {
+      huntState.status = `${label}: indo para waypoint ${current.index + 1}/${mod.waypoints.length}`;
+      nextWaypointMoveAt = 0;
+      if (outcome.target) {
         waypointMovePending = {
           x: outcome.target.x,
           y: outcome.target.y,
@@ -3044,10 +3005,6 @@
           waypointIndex: current.index,
           deadlineAt: Date.now() + Math.min(20000, 3000 + (outcome.steps ?? 1) * 800)
         };
-      }
-      if (waypointMoveFailures >= 8) {
-        mod.log("warn", `${label}: waypoint ${current.index + 1} sem rota válida; iniciando Travel para o mesmo ponto.`);
-        return startWaypointTravel(current, label);
       }
     }
     return true;
