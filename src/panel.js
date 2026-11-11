@@ -224,6 +224,30 @@
       .loot-item-icon { width:28px; height:28px; flex:none; border:1px solid var(--luz); border-radius:0; object-fit:cover; image-rendering:pixelated; background:var(--painel); }
       .loot-item-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .loot-item-empty { margin:0; color:var(--ui-2); font-size:11px; }
+      .protected-sell-card { display:grid; gap:10px; margin-top:10px; padding:11px; border:1px solid var(--luz); background:linear-gradient(145deg,#352a1e,var(--slot)); }
+      .protected-sell-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+      .protected-sell-head strong { color:var(--ouro-claro); font-size:13px; }
+      .protected-sell-count { padding:3px 7px; border:1px solid var(--ouro-escuro); background:#46381a; color:var(--ouro-claro); font-size:10px; white-space:nowrap; }
+      .protected-sell-card .hint { margin:0; line-height:1.4; }
+      .protected-sell-list,.protected-inventory-list { display:grid; gap:5px; max-height:160px; overflow:auto; }
+      .protected-item-row,.protected-inventory-row { display:grid; grid-template-columns:32px minmax(0,1fr) auto; align-items:center; gap:8px; min-height:40px; padding:5px 7px; border:1px solid var(--luz); background:var(--poco); }
+      .protected-item-row { border-left:3px solid var(--verde); }
+      .protected-item-icon { display:grid; place-items:center; width:32px; height:32px; border:1px solid var(--luz); background:var(--slot); color:var(--ouro); font-size:15px; }
+      .protected-item-icon img { width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
+      .protected-item-info { display:grid; min-width:0; line-height:1.2; }
+      .protected-item-name { overflow:hidden; color:var(--ui); font-size:11px; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
+      .protected-item-meta { color:var(--ui-2); font-size:9px; }
+      .protected-item-action { padding:5px 7px; border:1px solid var(--luz); background:#3d3328; color:var(--ui); font-size:10px; cursor:pointer; }
+      .protected-item-action:hover { border-color:var(--ouro); color:var(--ouro-claro); }
+      .protected-item-action.remove:hover { border-color:var(--vermelho); color:var(--vermelho); }
+      .protected-inventory { padding-top:9px; border-top:1px solid var(--luz); }
+      .protected-inventory-title { display:block; margin-bottom:6px; color:var(--ui); font-size:11px; font-weight:700; }
+      .protected-inventory-list { max-height:145px; }
+      .protected-catalog { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; align-items:end; }
+      .protected-catalog label { min-width:0; font-size:10px; }
+      .protected-catalog select { margin-top:3px; }
+      .protected-catalog button { min-height:34px; padding:5px 9px; border:1px solid var(--ouro-escuro); background:#46381a; color:var(--ouro-claro); font-size:10px; cursor:pointer; }
+      .protected-catalog button:disabled { opacity:.45; cursor:default; }
       .waypoint-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:8px; }
       .waypoint-actions button,.waypoint-remove { padding:7px 8px; border:1px solid var(--luz); border-radius:0; background:#3d3328; color:var(--ui); cursor:pointer; }
       .waypoint-reverse-card { margin-top:8px; padding:10px; border:1px solid var(--luz); background:var(--painel); }
@@ -337,7 +361,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.19</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.20</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -559,9 +583,13 @@
               <label class="pref"><input class="auto-confirmation" type="checkbox"> Responder confirmação de monstro</label>
               <p class="hint">Compara os sprites das opções. Se a imagem for ambígua ou pedir texto, responda manualmente.</p>
               <label class="pref"><input class="auto-refresh" type="checkbox"> Atualizar estado automaticamente</label>
-              <strong>Itens que não serão vendidos</strong>
-              <p class="hint">Marque os itens que quer manter. Os demais itens da mochila serão vendidos quando o bot chegar à loja.</p>
-              <div class="loot-item-list protected-sell-list" aria-live="polite"></div>
+              <section class="protected-sell-card" aria-label="Itens que não serão vendidos">
+                <div class="protected-sell-head"><strong>Itens que não serão vendidos</strong><span class="protected-sell-count">0 protegidos</span></div>
+                <p class="hint">Itens protegidos permanecem na mochila durante a venda automática.</p>
+                <div class="protected-sell-list" aria-live="polite"></div>
+                <div class="protected-inventory"><span class="protected-inventory-title">Adicionar da mochila</span><div class="protected-inventory-list" aria-live="polite"></div></div>
+                <div class="protected-catalog"><label>Ou escolha no catálogo<select class="protected-catalog-select"></select></label><button class="protected-catalog-add" type="button">Adicionar</button></div>
+              </section>
             </div>
           </section>
           <section class="page" data-section="console" hidden>
@@ -652,6 +680,10 @@
   const refillItemList = root.querySelector(".refill-item-list");
   const lootItemList = root.querySelector(".loot-item-list");
   const protectedSellList = root.querySelector(".protected-sell-list");
+  const protectedSellCount = root.querySelector(".protected-sell-count");
+  const protectedInventoryList = root.querySelector(".protected-inventory-list");
+  const protectedCatalogSelect = root.querySelector(".protected-catalog-select");
+  const protectedCatalogAdd = root.querySelector(".protected-catalog-add");
   const huntToggle = root.querySelector(".hunt-toggle");
   const trainingToggle = root.querySelector(".training-toggle");
   const autoLootGoldToggles = root.querySelectorAll(".auto-loot-gold");
@@ -1313,31 +1345,91 @@
   function showProtectedSellItems() {
     const catalog = window.mod?.lootCatalog ?? [];
     const selected = new Set((window.mod?.hunt?.sellProtectedItemIds ?? []).map(String));
-    const signature = JSON.stringify([catalog, [...selected].sort()]);
+    const inventory = window.mod?.inventory;
+    const bagCounts = new Map();
+    if (inventory?.known) for (const entry of inventory.bag ?? []) {
+      const rawId = Array.isArray(entry) ? entry[0] : entry;
+      if (rawId == null || rawId === false) continue;
+      const id = String(rawId);
+      const count = Array.isArray(entry) ? Math.max(1, Number(entry[1]) || 1) : 1;
+      bagCounts.set(id, (bagCounts.get(id) ?? 0) + count);
+    }
+    const signature = JSON.stringify([catalog, [...selected].sort(), inventory?.known, [...bagCounts]]);
     if (protectedSellList.dataset.signature === signature) return;
     protectedSellList.dataset.signature = signature;
     protectedSellList.replaceChildren();
-    if (!catalog.length) {
+    protectedInventoryList.replaceChildren();
+    protectedSellCount.textContent = `${selected.size} ${selected.size === 1 ? "protegido" : "protegidos"}`;
+    const byId = new Map(catalog.map(item => [String(item.id), item]));
+    const itemName = id => byId.get(id)?.name ?? `Item ${id}`;
+    const makeRow = (id, protectedItem) => {
+      const row = document.createElement("div");
+      row.className = protectedItem ? "protected-item-row" : "protected-inventory-row";
+      const icon = document.createElement("span");
+      icon.className = "protected-item-icon";
+      if (byId.get(id)?.sprite) {
+        const image = document.createElement("img");
+        image.src = byId.get(id).sprite;
+        image.alt = "";
+        icon.append(image);
+      } else icon.textContent = "◇";
+      const info = document.createElement("span");
+      info.className = "protected-item-info";
+      const name = document.createElement("span");
+      name.className = "protected-item-name";
+      name.textContent = itemName(id);
+      const meta = document.createElement("span");
+      meta.className = "protected-item-meta";
+      meta.textContent = `ID ${id}${bagCounts.has(id) ? ` · ${bagCounts.get(id)} na mochila` : ""}`;
+      info.append(name, meta);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `protected-item-action${protectedItem ? " remove" : ""}`;
+      button.textContent = protectedItem ? "Remover" : "Proteger";
+      button.setAttribute("aria-label", `${protectedItem ? "Remover proteção de" : "Proteger"} ${itemName(id)}`);
+      button.addEventListener("click", () => {
+        window.mod?.setSellProtectedItemEnabled?.(id, !protectedItem);
+        showProtectedSellItems();
+      });
+      row.append(icon, info, button);
+      return row;
+    };
+    if (!selected.size) {
       const empty = document.createElement("p");
       empty.className = "loot-item-empty";
-      empty.textContent = "Aguardando catálogo de itens do jogo.";
+      empty.textContent = "Nenhum item protegido. Adicione um item da mochila abaixo.";
       protectedSellList.append(empty);
-      return;
+    } else {
+      for (const id of [...selected].sort((a, b) => itemName(a).localeCompare(itemName(b)))) {
+        protectedSellList.append(makeRow(id, true));
+      }
     }
-    for (const item of catalog) {
-      const label = document.createElement("label");
-      label.className = "loot-item";
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = selected.has(String(item.id));
-      checkbox.addEventListener("change", () => window.mod?.setSellProtectedItemEnabled?.(item.id, checkbox.checked));
-      const name = document.createElement("span");
-      name.className = "loot-item-name";
-      name.textContent = item.name;
-      label.append(checkbox, name);
-      protectedSellList.append(label);
+    const available = [...bagCounts.keys()].filter(id => !selected.has(id))
+      .sort((a, b) => itemName(a).localeCompare(itemName(b)));
+    if (available.length) for (const id of available) protectedInventoryList.append(makeRow(id, false));
+    else {
+      const empty = document.createElement("p");
+      empty.className = "loot-item-empty";
+      empty.textContent = !inventory?.known ? "Aguardando dados da mochila."
+        : bagCounts.size ? "Todos os itens da mochila já estão protegidos." : "A mochila está vazia.";
+      protectedInventoryList.append(empty);
     }
+    const previous = protectedCatalogSelect.value;
+    protectedCatalogSelect.replaceChildren();
+    for (const item of catalog.filter(item => !selected.has(String(item.id)))) {
+      const option = document.createElement("option");
+      option.value = String(item.id);
+      option.textContent = `${item.name} · ID ${item.id}`;
+      protectedCatalogSelect.append(option);
+    }
+    if ([...protectedCatalogSelect.options].some(option => option.value === previous)) protectedCatalogSelect.value = previous;
+    protectedCatalogSelect.disabled = protectedCatalogAdd.disabled = !protectedCatalogSelect.options.length;
   }
+  protectedCatalogAdd.addEventListener("click", () => {
+    if (!protectedCatalogSelect.value) return;
+    window.mod?.setSellProtectedItemEnabled?.(protectedCatalogSelect.value, true);
+    showProtectedSellItems();
+  });
 
   function showWaypoints() {
     const waypoints = window.mod?.waypoints ?? [];
