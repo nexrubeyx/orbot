@@ -2177,7 +2177,7 @@
     const returnForBag = inventoryFull && (!training || huntState.trainingCityBag);
     const needsCityTrip = returnForBag || returnForArrows || lowPotions;
     const reason = returnForArrows ? "Flechas acabaram" : returnForBag ? "Mochila cheia" : "Poções abaixo de 10";
-    if (!needsCityTrip && fullBagTravelStage !== 1) {
+    if (!needsCityTrip && fullBagTravelStage !== 1 && !fullBagTravelStarted) {
       fullBagTravelStarted = false;
       fullBagTravelPending = false;
       fullBagTravelStage = 0;
@@ -2315,6 +2315,7 @@
     const now = Date.now();
     try {
       if (initialHuntTravel?.stage === 0) {
+        if (now < (initialHuntTravel.retryAt ?? 0)) return true;
         const { x, y, floor } = initialHuntTravel.point;
         gameSocket.send(JSON.stringify({ t: "travel", id: 1, go: false, f: floor, x, y }));
         initialHuntTravel.stage = 1;
@@ -2345,20 +2346,22 @@
           return false;
         }
         if (now >= deadline) {
+          initialHuntTravel = { point: { ...point }, stage: 0, secondAt: 0 };
           huntTravelArrival = null;
-          huntState.status = "Tempo de viagem ao waypoint inicial esgotado; caça retomada";
+          huntState.status = "Tempo de viagem ao waypoint inicial esgotado; reiniciando viagem";
           mod.log("warn", huntState.status);
-          return false;
+          return true;
         }
         huntState.status = `Indo para o waypoint inicial (${point.x}, ${point.y})`;
         return true;
       }
     } catch (error) {
-      initialHuntTravel = null;
+      const point = initialHuntTravel?.point ?? huntTravelArrival?.point;
+      initialHuntTravel = point ? { point: { ...point }, stage: 0, secondAt: 0, retryAt: Date.now() + 5000 } : null;
       huntTravelArrival = null;
       huntState.status = `Falha ao viajar para o waypoint inicial: ${error?.message ?? error}`;
       mod.log("error", huntState.status);
-      return false;
+      return true;
     }
     return false;
   }
@@ -2661,8 +2664,9 @@
         ensureHuntTarget({ id: target.id });
         const distance = Math.max(Math.abs(target.x - myself.x), Math.abs(target.y - myself.y));
         const attackRange = Math.max(1, Number(huntState.attackRange) || 1);
-        if ((distance > attackRange || !hasAttackLine(myself.x, myself.y, target))
-          && now >= nextTravelCombatMoveAt) {
+        const canAttack = distance <= attackRange && hasAttackLine(myself.x, myself.y, target);
+        if (canAttack) mod.useHuntSpecial();
+        if (!canAttack && now >= nextTravelCombatMoveAt) {
           const outcome = moveTowardAttackRange(target);
           nextTravelCombatMoveAt = now + (outcome.ok ? 900 : 1200);
           huntState.status = outcome.ok
@@ -2942,6 +2946,7 @@
     if (handleReturnTravel()) return;
     if (handleFullInventory()) return;
     if (processInitialHuntTravel()) return;
+    if (returnTravelStarted && savedHuntPosition) return;
     if (!huntState.enabled && !huntState.lureEnabled && !focusState.enabled) {
       huntState.lootStatus = huntState.autoLoot ? "Ativo quando a caça iniciar" : "Desativado";
       return;
