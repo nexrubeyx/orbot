@@ -1686,6 +1686,21 @@
         || /\belite\b/i.test(String(record.name?.pt ?? record.name ?? record.n ?? ""));
     });
   }
+  let lastSpecialBlocked = { error: "", at: 0 };
+  function useSpecialForNearbyMobs(target, attackRange, force = false) {
+    if (!huntState.useSpecial || !target || target.distance > attackRange
+      || !hasAttackLine(myself.x, myself.y, target)) return null;
+    const nearbyMobs = mod.creaturesNearby(attackRange)
+      .filter(creature => !isAttackedByAnotherPlayer(creature));
+    if (!force && nearbyMobs.length < 2 && !isEliteCreature(target)) return null;
+    const outcome = mod.useHuntSpecial();
+    if (!outcome.ok && !/cooldown/i.test(outcome.error ?? "")
+      && (outcome.error !== lastSpecialBlocked.error || Date.now() - lastSpecialBlocked.at > 10000)) {
+      lastSpecialBlocked = { error: outcome.error, at: Date.now() };
+      mod.log("warn", `Habilidade especial não usada: ${outcome.error}`);
+    }
+    return outcome;
+  }
   function processAutoLoot(target) {
     if (cityTripInProgress()) {
       huntLootId = null;
@@ -1974,20 +1989,23 @@
     }, 1000);
     activeSellShop = null;
   }
-  function finishRefillTrip() {
+  function finishRefillTrip(error) {
     const completed = refillTrip;
     if (!completed) return;
     refillTrip = null;
+    if (error) mod.refill.status = `Erro: ${error}`;
     if (completed.returnTo) {
       savedHuntPosition = { ...completed.returnTo };
       refillReturnTo = { ...completed.returnTo };
       returnTravelPending = true;
       returnTravelStage = 0;
-      huntState.status = "NPCs do refill localizados; preparando retorno à caça";
-      mod.log("info", "Busca de NPCs do refill concluída; voltando à posição salva.");
+      huntState.status = error
+        ? `Refill interrompido: ${error}; preparando retorno à caça`
+        : "NPCs do refill localizados; preparando retorno à caça";
+      mod.log("info", `${error ? "Refill interrompido" : "Busca de NPCs do refill concluída"}; voltando à posição salva.`);
     } else {
-      huntState.status = "Teste de refill concluído; veja os NPCs no Console do Mod";
-      mod.refill.status = "Busca concluída";
+      huntState.status = error ? `Refill interrompido: ${error}` : "Teste de refill concluído; veja os NPCs no Console do Mod";
+      if (!error) mod.refill.status = "Busca concluída";
       mod.log("info", "Teste de refill concluído.");
     }
   }
@@ -2032,7 +2050,7 @@
           mod.log("info", `Chegou ao ponto de refill (${x}, ${y}); procurando NPCs em até ${trip.target.radius} tiles.`);
         } else if (now >= trip.deadline) {
           mod.log("warn", "Viagem de refill não confirmou chegada dentro de 120 segundos.");
-          finishRefillTrip();
+          finishRefillTrip("viagem de refill não chegou ao destino");
           return true;
         } else return true;
       }
@@ -2072,8 +2090,7 @@
         }
         if (now >= trip.searchUntil) {
           mod.log("warn", `Supplies Merchant não encontrado em até ${radius} tiles do ponto de refill.`);
-          mod.refill.status = "Supplies Merchant não encontrado";
-          finishRefillTrip();
+          finishRefillTrip("Supplies Merchant não encontrado");
         }
         return true;
       }
@@ -2081,14 +2098,13 @@
         if (now >= trip.shopDeadline) {
           refillNpcId = null;
           mod.log("warn", "Supplies Merchant não abriu a loja dentro de 10 segundos.");
-          finishRefillTrip();
+          finishRefillTrip("Supplies Merchant não abriu a loja");
         }
         return true;
       }
     } catch (error) {
-      mod.refill.status = `Erro: ${error?.message ?? error}`;
       mod.log("error", `Falha no travel de refill: ${error?.message ?? error}`);
-      finishRefillTrip();
+      finishRefillTrip(error?.message ?? String(error));
     }
     return true;
   }
@@ -3316,26 +3332,24 @@
       if (!lureTarget) {
         lureTarget = nextLureTarget;
       }
+      let lureTargetReady = false;
       if (lureTarget) {
         if (String(huntTargetId) !== String(lureTarget.id)) {
           huntTargetId = lureTarget.id;
           huntTargetSent = null;
           nextHuntMoveAt = 0;
         }
-        ensureHuntTarget(lureTarget);
+        lureTargetReady = ensureHuntTarget(lureTarget);
       }
+      const lureCanAttack = lureTarget && canAttackFromHere(lureTarget);
+      if (lureCanAttack && lureTargetReady) useSpecialForNearbyMobs(lureTarget, huntState.attackRange, pulledCount >= lureCount);
       if (processAutoLoot(lureTarget)) return;
       const lureProgress = pulledCount >= lureCount
         ? `Lure ${pulledCount}/${lureCount}: puxando e atacando`
         : `Lure ${pulledCount}/${lureCount}`;
-      const lureCanAttack = lureTarget && canAttackFromHere(lureTarget);
       followWaypointRoute(lureProgress, lureCanAttack ? lureTarget : null);
       if (lureCanAttack) {
         huntState.status = `${huntState.status.replace(/(?: · atacando .*)+$/, "")} · atacando ${lureTarget.name}`;
-        if (huntState.useSpecial && (pulledCount >= lureCount || isEliteCreature(lureTarget))) {
-          const outcome = mod.useHuntSpecial();
-          if (!outcome.ok && !/cooldown/i.test(outcome.error ?? "")) huntState.status += ` · ${outcome.error}`;
-        }
       }
       return;
     }
@@ -3405,6 +3419,16 @@
       return;
     }
     if (!target) huntLootId = null;
+    if (target && !huntState.training && target.distance <= attackRange
+      && hasAttackLine(myself.x, myself.y, target)) {
+      if (String(huntTargetId) !== String(target.id)) {
+        huntTargetId = target.id;
+        huntTargetSent = null;
+        nextHuntMoveAt = 0;
+        pursuitGoal = null;
+      }
+      if (ensureHuntTarget(target)) useSpecialForNearbyMobs(target, attackRange);
+    }
     if (!trainingCreatureNearby && processAutoLoot(target)) return;
     if (!target) {
       huntTargetId = null;
@@ -3558,6 +3582,7 @@
       && myself.floor === savedHuntPosition.floor
       && myself.x === savedHuntPosition.x && myself.y === savedHuntPosition.y) {
       returnTravelStarted = false;
+      if (refillReturnTo && !/^Erro:/i.test(mod.refill.status)) mod.refill.status = "Refill concluído";
       huntTargetId = null;
       huntTargetSent = null;
       pursuitGoal = null;

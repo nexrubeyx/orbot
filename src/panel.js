@@ -420,7 +420,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.30</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.31</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -890,7 +890,7 @@
     const detail = String(value ?? "Pronto");
     const state = /erro|falha|não encontrado|indisponível/i.test(detail) ? "error"
       : /estoque.*atingido|concluíd|enviadas/i.test(detail) ? "complete"
-      : /preparando|indo para|voltando|procurando|abrindo|comprando|na fila|viagem iniciada|travel iniciado|aguardando conexão/i.test(detail) ? "loading" : "ready";
+      : /preparando|indo para|voltando|procurando|abrindo|comprando|finalizando|na fila|viagem iniciada|travel iniciado|aguardando conexão/i.test(detail) ? "loading" : "ready";
     refillStatus.dataset.state = state;
     refillStatus.textContent = state === "loading" ? "Carregando" : state === "complete" ? "Completo" : state === "error" ? "Erro" : "Pronto";
     refillStatus.title = detail;
@@ -1861,6 +1861,7 @@
   window.__fantasyModPanel = { open, close };
   setInterval(() => {
     if (!backdrop.hidden && autoRefresh.checked) refresh();
+    else if (!backdrop.hidden && window.mod?.refill?.status) setRefillStatus(window.mod.refill.status);
     if (!backdrop.hidden) renderCityTravel();
     if (!backdrop.hidden) showResourceCounts();
     if (!backdrop.hidden) renderRefillItems();
