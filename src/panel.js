@@ -356,7 +356,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.22</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.23</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -1174,7 +1174,8 @@
     }
   });
   waypointLureToggle.addEventListener("change", () => {
-    const outcome = window.mod?.setLureEnabled?.(waypointLureToggle.checked);
+    const outcome = !waypointLureToggle.checked && window.mod?.hunt?.lureEnabled
+      ? window.mod?.stopHunt?.() : window.mod?.setLureEnabled?.(waypointLureToggle.checked);
     if (!outcome?.ok) {
       waypointLureToggle.checked = !!window.mod?.hunt?.lureEnabled;
       huntStatus.textContent = outcome?.error ?? "API de lure indisponível.";

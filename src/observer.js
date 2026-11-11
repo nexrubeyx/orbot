@@ -718,12 +718,16 @@
   };
   mod.setFocusEnabled = enabled => {
     if (enabled && huntState.training && (huntState.enabled || resumeHuntAfterReturn)) return { ok: false, error: "Pare o treino antes de ativar Focar." };
+    const wasEnabled = focusState.enabled;
     focusState.enabled = !!enabled;
     focusState.status = focusState.enabled ? "Focar ativo; selecione um target no jogo." : "Focar desligado";
     if (focusState.enabled) {
       initialHuntTravel = null;
       huntTravelArrival = null;
       nextFocusMoveAt = 0;
+    } else if (wasEnabled && !huntState.enabled && !huntState.lureEnabled) {
+      stopGameMovement();
+      if (gameSocket?.readyState === WebSocket.OPEN) gameSocket.send(JSON.stringify({ t: "untarget" }));
     }
     return { ok: true, enabled: focusState.enabled };
   };
@@ -1286,12 +1290,11 @@
   mod.stopHunt = (reason = "Caça parada pelo usuário.", preserveResume = false) => {
     finishTrainingElite();
     if (!preserveResume) {
-      deathRecovery = null;
-      resumeHuntAfterReturn = false;
-      resumeLureAfterReturn = false;
-      trainingCityTrip = false;
+      cancelHuntAutomation();
+      if (focusState.enabled) mod.setFocusEnabled(false);
     }
     huntState.enabled = false;
+    if (!preserveResume) huntState.training = false;
     huntState.currentWaypoint = null;
     initialHuntTravel = null;
     huntTravelArrival = null;
@@ -1555,6 +1558,62 @@
   let guardedShopScreenManager = null;
   let originalShopScreenShow = null;
   let lastHuntDiagnostic = "";
+  let automationGeneration = 0;
+  function stopGameMovement() {
+    if (gameSocket?.readyState !== WebSocket.OPEN) return;
+    try {
+      gameSocket.send(JSON.stringify({ t: "travel", cancel: true }));
+      if (Number.isInteger(myself.x) && Number.isInteger(myself.y)) {
+        gameSocket.send(JSON.stringify({ t: "walk", x: myself.x, y: myself.y }));
+      }
+    } catch (error) { mod.log("warn", `Não foi possível cancelar o movimento: ${error?.message ?? error}`); }
+  }
+  function cancelHuntAutomation() {
+    automationGeneration++;
+    stopGameMovement();
+    deathRecovery = null;
+    resumeHuntAfterReturn = false;
+    resumeLureAfterReturn = false;
+    trainingCityTrip = false;
+    fullBagTravelPending = fullBagTravelStarted = false;
+    fullBagTravelStage = fullBagSecondPacketAt = 0;
+    fullBagArrivalLogged = fullBagNpcNamesLogged = fullBagNpcSearchEmptyLogged = fullBagNpcInteractionSent = false;
+    returnTravelPending = returnTravelStarted = false;
+    returnTravelStage = returnSecondPacketAt = 0;
+    cityTpAttempted = false;
+    cityTpWaiting = null;
+    savedHuntPosition = null;
+    huntState.returnPosition = null;
+    arrowsDepletionReturn = false;
+    travelCombat = travelPosition = watchedTravel = pendingIdleTravelConfirm = null;
+    travelPositionChangedAt = nextTravelCombatMoveAt = 0;
+    huntTargetId = huntTargetSent = pursuitGoal = huntLootId = null;
+    huntTargetSentAt = nextHuntMoveAt = nextLootMoveAt = nextLootPickupAt = 0;
+    nextTrainingTargetAt = 0;
+    trainingIdleWatch = trainingIdleMove = null;
+    huntState.trainingIdleRemainingSeconds = null;
+    nextFocusMoveAt = 0;
+    waypointMovePending = lureArrivalWaypoint = null;
+    nextWaypointMoveAt = 0;
+    activeSellShop = null;
+    shopSellWaiting = false;
+    shopSellInventorySignature = "";
+    shopSellDeadline = nextShopSellAt = 0;
+    shopSoldCount = 0;
+    shopPendingItemName = "";
+    if (shopFinishTimer) clearTimeout(shopFinishTimer);
+    shopFinishTimer = 0;
+    shopVisitFinishing = false;
+    refillTrip = refillReturnTo = null;
+    refillPurchaseQueue = [];
+    nextRefillBuyAt = 0;
+    refillNpcId = null;
+    mod.refill.status = "Parado";
+    suppressShopDisplay = suppressShopReopenUntilReturn = false;
+    restoreShopScreen();
+    huntState.autoSellInProgress = window.__fantasyAutoSellInProgress = false;
+    huntState.lootStatus = "Parado";
+  }
   function logHuntProgress() {
     const snapshot = `${huntState.enabled ? 1 : 0}|${huntState.lureEnabled ? 1 : 0}|${huntState.status ?? ""}`;
     if (snapshot === lastHuntDiagnostic) return;
@@ -1803,13 +1862,14 @@
   }
   function finishRefillPurchases() {
     if (refillPurchaseQueue.length) return;
+    const generation = automationGeneration;
     const returnTo = refillReturnTo ? { ...refillReturnTo } : null;
     mod.refill.status = returnTo ? "Voltando para a caça" : "Compras do refill enviadas";
     mod.log("info", returnTo
       ? "Refill concluído; fechando a loja e voltando à posição salva da caça."
       : "Refill concluído; fechando a loja pelo canto superior esquerdo do canvas.");
     setTimeout(() => {
-      if (refillPurchaseQueue.length) return;
+      if (generation !== automationGeneration || refillPurchaseQueue.length) return;
       const screens = protectShopScreen();
       if (screens?.current && ["shop", "shopItem"].includes(screens.current.name)) screens.current = null;
       const panel = document.getElementById("panel");
@@ -1843,6 +1903,12 @@
       mod.log("info", huntState.status);
     }, 1000);
   }
+  function scheduleFinishRefillPurchases(delay) {
+    const generation = automationGeneration;
+    setTimeout(() => {
+      if (generation === automationGeneration) finishRefillPurchases();
+    }, delay);
+  }
   function closeGameShopPanel() {
     try {
       const screens = protectShopScreen();
@@ -1869,8 +1935,10 @@
   function finishShopVisit() {
     if (shopVisitFinishing || suppressShopReopenUntilReturn) return;
     shopVisitFinishing = true;
+    const generation = automationGeneration;
     mod.log("info", "Vendas encerradas; aguardando 1 segundo para fechar a loja e voltar.");
     shopFinishTimer = setTimeout(() => {
+      if (generation !== automationGeneration) return;
       shopFinishTimer = 0;
       suppressShopReopenUntilReturn = true;
       if (huntState.refillAfterSale || trainingCityTrip) {
@@ -1898,8 +1966,8 @@
         restoreShopScreen();
       }
       closeGameShopPanel();
-      setTimeout(closeGameShopPanel, 150);
-      setTimeout(closeGameShopPanel, 600);
+      setTimeout(() => { if (generation === automationGeneration) closeGameShopPanel(); }, 150);
+      setTimeout(() => { if (generation === automationGeneration) closeGameShopPanel(); }, 600);
     }, 1000);
     activeSellShop = null;
   }
@@ -2161,12 +2229,12 @@
       nextRefillBuyAt = Date.now() + 2000;
     }
     if (!refillPurchaseQueue.length) {
-      setTimeout(finishRefillPurchases, 0);
+      scheduleFinishRefillPurchases(0);
     }
     return true;
   }
   function processShopAutoSell() {
-    if (!(huntState.autoSell || trainingCityTrip) || !activeSellShop || activeSellShop.buys !== true || !mod.inventory.known) return false;
+    if (!cityTripSaleActive() || !activeSellShop || activeSellShop.buys !== true || !mod.inventory.known) return false;
     const bag = mod.inventory.bag ?? [];
     const signature = JSON.stringify(bag);
     if (shopSellWaiting) {
@@ -2213,6 +2281,10 @@
       finishShopVisit();
     }
     return true;
+  }
+  function cityTripSaleActive() {
+    return (huntState.autoSell || trainingCityTrip)
+      && (fullBagTravelPending || fullBagTravelStarted || fullBagTravelStage !== 0 || shopVisitFinishing || !!activeSellShop);
   }
   function townScrollsInBag() {
     const assets = getGameAssets();
@@ -3925,15 +3997,15 @@
       } else if (configuredItems.length) {
         mod.refill.status = "Estoque dos itens configurados já atingido";
         mod.log("info", "Nenhuma compra necessária; os estoques configurados já foram atingidos ou não estão disponíveis nesta loja.");
-        setTimeout(finishRefillPurchases, 1000);
+        scheduleFinishRefillPurchases(1000);
       } else {
         mod.refill.status = "Supplies Merchant aberto; configure os itens do refill";
         mod.log("info", "Nenhum item de refill configurado. Selecione itens no menu Refill para a próxima visita.");
-        setTimeout(finishRefillPurchases, 0);
+        scheduleFinishRefillPurchases(0);
       }
       return;
     }
-    if (packet?.t === "shop" && packet.buys === true && (huntState.autoSell || trainingCityTrip)
+    if (packet?.t === "shop" && packet.buys === true && cityTripSaleActive()
       && gearMerchantNpcId != null && String(packet.npc) === String(gearMerchantNpcId)) {
       // Intercept the screen before the game's onmessage handler calls show().
       suppressShopDisplay = true;
@@ -3946,7 +4018,7 @@
       setTimeout(closeGameShopPanel, 0);
       return;
     }
-    if (packet?.t !== "shop" || !packet.buys || gearMerchantNpcId == null
+    if (packet?.t !== "shop" || !packet.buys || !cityTripSaleActive() || gearMerchantNpcId == null
       || String(packet.npc) !== String(gearMerchantNpcId)) return;
     if (activeSellShop && String(activeSellShop.npc) === String(packet.npc)) {
       activeSellShop = packet;
