@@ -348,6 +348,7 @@
       .resource-value { font-size:18px; }
       .resource-note { color:var(--fraco); font-size:9px; }
       .pref,.setting-toggle { min-height:45px; margin:6px 0; padding:9px 11px; color:var(--ui); }
+      .pref { flex-direction:row-reverse; }
       .pref:hover,.setting-toggle:hover { border-color:#65718c; background:#242f42; }
       .setting-toggle-label,.automation-title { color:var(--ui); font-size:12px; }
       .panel input[type="checkbox"],.setting-switch { appearance:none; -webkit-appearance:none; position:relative; display:block; flex:0 0 34px; width:34px; height:20px; margin:0; border:1px solid #586782; border-radius:999px; background:#202b3d; box-shadow:inset 0 1px 3px #0006; cursor:pointer; }
@@ -368,6 +369,7 @@
       .city-route-path i { background:linear-gradient(90deg,var(--ouro),#39465c); }
       .city-route-note { border-left:3px solid var(--ouro); }
       .automation { gap:12px; border-color:#39465c; }
+      .automation-title { width:100%; flex-direction:row-reverse; justify-content:space-between; }
       .creature,.target-row,.waypoint-row,.refill-item-row,.protected-item-row,.protected-inventory-row { border:1px solid #39465c; border-radius:9px; background:#141d2b; box-shadow:inset 0 1px #ffffff09; }
       .creature:hover,.target-row:hover,.waypoint-row:hover,.protected-inventory-row:hover { border-color:#596987; background:#1b2738; }
       .target-placeholder,.loot-item-icon,.protected-item-icon,.refill-picker-icon { border-color:#42516b; border-radius:8px; background:#0f1725; }
@@ -412,7 +414,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span class="brand-copy"><span class="brand-title">Sentinela <span class="menu-version">v1.0.26</span></span><span class="brand-subtitle">Painel de controle</span></span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span class="brand-copy"><span class="brand-title">Sentinela <span class="menu-version">v1.0.27</span></span><span class="brand-subtitle">Painel de controle</span></span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
