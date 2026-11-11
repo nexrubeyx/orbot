@@ -384,6 +384,8 @@
   };
   let nextWaypointMoveAt = 0;
   let waypointMovePending = null;
+  let waypointTravel = null;
+  let waypointTravelRetryAt = 0;
   let waypointMoveFailures = 0;
   let waypointNoProgressFailures = 0;
   let lureArrivalWaypoint = null;
@@ -502,6 +504,8 @@
   }
   mod.removeWaypoint = index => {
     if (!Number.isInteger(index) || index < 0 || index >= mod.waypoints.length) return { ok: false, error: "Waypoint inválido." };
+    if (waypointTravel) { waypointTravel = null; stopGameMovement(); }
+    waypointTravelRetryAt = 0;
     resetWaypointDirection();
     mod.waypoints.splice(index, 1);
     saveWaypoints();
@@ -512,6 +516,8 @@
     return { ok: true, count: mod.waypoints.length };
   };
   mod.clearWaypoints = () => {
+    if (waypointTravel) { waypointTravel = null; stopGameMovement(); }
+    waypointTravelRetryAt = 0;
     resetWaypointDirection();
     mod.waypoints = [];
     saveWaypoints();
@@ -1375,6 +1381,8 @@
   };
   mod.stopHunt = (reason = "Caça parada pelo usuário.", preserveResume = false) => {
     finishTrainingElite();
+    waypointTravel = null;
+    waypointTravelRetryAt = 0;
     if (!preserveResume) {
       cancelHuntAutomation();
       if (focusState.enabled) mod.setFocusEnabled(false);
@@ -1682,6 +1690,8 @@
     huntState.trainingIdleRemainingSeconds = null;
     nextFocusMoveAt = 0;
     waypointMovePending = lureArrivalWaypoint = null;
+    waypointTravel = null;
+    waypointTravelRetryAt = 0;
     nextWaypointMoveAt = 0;
     activeSellShop = null;
     shopSellWaiting = false;
@@ -2807,6 +2817,68 @@
       ? mod.move(step.x, step.y)
       : { ok: false, error: "Sem tile livre dentro do alcance do alvo." };
   }
+  function processWaypointTravel() {
+    const trip = waypointTravel;
+    if (!trip) return false;
+    const point = mod.waypoints[trip.waypointIndex];
+    if (!huntState.enabled || !point || point.x !== trip.point.x || point.y !== trip.point.y
+      || point.floor !== trip.point.floor) {
+      waypointTravel = null;
+      stopGameMovement();
+      return false;
+    }
+    if (gameSocket?.readyState !== WebSocket.OPEN) {
+      huntState.status = "Waypoint: aguardando conexão para viajar";
+      return true;
+    }
+    const now = Date.now();
+    try {
+      if (trip.stage === 0) {
+        gameSocket.send(JSON.stringify({ t: "travel", id: 1, go: false,
+          f: point.floor, x: point.x, y: point.y }));
+        trip.stage = 1;
+        trip.secondAt = now + 2000;
+        huntState.status = `Waypoint ${trip.waypointIndex + 1}: preparando viagem para (${point.x}, ${point.y})`;
+        return true;
+      }
+      if (trip.stage === 1) {
+        if (now < trip.secondAt) return true;
+        gameSocket.send(JSON.stringify({ t: "travel", id: 2, go: true,
+          f: point.floor, x: point.x, y: point.y }));
+        trip.stage = 2;
+        trip.deadline = now + 120000;
+        travelPosition = watchedTravel = pendingIdleTravelConfirm = travelCombat = null;
+        huntState.status = `Waypoint ${trip.waypointIndex + 1}: viajando para (${point.x}, ${point.y})`;
+        mod.log("info", huntState.status);
+        return true;
+      }
+      const distance = Math.max(Math.abs(point.x - myself.x), Math.abs(point.y - myself.y));
+      if (myself.floor === point.floor && distance <= 2) {
+        waypointTravel = null;
+        waypointTravelRetryAt = 0;
+        waypointMovePending = null;
+        waypointMoveFailures = waypointNoProgressFailures = 0;
+        huntState.status = `Waypoint ${trip.waypointIndex + 1}: viagem concluída`;
+        return false;
+      }
+      if (now >= trip.deadline) {
+        waypointTravel = null;
+        waypointTravelRetryAt = now + 15000;
+        stopGameMovement();
+        huntState.status = `Waypoint ${trip.waypointIndex + 1}: viagem sem chegada; tentando andar`;
+        mod.log("warn", huntState.status);
+        return false;
+      }
+      huntState.status = `Waypoint ${trip.waypointIndex + 1}: aguardando chegada da viagem`;
+      return true;
+    } catch (error) {
+      waypointTravel = null;
+      waypointTravelRetryAt = now + 15000;
+      huntState.status = `Falha ao viajar para o waypoint: ${error?.message ?? error}`;
+      mod.log("warn", huntState.status);
+      return false;
+    }
+  }
   function followWaypointRoute(label = "Waypoint", keepTargetInRange = null) {
     const lureRoute = label.startsWith("Lure");
     if (!mod.waypoints.length) {
@@ -2919,6 +2991,13 @@
       };
     }
     if (Date.now() >= nextWaypointMoveAt) {
+      const remaining = Math.max(Math.abs(current.point.x - myself.x), Math.abs(current.point.y - myself.y));
+      if ((!lureRoute || huntState.lureProgress.current === 0) && !keepTargetInRange
+        && remaining > 20 && Date.now() >= waypointTravelRetryAt) {
+        waypointMovePending = null;
+        waypointTravel = { point: { ...current.point }, waypointIndex: current.index, stage: 0 };
+        return processWaypointTravel();
+      }
       const maxAdvance = lureRoute ? huntState.lureStepTiles : 20;
       const destination = {
         x: myself.x + Math.max(-maxAdvance, Math.min(maxAdvance, current.point.x - myself.x)),
@@ -2969,6 +3048,7 @@
   }
   function activeTravelDestination() {
     if (refillTrip?.stage === 2) return refillTrip.target;
+    if (waypointTravel?.stage === 2) return waypointTravel.point;
     if (fullBagTravelStage === 2 && fullBagTravelStarted && !fullBagArrivalLogged) {
       return shopDestination;
     }
@@ -3311,6 +3391,19 @@
     }
     if (myself.dead) beginDeathRecovery();
     if (processDeathRecovery() || myself.dead) return;
+    if (waypointTravel && huntState.training) {
+      const wanted = new Set([...huntState.trainingMobTypes, ...huntState.trainingCombatMobTypes]);
+      if (creaturesWithinPathRadius(huntState.radius).some(creature => wanted.has(String(creature.type)))) {
+        waypointTravel = null;
+        stopGameMovement();
+        huntState.status = "Treino: alvo encontrado durante a viagem ao waypoint";
+      }
+    }
+    if (waypointTravel?.stage === 2 && (Date.now() >= waypointTravel.deadline
+      || myself.floor === waypointTravel.point.floor
+        && Math.max(Math.abs(myself.x - waypointTravel.point.x), Math.abs(myself.y - waypointTravel.point.y)) <= 2)) {
+      processWaypointTravel();
+    }
     resendTravelAfterFloorChange();
     if (processTravelCombat()) return;
     if (processShopAutoSell()) return;
@@ -3322,6 +3415,7 @@
       huntState.lootStatus = "Coleta pausada durante a viagem à cidade e o retorno";
       return;
     }
+    if (processWaypointTravel()) return;
     if (processInitialHuntTravel()) return;
     if (!huntState.enabled && !huntState.lureEnabled && !focusState.enabled) {
       huntState.lootStatus = huntState.autoLoot ? "Ativo quando a caça iniciar" : "Desativado";
