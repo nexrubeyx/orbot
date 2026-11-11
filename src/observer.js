@@ -8,6 +8,7 @@
   let gameSocket = null;
   let reconnectPending = false;
   let reconnectNextAt = 0;
+  let reconnectTimer = null;
   const intentionalCloses = new WeakSet();
   const socketDecoders = new WeakMap();
   const assetSockets = new WeakSet();
@@ -4340,6 +4341,7 @@
           if (reconnectPending) {
             reconnectNextAt = Date.now() + 2000;
             mod.log("info", "Conexão perdida; aguardando a tela de reconexão.");
+            scheduleReconnect();
           }
         }
       });
@@ -4352,41 +4354,57 @@
     }
   });
 
-  // Capture the game's own Reconnect/Retry action when it draws the button.
-  // Invoking that action keeps session handling and the game UI in sync.
-  Promise.all([import("/src/gui.mjs"), import("/src/i18n.mjs")]).then(([gui, i18n]) => {
-    const prototype = gui.GUI?.prototype;
-    if (!prototype || typeof prototype.text !== "function" || typeof prototype.button !== "function") throw new Error("interface de reconexão indisponível");
-    const originalText = prototype.text;
-    const originalButton = prototype.button;
-    const labels = new WeakMap();
-    prototype.text = function (label, ...args) {
-      labels.set(this, label);
-      return originalText.call(this, label, ...args);
-    };
-    prototype.button = function (rect, action, ...args) {
-      const label = labels.get(this);
-      labels.delete(this);
-      const result = originalButton.call(this, rect, action, ...args);
+  // Click the game's canvas buttons through its normal pointer handler. This
+  // keeps the game's session flow intact without loading its GUI modules.
+  function clickReconnectButton(buttonY) {
+    const canvas = document.getElementById("game");
+    const rect = canvas?.getBoundingClientRect();
+    if (!canvas || !rect?.width || !rect.height || !canvas.width || !canvas.height) return false;
+    const ratio = canvas.width / canvas.height;
+    const tilesW = ratio >= 2 ? 18 : ratio > 16 / 9 ? 9 * ratio : 16;
+    const tilesH = Math.min(tilesW / ratio, 9);
+    const viewH = Math.ceil(24 * tilesH);
+    const scale = canvas.width / Math.ceil(24 * tilesW);
+    const offsetY = Math.max(0, Math.round((canvas.height - viewH * scale) / 2));
+    const x = Math.max(0, (tilesW - 16) / 2) + 5;
+    const y = (tilesH - Math.min(tilesH, 10)) / 2 + buttonY + 0.5;
+    canvas.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true, cancelable: true, pointerId: 1, pointerType: "mouse",
+      isPrimary: true, button: 0, buttons: 1,
+      clientX: rect.left + x * 24 * scale * rect.width / canvas.width,
+      clientY: rect.top + (offsetY + (viewH - 24 * y) * scale) * rect.height / canvas.height
+    }));
+    return true;
+  }
+
+  function scheduleReconnect() {
+    if (reconnectTimer || !reconnectPending) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
       let enabled = false;
       try { enabled = localStorage.getItem("fantasy-mod-auto-reconnect") === "true"; } catch {}
-      if (!enabled) reconnectPending = false;
-      if (enabled && reconnectPending && Date.now() >= reconnectNextAt
-          && (label === i18n.t("Reconnect") || label === i18n.t("Retry"))
-          && rect?.x === 2.5 && (rect.y === 2 || rect.y === 0.5) && rect.w === 5 && rect.h === 1) {
-        reconnectNextAt = Date.now() + 8000;
-        setTimeout(() => {
-          if (!reconnectPending) return;
-          try {
-            if (localStorage.getItem("fantasy-mod-auto-reconnect") !== "true") return;
-            mod.log("info", "Tentando reconectar automaticamente.");
-            action();
-          } catch (error) { mod.log("warn", `Falha ao reconectar: ${error?.message ?? error}`); }
-        }, 0);
+      if (!enabled || !reconnectPending) { reconnectPending = false; return; }
+      if (document.hidden) { reconnectNextAt = Date.now() + 1000; return scheduleReconnect(); }
+      reconnectNextAt = Date.now() + 8000;
+      if (clickReconnectButton(2)) {
+        clickReconnectButton(0.5);
+        mod.log("info", "Tentando reconectar automaticamente.");
       }
-      return result;
-    };
-  }).catch(error => mod.log("warn", `Reconexão automática indisponível: ${error?.message ?? error}`));
+      scheduleReconnect();
+    }, Math.max(0, reconnectNextAt - Date.now()));
+  }
+
+  window.addEventListener("__fantasy_mod_auto_reconnect_change", event => {
+    if (!event.detail?.enabled) {
+      reconnectPending = false;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    } else if (gameSocket?.readyState === 3) {
+      reconnectPending = true;
+      reconnectNextAt = Date.now() + 2000;
+      scheduleReconnect();
+    }
+  });
 
   const NativeWorker = window.Worker;
   window.Worker = new Proxy(NativeWorker, {

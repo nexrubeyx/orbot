@@ -450,7 +450,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.38</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.39</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -1233,7 +1233,12 @@
   autoHeal.addEventListener("change", persistAutomation);
   autoMana.addEventListener("change", persistAutomation);
   autoSwitchServer.addEventListener("change", () => savePreference("auto-switch-server", autoSwitchServer.checked));
-  autoReconnect.addEventListener("change", () => savePreference("auto-reconnect", autoReconnect.checked));
+  autoReconnect.addEventListener("change", () => {
+    savePreference("auto-reconnect", autoReconnect.checked);
+    window.dispatchEvent(new CustomEvent("__fantasy_mod_auto_reconnect_change", {
+      detail: { enabled: autoReconnect.checked }
+    }));
+  });
   autoConfirmation.addEventListener("change", () => savePreference("auto-confirmation", autoConfirmation.checked));
   hpThreshold.addEventListener("change", () => { hpThreshold.value = String(Math.max(5, Math.min(95, Number(hpThreshold.value) || 50))); persistAutomation(); });
   mpThreshold.addEventListener("change", () => { mpThreshold.value = String(Math.max(5, Math.min(95, Number(mpThreshold.value) || 30))); persistAutomation(); });
