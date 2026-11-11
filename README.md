@@ -2,7 +2,7 @@
 
 ## Confirmação de monstro
 
-A opção **Responder confirmação de monstro**, nas preferências do painel,
+A opção **Responder confirmação de monstro**, na aba **Captcha** do painel,
 vem ativada. Ao receber um desafio `vq` de seleção de monstro (`k: 1`), o bot
 compara os sprites locais do monstro pedido com as colunas da imagem original
 enviada pelo jogo. Nenhuma imagem é enviada a serviços externos.

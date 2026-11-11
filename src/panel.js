@@ -450,13 +450,14 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.44</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.45</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
           <button class="side-link" data-page="targets">Alvos</button>
           <button class="side-link" data-page="hunt">Sistema de caça</button>
           <button class="side-link" data-page="training">Treino</button>
+          <button class="side-link" data-page="captcha">Captcha</button>
           <button class="side-link" data-page="focus">Focar</button>
           <button class="side-link" data-page="refill">Loja / Refill</button>
           <button class="side-link" data-page="waypoints">Waypoints</button>
@@ -558,6 +559,17 @@
             <p class="hint">Na cidade, vende os itens selecionados e faz o refill configurado em Loja / Refill.</p>
             <label class="pref"><input class="auto-loot-gold" type="checkbox"> Coletar ouro automaticamente</label>
             <p class="hint training-status" role="status"></p>
+            </section>
+          </section>
+          <section class="page" data-section="captcha" hidden>
+            <h2>Captcha</h2>
+            <section class="menu-block" aria-label="Confirmação de monstro">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">◇</span><span class="menu-heading-copy"><strong>Confirmação de monstro</strong><small>Reconhecimento e resposta automática</small></span></div>
+              <label class="pref"><input class="auto-confirmation" type="checkbox"> Responder confirmação de monstro</label>
+              <p class="hint">Compara as opções com os sprites do jogo. Se a imagem for ambígua ou pedir texto, responda manualmente.</p>
+              <p class="hint">Quando reconhece uma opção, aguarda de 5 a 20 segundos antes de responder.</p>
+              <p class="hint captcha-status" role="status" aria-live="polite">Aguardando confirmação</p>
+              <p class="hint captcha-result"></p>
             </section>
           </section>
           <section class="page" data-section="focus" hidden>
@@ -707,8 +719,6 @@
                 <label class="pref"><input class="auto-switch-server" type="checkbox"> Trocar de servidor após morrer ou finalizar o refill</label>
                 <p class="hint">Usa servidores das Américas do Norte e do Sul antes de retornar à caça.</p>
                 <label class="pref"><input class="auto-reconnect" type="checkbox"> Reconectar automaticamente</label>
-                <label class="pref"><input class="auto-confirmation" type="checkbox"> Responder confirmação de monstro</label>
-                <p class="hint">Compara os sprites das opções. Se a imagem for ambígua ou pedir texto, responda manualmente.</p>
                 <label class="pref"><input class="auto-refresh" type="checkbox"> Atualizar estado automaticamente</label>
               </section>
               <section class="config-block config-sales" aria-label="Configuração de itens">
@@ -878,6 +888,8 @@
   const autoSwitchServer = root.querySelector(".auto-switch-server");
   const autoReconnect = root.querySelector(".auto-reconnect");
   const autoConfirmation = root.querySelector(".auto-confirmation");
+  const captchaStatus = root.querySelector(".captcha-status");
+  const captchaResult = root.querySelector(".captcha-result");
   const hpThreshold = root.querySelector(".hp-threshold");
   const mpThreshold = root.querySelector(".mp-threshold");
   const sideLinks = [...root.querySelectorAll(".side-link")];
@@ -1523,9 +1535,19 @@
     if (!autoRefresh.checked && !force) return;
     showCreatures();
     syncHuntUI();
+    renderCaptchaStatus();
     if (document.visibilityState !== "hidden" && window.mod?.refill?.status) {
       setRefillStatus(window.mod.refill.status);
     }
+  }
+
+  function renderCaptchaStatus() {
+    const confirmation = window.mod?.confirmation;
+    captchaStatus.textContent = confirmation?.status ?? "Aguardando confirmação";
+    const result = confirmation?.result;
+    captchaResult.textContent = result?.confident && Number.isInteger(result.index)
+      ? `Opção reconhecida: ${result.index + 1} · semelhança ${(result.score * 100).toFixed(0)}%`
+      : confirmation?.active ? "Aguardando análise ou resposta manual." : "Nenhum desafio em andamento.";
   }
 
   function syncHuntUI() {
@@ -2284,6 +2306,7 @@
     if (!backdrop.hidden && autoRefresh.checked) refresh();
     else if (!backdrop.hidden && window.mod?.refill?.status) setRefillStatus(window.mod.refill.status);
     if (!backdrop.hidden) renderCityTravel();
+    if (!backdrop.hidden) renderCaptchaStatus();
     if (!backdrop.hidden) showResourceCounts();
     if (!backdrop.hidden) renderRefillItems();
     if (!backdrop.hidden) syncHuntUI();

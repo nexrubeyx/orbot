@@ -666,6 +666,7 @@
     if (mode !== "class" && mode !== "weapon") return { ok: false, error: "Modo de combate inválido." };
     if (trainingElite) finishTrainingElite();
     huntState.trainingCombatMode = mode;
+    trainingWeaponSwitch = null;
     try { localStorage.setItem("fantasy-mod-training-combat-mode", mode); } catch {}
     return { ok: true };
   };
@@ -1360,6 +1361,7 @@
     huntState.training = !!training;
     if (huntState.training) {
       trainingClassSwitch = null;
+      trainingWeaponSwitch = null;
       trainingIdleWatch = null;
       trainingIdleMove = null;
       huntTargetId = null;
@@ -1389,6 +1391,7 @@
   mod.stopHunt = (reason = "Caça parada pelo usuário.", preserveResume = false) => {
     finishTrainingElite();
     trainingClassSwitch = null;
+    trainingWeaponSwitch = null;
     waypointTravel = null;
     if (!preserveResume) {
       cancelHuntAutomation();
@@ -1412,17 +1415,33 @@
   const trainingEliteAttackers = new Map();
   const classIds = { melee: 0, distance: 1, mage: 2 };
   let trainingClassSwitch = null;
-  let nextTrainingWeaponAt = 0;
+  let trainingWeaponSwitch = null;
   function ensureTrainingWeapon(itemId) {
-    if (!itemId || !mod.inventory.known) return false;
+    if (!itemId || !mod.inventory.known) {
+      trainingWeaponSwitch = null;
+      return false;
+    }
     const slot = { 0: "sword", 1: "bow", 2: "wand" }[Number(playerStats.cls ?? playerStats.cl ?? myself.cls)];
-    if (!slot) return false;
-    if (String(mod.inventory.equip?.[slot] ?? "") === itemId) return true;
+    if (!slot) {
+      trainingWeaponSwitch = null;
+      return false;
+    }
+    if (String(mod.inventory.equip?.[slot] ?? "") === itemId) {
+      trainingWeaponSwitch = null;
+      return true;
+    }
     const index = mod.inventory.bag.findIndex(entry => String(Array.isArray(entry) ? entry[0] : entry) === itemId);
-    if (index < 0) return false;
-    if (Date.now() >= nextTrainingWeaponAt && gameSocket?.readyState === WebSocket.OPEN) {
+    if (index < 0) {
+      trainingWeaponSwitch = null;
+      return false;
+    }
+    const now = Date.now();
+    if (trainingWeaponSwitch?.desired !== itemId) {
+      trainingWeaponSwitch = { desired: itemId, nextAt: now + 1200 + Math.random() * 1000 };
+    }
+    if (now >= trainingWeaponSwitch.nextAt && gameSocket?.readyState === WebSocket.OPEN) {
       gameSocket.send(JSON.stringify({ t: "equip", i: index }));
-      nextTrainingWeaponAt = Date.now() + 1200;
+      trainingWeaponSwitch.nextAt = now + 1200 + Math.random() * 1000;
     }
     return false;
   }
