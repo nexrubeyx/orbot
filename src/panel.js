@@ -446,7 +446,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.33</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.34</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -521,7 +521,7 @@
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
             <div class="training-mobs">
               <strong>Escolher mobs próximos</strong>
-              <p class="hint">Treinar usa a classe do treino. Combater troca para a classe escolhida abaixo e volta depois de matar o mob.</p>
+              <p class="hint">Mobs de treino são atacados até morrer. Mobs de combate só são caçados quando não houver alvo de treino; o bot troca de classe e depois volta à classe do treino.</p>
               <div class="training-mob-head"><span></span><span>Mob</span><span>Treinar</span><span>Combater</span></div>
               <div class="training-mob-list" aria-live="polite"></div>
               <label class="attack-range">Classe para mobs de combate<select class="training-combat-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>

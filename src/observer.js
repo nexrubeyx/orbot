@@ -1396,6 +1396,7 @@
   let exhaustedTargetId = null;
   const trainingEliteAttackers = new Map();
   const classIds = { melee: 0, distance: 1, mage: 2 };
+  let nextTrainingBaseClassAt = 0;
   function sendTrainingClass(classId) {
     if (!Number.isInteger(classId) || gameSocket?.readyState !== WebSocket.OPEN) return false;
     const packet = { t: "class", c: classId };
@@ -1404,7 +1405,8 @@
     return true;
   }
   function finishTrainingElite() {
-    if (trainingElite) sendTrainingClass(trainingElite.previousClass);
+    if (trainingElite) sendTrainingClass(trainingElite.kind === "selected"
+      ? classIds[huntState.trainingClass] : trainingElite.previousClass);
     trainingElite = null;
     exhaustedTargetId = null;
     trainingEliteAttackers.clear();
@@ -3439,6 +3441,14 @@
       return;
     }
     const visibleCreatures = mod.creaturesNearby(100);
+    const trainingNearby = huntState.training ? creaturesWithinPathRadius(huntState.radius) : [];
+    const trainingTarget = huntState.training ? trainingNearby.find(creature =>
+      huntState.trainingMobTypes.includes(String(creature.type)) && canHunt(creature)) : null;
+    if (trainingElite?.kind === "selected" && trainingTarget) {
+      finishTrainingElite();
+      huntTargetId = huntTargetSent = null;
+      if (gameSocket?.readyState === WebSocket.OPEN) gameSocket.send(JSON.stringify({ t: "untarget" }));
+    }
     if (huntState.training && (huntState.trainingEliteEnabled || huntState.trainingExhaustedEnabled || huntState.trainingCombatMobTypes.length)) {
       for (const [id, until] of trainingEliteAttackers) if (until <= Date.now()) trainingEliteAttackers.delete(id);
       if (trainingElite && !visibleCreatures.some(creature => String(creature.id) === String(trainingElite.id))) {
@@ -3452,11 +3462,11 @@
       if (!trainingElite) {
         const elite = huntState.trainingEliteEnabled && visibleCreatures.find(creature => trainingEliteAttackers.has(String(creature.id)) && isEliteCreature(creature));
         const exhausted = huntState.trainingExhaustedEnabled && visibleCreatures.find(creature => String(creature.id) === String(exhaustedTargetId));
-        const selected = huntState.trainingCombatMobTypes.length && creaturesWithinPathRadius(huntState.radius)
+        const selected = !trainingTarget && huntState.trainingCombatMobTypes.length && trainingNearby
           .find(creature => huntState.trainingCombatMobTypes.includes(String(creature.type))
             && !isAttackedByAnotherPlayer(creature) && !isIgnoredAtBlockedPosition(creature));
         const combatTarget = elite || exhausted || selected;
-        const previousClass = playerStats.cls ?? playerStats.cl ?? myself.cls;
+        const previousClass = Number(playerStats.cls ?? playerStats.cl ?? myself.cls);
         if (combatTarget && Number.isInteger(previousClass)) {
           trainingElite = { id: combatTarget.id, previousClass, sentAt: 0, kind: elite ? "elite" : exhausted ? "exhausted" : "selected" };
           exhaustedTargetId = null;
@@ -3469,9 +3479,22 @@
       if (trainingElite && Date.now() - trainingElite.sentAt >= 1200) {
         const desired = classIds[trainingElite.kind === "exhausted" ? huntState.trainingExhaustedClass
           : trainingElite.kind === "selected" ? huntState.trainingCombatClass : huntState.trainingEliteClass];
-        if ((playerStats.cls ?? playerStats.cl ?? myself.cls) !== desired && sendTrainingClass(desired)) trainingElite.sentAt = Date.now();
+        if (Number(playerStats.cls ?? playerStats.cl ?? myself.cls) !== desired && sendTrainingClass(desired)) trainingElite.sentAt = Date.now();
+      }
+      if (trainingElite?.kind === "selected"
+        && Number(playerStats.cls ?? playerStats.cl ?? myself.cls) !== classIds[huntState.trainingCombatClass]) {
+        huntState.status = "Treino: trocando classe para combater o mob";
+        return;
       }
     } else if (trainingElite) finishTrainingElite();
+    if (huntState.training && !trainingElite
+      && Number(playerStats.cls ?? playerStats.cl ?? myself.cls) !== classIds[huntState.trainingClass]) {
+      if (Date.now() >= nextTrainingBaseClassAt && sendTrainingClass(classIds[huntState.trainingClass])) {
+        nextTrainingBaseClassAt = Date.now() + 1200;
+      }
+      huntState.status = "Treino: ajustando classe do treino";
+      return;
+    }
     const activeClass = trainingElite ? (trainingElite.kind === "exhausted" ? huntState.trainingExhaustedClass
       : trainingElite.kind === "selected" ? huntState.trainingCombatClass : huntState.trainingEliteClass) : huntState.trainingClass;
     const attackRange = huntState.training ? (activeClass === "melee" ? 1 : 4) : huntState.attackRange;
@@ -3490,7 +3513,10 @@
       nextHuntMoveAt = 0;
     }
     // Keep the current target unless a valid creature is strictly closer.
-    const nextTarget = creaturesWithinPathRadius(huntState.radius).find(canHunt);
+    const nextTarget = huntState.training
+      ? trainingTarget ?? (trainingElite?.kind === "selected"
+        ? trainingNearby.find(creature => String(creature.id) === String(trainingElite.id) && canHunt(creature)) : null)
+      : creaturesWithinPathRadius(huntState.radius).find(canHunt);
     if (!target) {
       target = nextTarget;
     }
