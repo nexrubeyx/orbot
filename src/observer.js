@@ -187,7 +187,7 @@
   const confirmationEnabled = () => {
     try { return localStorage.getItem("fantasy-mod-auto-confirmation") !== "false"; } catch { return true; }
   };
-  const confirmation = createConfirmationController({
+  const confirmationDependencies = {
     enabled: confirmationEnabled,
     now: () => Date.now(),
     random: () => Math.random(),
@@ -245,8 +245,61 @@
       };
       image.src = `data:image/png;base64,${base64}`;
     })
-  });
+  };
+  const confirmation = createConfirmationController(confirmationDependencies);
   mod.confirmation = confirmation.state;
+  let confirmationSimulationGeneration = 0;
+  mod.simulateMonsterConfirmation = () => {
+    const generation = ++confirmationSimulationGeneration;
+    mod.confirmationSimulation = null;
+    const atlas = monsterAssets?.c8;
+    const frames = monsterAssets?.entities?.monsters ?? [];
+    if (!atlas) return { ok: false, error: "Aguarde o carregamento dos sprites dos monstros." };
+    const candidates = (monsterAssets.monsters ?? []).flatMap(monster => {
+      const rawName = monster.name ?? monster.n ?? monster.label;
+      const name = typeof rawName === "string" ? rawName : rawName?.pt ?? rawName?.en ?? rawName?.es;
+      const frameIndex = monster.anims?.[0]?.[0];
+      const frame = frames[frameIndex];
+      if (!name || !Array.isArray(frame) || frame.length < 4
+        || !frame.slice(0, 4).every(Number.isInteger) || frame[2] < 1 || frame[3] < 1) return [];
+      return [{ name, frame }];
+    });
+    const uniqueCandidates = [...new Map(candidates.map(candidate => [candidate.name, candidate])).values()];
+    if (uniqueCandidates.length < 4) return { ok: false, error: "É preciso carregar ao menos quatro sprites de monstros." };
+    for (let index = uniqueCandidates.length - 1; index > 0; index--) {
+      const other = Math.floor(Math.random() * (index + 1));
+      [uniqueCandidates[index], uniqueCandidates[other]] = [uniqueCandidates[other], uniqueCandidates[index]];
+    }
+    const shuffled = uniqueCandidates.slice(0, 4);
+    const expected = Math.floor(Math.random() * 4);
+    const canvas = document.createElement("canvas");
+    canvas.width = 208;
+    canvas.height = 64;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.fillStyle = "#132030";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    for (const [index, candidate] of shuffled.entries()) {
+      const [x, y, width, height] = candidate.frame;
+      const scale = Math.min(24 / width, 36 / height);
+      const drawWidth = Math.max(1, Math.round(width * scale));
+      const drawHeight = Math.max(1, Math.round(height * scale));
+      context.drawImage(atlas, x, y, width, height,
+        index * 52 + Math.floor((52 - drawWidth) / 2), Math.floor((64 - drawHeight) / 2), drawWidth, drawHeight);
+    }
+    const image = canvas.toDataURL("image/png");
+    const name = shuffled[expected].name;
+    const socket = {};
+    const simulation = createConfirmationController({
+      ...confirmationDependencies,
+      isSocket: value => value === socket && generation === confirmationSimulationGeneration,
+      send: (_socket, packet) => { simulation.state.answer = packet.a; },
+      log: (level, message) => mod.log(level, `Simulação de captcha: ${message}`)
+    });
+    Object.assign(simulation.state, { image, name, expected, answer: null });
+    mod.confirmationSimulation = simulation.state;
+    simulation.receive(socket, { t: "vq", k: 1, c: 4, n: name, i: image.split(",")[1], s: 45 });
+    return { ok: true };
+  };
   if (!window.__fantasyModErrorHooks) {
     window.__fantasyModErrorHooks = true;
     window.addEventListener("error", event => {
