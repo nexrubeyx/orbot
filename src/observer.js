@@ -522,6 +522,8 @@
   huntState.trainingCityPotions = false;
   huntState.cityTravelMode = "walk";
   huntState.cityTpItemId = "auto";
+  huntState.cityClass = "melee";
+  huntState.farmClass = "melee";
   huntState.status = "Parado";
   const focusState = mod.focus ?? (mod.focus = { enabled: false, useSkill: false, followTarget: true, status: "Focar desligado" });
   focusState.enabled = false;
@@ -573,6 +575,7 @@
     if (Number.isInteger(reverseLoops) && reverseLoops >= 1 && reverseLoops <= 1000) huntState.waypointReverseLoops = reverseLoops;
     const trainingClass = localStorage.getItem("fantasy-mod-training-class");
     if (["mage", "melee", "distance"].includes(trainingClass)) huntState.trainingClass = trainingClass;
+    huntState.farmClass = huntState.trainingClass;
     const trainingMobTypes = JSON.parse(localStorage.getItem("fantasy-mod-training-mob-types") ?? "null");
     if (Array.isArray(trainingMobTypes)) huntState.trainingMobTypes = trainingMobTypes.map(String);
     const trainingCombatMobTypes = JSON.parse(localStorage.getItem("fantasy-mod-training-combat-mob-types") ?? "[]");
@@ -590,6 +593,10 @@
     huntState.trainingCityArrows = (localStorage.getItem("fantasy-mod-training-city-arrows") ?? String(previousCityReturn)) === "true";
     huntState.trainingCityPotions = localStorage.getItem("fantasy-mod-training-city-potions") === "true";
     huntState.cityTravelMode = localStorage.getItem("fantasy-mod-city-travel-mode") === "tp" ? "tp" : "walk";
+    const cityClass = localStorage.getItem("fantasy-mod-city-class");
+    const farmClass = localStorage.getItem("fantasy-mod-farm-class");
+    if (["mage", "melee", "distance"].includes(cityClass)) huntState.cityClass = cityClass;
+    if (["mage", "melee", "distance"].includes(farmClass)) huntState.farmClass = farmClass;
     const savedCityTpItemId = localStorage.getItem("fantasy-mod-city-tp-item-id");
     huntState.cityTpItemId = savedCityTpItemId && /^[1-9]\d*$/.test(savedCityTpItemId) ? savedCityTpItemId : "auto";
     const oldDelay = Number(localStorage.getItem("fantasy-mod-training-target-delay"));
@@ -858,6 +865,14 @@
     huntState.cityTravelMode = mode;
     try { localStorage.setItem("fantasy-mod-city-travel-mode", mode); } catch {}
     return { ok: true, mode };
+  };
+  mod.setCityTripClass = (kind, className) => {
+    if (kind !== "city" && kind !== "farm" || !["mage", "melee", "distance"].includes(className)) {
+      return { ok: false, error: "Classe da viagem inválida." };
+    }
+    huntState[kind === "city" ? "cityClass" : "farmClass"] = className;
+    try { localStorage.setItem(`fantasy-mod-${kind}-class`, className); } catch {}
+    return { ok: true, className };
   };
   mod.setCityTpItemId = itemId => {
     const value = String(itemId);
@@ -2742,17 +2757,17 @@
   }
   function handleFullInventory() {
     const inventoryFull = mod.inventory.known && mod.inventory.full;
-    const arrowsExhausted = myself.arrows != null
-      && Number.isFinite(Number(myself.arrows)) && Number(myself.arrows) <= 0;
+    const arrowsLow = myself.arrows != null
+      && Number.isFinite(Number(myself.arrows)) && Number(myself.arrows) < 250;
     const training = huntState.training;
     const lowPotions = training && huntState.trainingCityPotions && ["hp", "mp"].some(kind => {
       const { count } = potionStatus(kind);
       return count != null && count < 10;
     });
-    const returnForArrows = arrowsExhausted && (!training || huntState.trainingCityArrows);
+    const returnForArrows = arrowsLow && (!training || huntState.trainingCityArrows);
     const returnForBag = inventoryFull && (!training || huntState.trainingCityBag);
     const needsCityTrip = returnForBag || returnForArrows || lowPotions;
-    const reason = returnForArrows ? "Flechas acabaram" : returnForBag ? "Mochila cheia" : "Poções abaixo de 10";
+    const reason = returnForArrows ? "Menos de 250 flechas" : returnForBag ? "Mochila cheia" : "Poções abaixo de 10";
     if (!needsCityTrip && !fullBagTravelPending && !fullBagTravelStarted && fullBagTravelStage === 0) {
       fullBagTravelStarted = false;
       fullBagTravelPending = false;
@@ -2795,10 +2810,14 @@
     }
     huntState.status = `${reason}; indo para a cidade`;
     huntState.lootStatus = returnForArrows
-      ? "Sem flechas; viajando para a cidade"
+      ? "Menos de 250 flechas; viajando para a cidade"
       : returnForBag ? `Mochila cheia (${mod.inventory.used}/${mod.inventory.capacity}); viajando para a loja`
         : "Poções abaixo de 10; viajando para a loja";
     if (gameSocket?.readyState !== WebSocket.OPEN) return true;
+    if (fullBagTravelStage === 0 && !ensureTrainingClass(huntState.cityClass)) {
+      huntState.status = `${reason}; trocando para a classe da cidade`;
+      return true;
+    }
     try {
       if (fullBagTravelStage === 0) {
         if (huntState.cityTravelMode === "tp" && !cityTpAttempted) {
@@ -2839,12 +2858,16 @@
   function handleReturnTravel() {
     if (!returnTravelPending || !savedHuntPosition) return false;
     if (arrowsDepletionReturn && (myself.arrows == null
-      || !Number.isFinite(Number(myself.arrows)) || Number(myself.arrows) <= 0)) {
-      huntState.status = "Refill concluído; aguardando flechas antes de voltar à caça";
+      || !Number.isFinite(Number(myself.arrows)) || Number(myself.arrows) < 250)) {
+      huntState.status = "Refill concluído; aguardando pelo menos 250 flechas antes de voltar à caça";
       return true;
     }
     if (gameSocket?.readyState !== WebSocket.OPEN) {
       huntState.status = "Venda concluída; aguardando conexão para voltar à caça";
+      return true;
+    }
+    if (returnTravelStage === 0 && !ensureTrainingClass(huntState.farmClass)) {
+      huntState.status = "Refill concluído; trocando para a classe do farm";
       return true;
     }
     try {

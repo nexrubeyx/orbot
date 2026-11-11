@@ -460,7 +460,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.49</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.50</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -564,9 +564,9 @@
             <p class="hint">Usa a mesma classe ou arma de combate e volta ao padrão após o combate, sem habilidade especial.</p>
             <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver alvos próximos</label>
             <label class="pref"><input class="training-city-bag" type="checkbox"> Ir à cidade com mochila cheia</label>
-            <label class="pref"><input class="training-city-arrows" type="checkbox"> Ir à cidade sem flechas</label>
+            <label class="pref"><input class="training-city-arrows" type="checkbox"> Ir à cidade com menos de 250 flechas</label>
             <label class="pref"><input class="training-city-potions" type="checkbox"> Ir à cidade com menos de 10 poções de HP ou MP</label>
-            <p class="hint">Na cidade, vende os itens selecionados e faz o refill configurado em Loja / Refill.</p>
+            <p class="hint">Na cidade, vende os itens selecionados e faz o refill configurado em Loja / Refill. Configure o estoque desejado de flechas em pelo menos 250 para voltar à caça.</p>
             <label class="pref"><input class="auto-loot-gold" type="checkbox"> Coletar ouro automaticamente</label>
             <p class="hint training-status" role="status"></p>
             </section>
@@ -714,7 +714,10 @@
                     <option value="tp">Usar TP</option>
                   </select></label>
                   <label>Pergaminho de Cidade<select class="city-tp-item"></select></label>
+                  <label>Classe para ir à cidade<select class="city-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
+                  <label>Classe para voltar ao farm<select class="farm-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
                 </div>
+                <p class="city-route-note">A classe do farm é aplicada antes da viagem de volta. No treino, a opção “Classe do treino” continua valendo durante o combate.</p>
                 <p class="city-route-note">Antes do TP, o bot elimina mobs em até 10 tiles e espera 12 s com a área livre. O pergaminho leva 15 s para ativar.</p>
                 <p class="city-route-status" role="status"></p>
               </section>
@@ -850,6 +853,8 @@
   const refillAfterSale = root.querySelector(".refill-after-sale");
   const cityRouteCard = root.querySelector(".city-route-card");
   const cityTravelMode = root.querySelector(".city-travel-mode");
+  const cityClass = root.querySelector(".city-class");
+  const farmClass = root.querySelector(".farm-class");
   const cityTpItem = root.querySelector(".city-tp-item");
   const cityTpCount = root.querySelector(".city-tp-count");
   const cityRouteStatus = root.querySelector(".city-route-status");
@@ -939,6 +944,8 @@
   huntAutoSell.checked = !!window.mod?.hunt?.autoSell;
   refillAfterSale.checked = !!window.mod?.hunt?.refillAfterSale;
   cityTravelMode.value = window.mod?.hunt?.cityTravelMode === "tp" ? "tp" : "walk";
+  cityClass.value = window.mod?.hunt?.cityClass ?? "melee";
+  farmClass.value = window.mod?.hunt?.farmClass ?? "melee";
   function renderCityTravel() {
     const mode = window.mod?.hunt?.cityTravelMode === "tp" ? "tp" : "walk";
     const selected = String(window.mod?.hunt?.cityTpItemId ?? "auto");
@@ -1336,6 +1343,12 @@
     if (!outcome?.ok) cityTravelMode.value = window.mod?.hunt?.cityTravelMode === "tp" ? "tp" : "walk";
     renderCityTravel();
   });
+  for (const [kind, select] of [["city", cityClass], ["farm", farmClass]]) {
+    select.addEventListener("change", () => {
+      const outcome = window.mod?.setCityTripClass?.(kind, select.value);
+      if (!outcome?.ok) select.value = window.mod?.hunt?.[kind === "city" ? "cityClass" : "farmClass"] ?? "melee";
+    });
+  }
   cityTpItem.addEventListener("change", () => {
     window.mod?.setCityTpItemId?.(cityTpItem.value);
     renderCityTravel();
