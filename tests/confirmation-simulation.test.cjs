@@ -6,7 +6,7 @@ const source = readFileSync(require.resolve('../src/observer.js'), 'utf8');
 const helpers = source.slice(source.indexOf('  function confirmationTemplate('),
   source.indexOf('  // End of browser-independent confirmation helpers.'));
 const createConfirmationController = new Function(`${helpers}\nreturn createConfirmationController;`)();
-const simulator = source.slice(source.indexOf('  let confirmationSimulationGeneration = 0;'),
+const simulator = source.slice(source.indexOf('  mod.simulateMonsterConfirmation ='),
   source.indexOf('  if (!window.__fantasyModErrorHooks)'));
 
 test('simulated monster challenge stays local and uses the confirmation controller', async () => {
@@ -31,14 +31,29 @@ test('simulated monster challenge stays local and uses the confirmation controll
     toDataURL: () => 'data:image/png;base64,dGVzdA=='
   };
   const mod = { log() {} };
-  new Function('createConfirmationController', 'confirmationDependencies', 'monsterAssets', 'document', 'Math', 'mod',
-    simulator)(createConfirmationController, deps, assets, { createElement: () => canvas },
-    Object.assign(Object.create(Math), { random: () => 0 }), mod);
+  let shownPacket;
+  let closed = false;
+  const ui = {
+    abrirConfirma: packet => { shownPacket = packet; },
+    fecharConfirma: () => { closed = true; }
+  };
+  new Function('createConfirmationController', 'confirmationDependencies', 'monsterAssets', 'document', 'Math', 'mod', 'confirmation', 'ui', 'setTimeout', `
+    let confirmationSimulationGeneration = 0;
+    let clientCaptchaSimulation = null;
+    const loadClientConfirmationUi = async () => ui;
+    ${simulator}
+  `)(createConfirmationController, deps, assets, { createElement: () => canvas },
+    Object.assign(Object.create(Math), { random: () => 0 }), mod,
+    { state: { active: false } }, ui, () => 0);
 
-  assert.deepEqual(mod.simulateMonsterConfirmation(), { ok: true });
+  assert.deepEqual(await mod.simulateMonsterConfirmation(), { ok: true });
+  assert.equal(shownPacket.t, 'vq');
+  assert.equal(shownPacket.k, 1);
+  assert.equal(shownPacket.c, 4);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(mod.confirmationSimulation.answer, 0);
   assert.equal(mod.confirmationSimulation.expected, 0);
   assert.ok(['A', 'B', 'C', 'D'].includes(mod.confirmationSimulation.name));
   assert.equal(sentToGame, false);
+  assert.equal(closed, true);
 });

@@ -305,11 +305,9 @@
       .training-mob-name small { display:block; color:var(--ui-2); font-size:9px; }
       .training-mob-row label { display:grid; place-items:center; cursor:pointer; }
       .training-mob-row input { width:16px; height:16px; accent-color:var(--ouro); }
-      .captcha-preview { display:block; width:min(100%,416px); height:auto; margin-top:8px; border:1px solid var(--luz); background:var(--slot); image-rendering:pixelated; }
-      .captcha-preview[hidden],.captcha-demo[hidden],.captcha-demo-options[hidden] { display:none; }
+      .captcha-demo[hidden] { display:none; }
       .captcha-demo { padding:9px; border:1px solid var(--luz); background:var(--slot); }
       .captcha-demo strong { color:var(--ouro-claro); font-size:12px; }
-      .captcha-demo-options { display:grid; grid-template-columns:repeat(4,1fr); width:min(100%,416px); color:var(--ui-2); font-size:10px; text-align:center; }
       select { width:100%; margin-top:3px; padding:7px; border:1px solid var(--luz); border-radius:0; background:var(--slot); color:var(--ui); }
       .console-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:var(--ui-2); font-size:11px; }
       .console-toolbar button { padding:5px 8px; border:1px solid var(--luz); border-radius:0; background:#3d3328; color:var(--ui); cursor:pointer; }
@@ -455,7 +453,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.46</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.47</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -576,7 +574,7 @@
               <p class="hint captcha-status" role="status" aria-live="polite">Aguardando confirmação</p>
               <p class="hint captcha-result"></p>
               <button class="refill-action captcha-simulate" type="button">Simular captcha de monstro</button>
-              <div class="captcha-demo" hidden><strong class="captcha-demo-name"></strong><img class="captcha-preview" alt="Quatro opções de monstros do desafio simulado"><div class="captcha-demo-options" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span></div><p class="hint captcha-demo-status" role="status" aria-live="polite"></p></div>
+              <div class="captcha-demo" hidden><strong class="captcha-demo-name"></strong><p class="hint captcha-demo-status" role="status" aria-live="polite"></p></div>
             </section>
           </section>
           <section class="page" data-section="focus" hidden>
@@ -900,8 +898,6 @@
   const captchaSimulate = root.querySelector(".captcha-simulate");
   const captchaDemo = root.querySelector(".captcha-demo");
   const captchaDemoName = root.querySelector(".captcha-demo-name");
-  const captchaPreview = root.querySelector(".captcha-preview");
-  const captchaDemoOptions = root.querySelector(".captcha-demo-options");
   const captchaDemoStatus = root.querySelector(".captcha-demo-status");
   const hpThreshold = root.querySelector(".hp-threshold");
   const mpThreshold = root.querySelector(".mp-threshold");
@@ -1265,17 +1261,20 @@
     }));
   });
   autoConfirmation.addEventListener("change", () => savePreference("auto-confirmation", autoConfirmation.checked));
-  captchaSimulate.addEventListener("click", () => {
-    const outcome = window.mod?.simulateMonsterConfirmation?.();
+  captchaSimulate.addEventListener("click", async () => {
+    captchaSimulate.disabled = true;
+    let outcome;
+    try { outcome = await window.mod?.simulateMonsterConfirmation?.(); }
+    catch (error) { outcome = { ok: false, error: error.message }; }
+    captchaSimulate.disabled = false;
     if (!outcome?.ok) {
       captchaDemo.hidden = false;
-      captchaPreview.hidden = true;
-      captchaDemoOptions.hidden = true;
       captchaDemoName.textContent = "Simulação indisponível";
       captchaDemoStatus.textContent = outcome?.error ?? "O simulador ainda não foi carregado.";
       return;
     }
     renderCaptchaStatus();
+    close();
   });
   hpThreshold.addEventListener("change", () => { hpThreshold.value = String(Math.max(5, Math.min(95, Number(hpThreshold.value) || 50))); persistAutomation(); });
   mpThreshold.addEventListener("change", () => { mpThreshold.value = String(Math.max(5, Math.min(95, Number(mpThreshold.value) || 30))); persistAutomation(); });
@@ -1576,10 +1575,7 @@
     const simulation = window.mod?.confirmationSimulation;
     if (!simulation) return;
     captchaDemo.hidden = false;
-    captchaPreview.hidden = false;
-    captchaDemoOptions.hidden = false;
-    if (captchaPreview.src !== simulation.image) captchaPreview.src = simulation.image;
-    captchaDemoName.textContent = `Encontre: ${simulation.name}`;
+    captchaDemoName.textContent = `Teste no cliente: ${simulation.name}`;
     captchaDemoStatus.textContent = simulation.answer == null ? simulation.status
       : `${simulation.status} · ${simulation.answer === simulation.expected ? "Resposta correta" : `Esperada: opção ${simulation.expected + 1}`}`;
   }

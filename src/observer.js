@@ -249,7 +249,12 @@
   const confirmation = createConfirmationController(confirmationDependencies);
   mod.confirmation = confirmation.state;
   let confirmationSimulationGeneration = 0;
-  mod.simulateMonsterConfirmation = () => {
+  let clientCaptchaSimulation = null;
+  const loadClientConfirmationUi = () => import(new URL("/src/confirma.mjs", location.origin).href);
+  mod.simulateMonsterConfirmation = async () => {
+    if (confirmation.state.active) return { ok: false, error: "Aguarde o captcha real terminar antes de iniciar a simulação." };
+    clientCaptchaSimulation?.ui.fecharConfirma();
+    clientCaptchaSimulation = null;
     const generation = ++confirmationSimulationGeneration;
     mod.confirmationSimulation = null;
     const atlas = monsterAssets?.c8;
@@ -288,16 +293,53 @@
     }
     const image = canvas.toDataURL("image/png");
     const name = shuffled[expected].name;
+    let ui;
+    try { ui = await loadClientConfirmationUi(); }
+    catch (error) { return { ok: false, error: `Não foi possível abrir o captcha do cliente: ${error.message}` }; }
+    if (generation !== confirmationSimulationGeneration || confirmation.state.active) {
+      return { ok: false, error: "A simulação foi interrompida por outro desafio." };
+    }
     const socket = {};
     const simulation = createConfirmationController({
       ...confirmationDependencies,
       isSocket: value => value === socket && generation === confirmationSimulationGeneration,
-      send: (_socket, packet) => { simulation.state.answer = packet.a; },
+      send: (_socket, packet) => {
+        simulation.state.answer = packet.a;
+        clientCaptchaSimulation = null;
+        ui.fecharConfirma();
+      },
       log: (level, message) => mod.log(level, `Simulação de captcha: ${message}`)
     });
-    Object.assign(simulation.state, { image, name, expected, answer: null });
+    Object.assign(simulation.state, { name, expected, answer: null });
     mod.confirmationSimulation = simulation.state;
-    simulation.receive(socket, { t: "vq", k: 1, c: 4, n: name, i: image.split(",")[1], s: 45 });
+    const packet = { t: "vq", k: 1, c: 4, n: name, i: image.split(",")[1], s: 45, r: 3,
+      q: { params: { name } } };
+    try { ui.abrirConfirma(packet, {
+      send: response => {
+        if (generation !== confirmationSimulationGeneration) return;
+        simulation.answered(socket);
+        simulation.state.answer = response.a;
+        simulation.state.status = `Opção ${Number(response.a) + 1} escolhida manualmente na simulação`;
+        clientCaptchaSimulation = null;
+        ui.fecharConfirma();
+      },
+      t: (text, params = {}) => text.replace(/\{(\w+)\}/g, (_match, key) => params[key] ?? ""),
+      tMsg: () => `Encontre: ${name}`,
+      tMonster: value => value
+    }); }
+    catch (error) {
+      mod.confirmationSimulation = null;
+      return { ok: false, error: `Não foi possível abrir o captcha do cliente: ${error.message}` };
+    }
+    clientCaptchaSimulation = { ui, state: simulation.state };
+    simulation.receive(socket, packet);
+    setTimeout(() => {
+      if (generation !== confirmationSimulationGeneration || !clientCaptchaSimulation) return;
+      clientCaptchaSimulation = null;
+      simulation.state.status = "Tempo da simulação encerrado";
+      simulation.state.active = false;
+      ui.fecharConfirma();
+    }, packet.s * 1000);
     return { ok: true };
   };
   if (!window.__fantasyModErrorHooks) {
@@ -4149,6 +4191,12 @@
 
   function finishRecord(packet, socket) {
     if (packet.direction === "RECEBIDO" && packet.decoded) {
+      if (clientCaptchaSimulation && socket === gameSocket && packet.decoded.t === "vq" && packet.decoded.i) {
+        confirmationSimulationGeneration++;
+        clientCaptchaSimulation.state.status = "Simulação interrompida por um captcha real";
+        clientCaptchaSimulation.state.active = false;
+        clientCaptchaSimulation = null;
+      }
       confirmation.receive(socket, packet.decoded);
       if (packet.decoded.t === "kick") {
         confirmation.reset(socket);

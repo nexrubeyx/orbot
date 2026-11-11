@@ -23,9 +23,9 @@ cancela a análise pendente. O bot não repete uma resposta ao mesmo desafio
 e não fecha a janela por conta própria; aguarda o evento de fechamento do jogo.
 
 Na aba **Captcha**, o botão **Simular captcha de monstro** monta um desafio de
-quatro opções com sprites locais e executa o mesmo reconhecimento em uma
-simulação separada. O resultado aparece no painel; nenhum pacote de teste é
-enviado ao servidor.
+quatro opções com sprites locais e abre a janela de confirmação do próprio
+cliente. O reconhecimento roda em uma simulação separada e o resultado aparece
+no painel; nenhum pacote de teste é enviado ao servidor.
 
 Desafios de texto/contas, sprites indisponíveis e comparações inconclusivas
 exigem resposta manual. O Console informa o resultado; `mod.confirmation`
