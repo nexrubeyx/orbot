@@ -1443,6 +1443,11 @@
   let resumeHuntAfterReturn = false;
   let resumeLureAfterReturn = false;
   let deathRecovery = null;
+  function cityTripInProgress() {
+    return fullBagTravelPending || fullBagTravelStarted || fullBagTravelStage !== 0
+      || returnTravelPending || returnTravelStarted || returnTravelStage !== 0
+      || !!refillTrip || shopVisitFinishing || suppressShopReopenUntilReturn;
+  }
   Object.defineProperty(huntState, "resumeAfterReturn", { configurable: true, get: () => resumeHuntAfterReturn });
   let fullBagArrivalLogged = false;
   let fullBagNpcNamesLogged = false;
@@ -1573,6 +1578,11 @@
     });
   }
   function processAutoLoot(target) {
+    if (cityTripInProgress()) {
+      huntLootId = null;
+      huntState.lootStatus = "Coleta pausada durante a viagem à cidade e o retorno";
+      return false;
+    }
     const collectGold = !huntState.training || huntState.autoLootGold;
     if (!huntState.autoLoot && !huntState.training) {
       huntState.lootStatus = huntState.lureEnabled
@@ -2209,6 +2219,9 @@
       if (trainingCityTrip) huntState.autoSellInProgress = window.__fantasyAutoSellInProgress = true;
       arrowsDepletionReturn = returnForArrows;
       mod.stopHunt("Caça pausada durante a viagem para a cidade.", true);
+      huntLootId = null;
+      nextLootMoveAt = 0;
+      nextLootPickupAt = 0;
       fullBagTravelPending = true;
     }
     huntState.status = `${reason}; indo para a cidade`;
@@ -2945,8 +2958,11 @@
     if (processRefillPurchases()) return;
     if (handleReturnTravel()) return;
     if (handleFullInventory()) return;
+    if (cityTripInProgress()) {
+      huntState.lootStatus = "Coleta pausada durante a viagem à cidade e o retorno";
+      return;
+    }
     if (processInitialHuntTravel()) return;
-    if (returnTravelStarted && savedHuntPosition) return;
     if (!huntState.enabled && !huntState.lureEnabled && !focusState.enabled) {
       huntState.lootStatus = huntState.autoLoot ? "Ativo quando a caça iniciar" : "Desativado";
       return;
