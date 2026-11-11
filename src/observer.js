@@ -348,6 +348,7 @@
   huntState.trainingCityBag = true;
   huntState.trainingCityArrows = true;
   huntState.trainingCityPotions = false;
+  huntState.cityTravelMode = "walk";
   huntState.status = "Parado";
   const focusState = mod.focus ?? (mod.focus = { enabled: false, useSkill: false, followTarget: true, status: "Focar desligado" });
   focusState.enabled = false;
@@ -411,6 +412,7 @@
     huntState.trainingCityBag = (localStorage.getItem("fantasy-mod-training-city-bag") ?? String(previousCityReturn)) === "true";
     huntState.trainingCityArrows = (localStorage.getItem("fantasy-mod-training-city-arrows") ?? String(previousCityReturn)) === "true";
     huntState.trainingCityPotions = localStorage.getItem("fantasy-mod-training-city-potions") === "true";
+    huntState.cityTravelMode = localStorage.getItem("fantasy-mod-city-travel-mode") === "tp" ? "tp" : "walk";
     const oldDelay = Number(localStorage.getItem("fantasy-mod-training-target-delay"));
     const minDelay = Number(localStorage.getItem("fantasy-mod-training-target-delay-min") ?? oldDelay);
     const maxDelay = Number(localStorage.getItem("fantasy-mod-training-target-delay-max") ?? oldDelay);
@@ -619,6 +621,12 @@
     huntState[key] = !!enabled;
     try { localStorage.setItem(`fantasy-mod-training-city-${option}`, String(huntState[key])); } catch {}
     return { ok: true, enabled: huntState[key] };
+  };
+  mod.setCityTravelMode = mode => {
+    if (mode !== "walk" && mode !== "tp") return { ok: false, error: "Escolha Andando ou TP." };
+    huntState.cityTravelMode = mode;
+    try { localStorage.setItem("fantasy-mod-city-travel-mode", mode); } catch {}
+    return { ok: true, mode };
   };
   mod.setTrainingEliteOptions = (enabled, combatClass) => {
     if (!["mage", "melee", "distance"].includes(combatClass)) return { ok: false, error: "Classe de combate inválida." };
@@ -1431,6 +1439,8 @@
   let fullBagTravelPending = false;
   let fullBagTravelStage = 0;
   let fullBagSecondPacketAt = 0;
+  let cityTpAttempted = false;
+  let cityTpWaiting = null;
   let savedHuntPosition = null;
   let returnTravelPending = false;
   let returnTravelStage = 0;
@@ -2174,6 +2184,18 @@
     }
     return true;
   }
+  function townScrollInBag() {
+    const assets = getGameAssets();
+    for (const [index, entry] of (mod.inventory.bag ?? []).entries()) {
+      const itemId = Array.isArray(entry) ? entry[0] : entry;
+      const rawName = getAssetItem(assets, itemId)?.name;
+      const names = typeof rawName === "string" ? [rawName]
+        : Object.values(rawName ?? {}).filter(value => typeof value === "string");
+      const name = names.find(value => /\bTown Scroll\b|Pergaminho de Cidade|Pergamino de Ciudad/i.test(value));
+      if (name) return { index, name };
+    }
+    return null;
+  }
   function handleFullInventory() {
     const inventoryFull = mod.inventory.known && mod.inventory.full;
     const arrowsExhausted = myself.arrows != null
@@ -2187,7 +2209,7 @@
     const returnForBag = inventoryFull && (!training || huntState.trainingCityBag);
     const needsCityTrip = returnForBag || returnForArrows || lowPotions;
     const reason = returnForArrows ? "Flechas acabaram" : returnForBag ? "Mochila cheia" : "Poções abaixo de 10";
-    if (!needsCityTrip && fullBagTravelStage !== 1 && !fullBagTravelStarted) {
+    if (!needsCityTrip && !fullBagTravelPending && !fullBagTravelStarted && fullBagTravelStage === 0) {
       fullBagTravelStarted = false;
       fullBagTravelPending = false;
       fullBagTravelStage = 0;
@@ -2196,6 +2218,22 @@
       fullBagNpcSearchEmptyLogged = false;
       fullBagNpcInteractionSent = false;
       return false;
+    }
+    if (fullBagTravelStage === 3 && cityTpWaiting) {
+      const { from, deadline } = cityTpWaiting;
+      const moved = myself.floor !== from.floor
+        || Math.max(Math.abs(myself.x - from.x), Math.abs(myself.y - from.y)) > 20;
+      if (moved || Date.now() >= deadline) {
+        cityTpWaiting = null;
+        fullBagTravelStarted = false;
+        fullBagTravelPending = true;
+        fullBagTravelStage = 0;
+        huntState.status = moved ? "TP concluído; seguindo até a loja" : "TP não confirmado; seguindo andando até a loja";
+        mod.log(moved ? "info" : "warn", huntState.status);
+      } else {
+        huntState.status = "Aguardando teleporte para a cidade";
+      }
+      return true;
     }
     if (fullBagTravelStarted) return false;
     if (!fullBagTravelPending) {
@@ -2222,6 +2260,8 @@
       huntLootId = null;
       nextLootMoveAt = 0;
       nextLootPickupAt = 0;
+      cityTpAttempted = false;
+      cityTpWaiting = null;
       fullBagTravelPending = true;
     }
     huntState.status = `${reason}; indo para a cidade`;
@@ -2232,6 +2272,24 @@
     if (gameSocket?.readyState !== WebSocket.OPEN) return true;
     try {
       if (fullBagTravelStage === 0) {
+        if (huntState.cityTravelMode === "tp" && !cityTpAttempted) {
+          cityTpAttempted = true;
+          const scroll = townScrollInBag();
+          if (scroll && Number.isInteger(myself.x) && Number.isInteger(myself.y) && Number.isInteger(myself.floor)) {
+            gameSocket.send(JSON.stringify({ t: "use", i: scroll.index }));
+            cityTpWaiting = {
+              from: { x: myself.x, y: myself.y, floor: myself.floor },
+              deadline: Date.now() + 30000
+            };
+            fullBagTravelStage = 3;
+            fullBagTravelPending = false;
+            fullBagTravelStarted = true;
+            huntState.status = `Usando ${scroll.name} para voltar à cidade`;
+            mod.log("info", huntState.status);
+            return true;
+          }
+          mod.log("warn", "TP selecionado, mas não há Pergaminho de Cidade na mochila; seguindo andando.");
+        }
         gameSocket.send(JSON.stringify({ t: "travel", id: 1, go: false, f: shopDestination.floor, x: shopDestination.x, y: shopDestination.y }));
         fullBagTravelStage = 1;
         fullBagSecondPacketAt = Date.now() + 2000;
@@ -2279,6 +2337,7 @@
         returnTravelStarted = true;
         fullBagTravelStarted = false;
         fullBagTravelStage = 0;
+        cityTpWaiting = null;
         huntState.status = `Voltando para a posição salva: ${x}, ${y}, andar ${floor}`;
         mod.log("info", `Venda concluída; retorno iniciado para (${x}, ${y}), andar ${floor}.`);
       }

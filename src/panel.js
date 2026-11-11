@@ -316,7 +316,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.10</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.11</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -433,6 +433,13 @@
           <section class="page" data-section="refill" hidden>
             <h2>Loja e refill</h2>
             <div class="destination-settings"></div>
+            <label class="attack-range">Voltar para a cidade
+              <select class="city-travel-mode">
+                <option value="walk">Andando</option>
+                <option value="tp">Usar TP (Pergaminho de Cidade)</option>
+              </select>
+            </label>
+            <p class="hint">Se o pergaminho faltar ou o teleporte falhar, o bot seguirá andando até a loja.</p>
             <div class="resource-summary" aria-live="polite">
               <div class="resource-card" data-kind="arrows">
                 <span class="resource-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20 18 6M13 5l6 1-1 6M4 20l1-5 5 5"/><path d="m7 16 2 2"/></svg></span>
@@ -598,6 +605,7 @@
   const huntAttackAny = root.querySelector(".hunt-attack-any");
   const huntAutoSell = root.querySelector(".hunt-auto-sell");
   const refillAfterSale = root.querySelector(".refill-after-sale");
+  const cityTravelMode = root.querySelector(".city-travel-mode");
   const refillTest = root.querySelector(".refill-test");
   const refillStatus = root.querySelector(".refill-status");
   const refillItemSelect = root.querySelector(".refill-item-select");
@@ -662,6 +670,7 @@
   mpThreshold.value = readPreference("mana-threshold", "30");
   huntAutoSell.checked = !!window.mod?.hunt?.autoSell;
   refillAfterSale.checked = !!window.mod?.hunt?.refillAfterSale;
+  cityTravelMode.value = window.mod?.hunt?.cityTravelMode === "tp" ? "tp" : "walk";
   focusSkillToggle.checked = !!window.mod?.focus?.useSkill;
   focusFollowToggle.checked = window.mod?.focus?.followTarget !== false;
   focusStatus.textContent = window.mod?.focus?.status ?? "Focar desligado";
@@ -915,6 +924,10 @@
   refillAfterSale.addEventListener("change", () => {
     if (window.mod?.hunt) window.mod.hunt.refillAfterSale = refillAfterSale.checked;
     savePreference("refill-after-sale", refillAfterSale.checked);
+  });
+  cityTravelMode.addEventListener("change", () => {
+    const outcome = window.mod?.setCityTravelMode?.(cityTravelMode.value);
+    if (!outcome?.ok) cityTravelMode.value = window.mod?.hunt?.cityTravelMode === "tp" ? "tp" : "walk";
   });
   refillTest.addEventListener("click", () => {
     const outcome = window.mod?.testRefill?.();
