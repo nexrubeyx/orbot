@@ -815,6 +815,7 @@
       status: "Pronto"
     };
     huntState.lootItemIds = JSON.parse(localStorage.getItem("fantasy-mod-loot-items") ?? "[]").map(String);
+    huntState.sellProtectedItemIds = JSON.parse(localStorage.getItem("fantasy-mod-sell-protected-items") ?? "[]").map(String);
     mod.lootCatalog = JSON.parse(localStorage.getItem("fantasy-mod-loot-catalog") ?? "[]")
       .filter(item => item && item.id != null && typeof item.name === "string");
   } catch {}
@@ -828,6 +829,7 @@
   };
   mod.lootCatalog ??= [];
   huntState.lootItemIds ??= [];
+  huntState.sellProtectedItemIds ??= [];
   mod.refill ??= { x: 314, y: 215, floor: 0, radius: 2, status: "Pronto" };
   mod.refill.items ??= [];
   mod.refill.shopItems ??= [];
@@ -979,6 +981,14 @@
     huntState.lootItemIds = enabled ? (mod.lootCatalog ?? []).map(item => String(item.id)) : [];
     try { localStorage.setItem("fantasy-mod-loot-items", JSON.stringify(huntState.lootItemIds)); } catch {}
     return { ok: true, count: huntState.lootItemIds.length };
+  };
+  mod.setSellProtectedItemEnabled = (id, enabled) => {
+    const key = String(id);
+    const protectedItems = new Set((huntState.sellProtectedItemIds ?? []).map(String));
+    enabled ? protectedItems.add(key) : protectedItems.delete(key);
+    huntState.sellProtectedItemIds = [...protectedItems];
+    try { localStorage.setItem("fantasy-mod-sell-protected-items", JSON.stringify(huntState.sellProtectedItemIds)); } catch {}
+    return { ok: true, id: key, protected: !!enabled };
   };
   Object.defineProperty(mod, "potionCooldownRemaining", {
     configurable: true,
@@ -2155,24 +2165,17 @@
       mod.log("info", `Venda confirmada: ${shopPendingItemName}.`);
       nextShopSellAt = Date.now() + 1000;
     }
-    const selected = new Set((huntState.lootItemIds ?? []).map(String));
-    const candidates = bag.map((itemId, index) => ({ itemId, index }))
+    const protectedItems = new Set((huntState.sellProtectedItemIds ?? []).map(String));
+    const candidates = bag.map((entry, index) => ({ itemId: Array.isArray(entry) ? entry[0] : entry, index }))
       .filter(({ itemId }) => itemId != null && itemId !== false)
-      .filter(({ itemId }) => {
-        const assetItem = getAssetItem(getGameAssets(), itemId);
-        const rawName = assetItem?.name;
-        const names = typeof rawName === "string" ? [rawName]
-          : Object.values(rawName ?? {}).filter(value => typeof value === "string");
-        return (selected.has(String(itemId)) || names.some(name => selected.has(normalizeName(name))))
-          && !(Number(assetItem?.rarity) >= 3);
-      })
+      .filter(({ itemId }) => !protectedItems.has(String(itemId)))
       .sort((a, b) => b.index - a.index);
     if (!candidates.length) {
       if (!shopSellDoneLogged) {
         shopSellDoneLogged = true;
         mod.log("info", shopSoldCount
-          ? `Venda feita: ${shopSoldCount} item(ns) da lista de venda vendido(s).`
-          : "Venda feita: nenhum item selecionado e vendável estava na mochila.");
+          ? `Venda feita: ${shopSoldCount} item(ns) vendido(s); itens protegidos foram mantidos.`
+          : "Venda feita: não havia itens para vender além dos protegidos.");
       }
       finishShopVisit();
       return true;

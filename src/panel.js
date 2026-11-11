@@ -337,7 +337,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.18</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.19</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -559,6 +559,9 @@
               <label class="pref"><input class="auto-confirmation" type="checkbox"> Responder confirmação de monstro</label>
               <p class="hint">Compara os sprites das opções. Se a imagem for ambígua ou pedir texto, responda manualmente.</p>
               <label class="pref"><input class="auto-refresh" type="checkbox"> Atualizar estado automaticamente</label>
+              <strong>Itens que não serão vendidos</strong>
+              <p class="hint">Marque os itens que quer manter. Os demais itens da mochila serão vendidos quando o bot chegar à loja.</p>
+              <div class="loot-item-list protected-sell-list" aria-live="polite"></div>
             </div>
           </section>
           <section class="page" data-section="console" hidden>
@@ -648,6 +651,7 @@
   const refillItemAdd = root.querySelector(".refill-item-add");
   const refillItemList = root.querySelector(".refill-item-list");
   const lootItemList = root.querySelector(".loot-item-list");
+  const protectedSellList = root.querySelector(".protected-sell-list");
   const huntToggle = root.querySelector(".hunt-toggle");
   const trainingToggle = root.querySelector(".training-toggle");
   const autoLootGoldToggles = root.querySelectorAll(".auto-loot-gold");
@@ -1263,6 +1267,7 @@
       : "A posição de retorno será salva quando a caça for à loja.";
     lootAssetsStatus.textContent = window.mod?.lootIconStatus ?? "Aguardando dados dos itens";
     showLootItems();
+    showProtectedSellItems();
     if (!backdrop.hidden && root.querySelector('[data-section="targets"]')?.hidden === false) showTargets();
     if (!backdrop.hidden && root.querySelector('[data-section="waypoints"]')?.hidden === false) showWaypoints();
   }
@@ -1302,6 +1307,35 @@
       name.textContent = item.name;
       label.append(name);
       lootItemList.append(label);
+    }
+  }
+
+  function showProtectedSellItems() {
+    const catalog = window.mod?.lootCatalog ?? [];
+    const selected = new Set((window.mod?.hunt?.sellProtectedItemIds ?? []).map(String));
+    const signature = JSON.stringify([catalog, [...selected].sort()]);
+    if (protectedSellList.dataset.signature === signature) return;
+    protectedSellList.dataset.signature = signature;
+    protectedSellList.replaceChildren();
+    if (!catalog.length) {
+      const empty = document.createElement("p");
+      empty.className = "loot-item-empty";
+      empty.textContent = "Aguardando catálogo de itens do jogo.";
+      protectedSellList.append(empty);
+      return;
+    }
+    for (const item of catalog) {
+      const label = document.createElement("label");
+      label.className = "loot-item";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = selected.has(String(item.id));
+      checkbox.addEventListener("change", () => window.mod?.setSellProtectedItemEnabled?.(item.id, checkbox.checked));
+      const name = document.createElement("span");
+      name.className = "loot-item-name";
+      name.textContent = item.name;
+      label.append(checkbox, name);
+      protectedSellList.append(label);
     }
   }
 
