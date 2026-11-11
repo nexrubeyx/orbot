@@ -394,10 +394,33 @@
       .page[data-section="automation"] .config-sales .protected-item-row,.page[data-section="automation"] .config-sales .protected-inventory-row { background:#1d1812; }
       .page[data-section="automation"] .config-sales .protected-inventory-title { color:var(--ui); }
       .page[data-section="automation"] .config-block :is(select,input[type="number"]):focus-visible { outline:2px solid var(--ouro); outline-offset:1px; }
+      .page .menu-block { display:grid; gap:9px; min-width:0; margin:0 0 10px; padding:11px; border:1px solid var(--luz); background:linear-gradient(145deg,#282118,#17120e); box-shadow:inset 0 1px #ffffff10,0 4px 12px #0004; }
+      .page .menu-heading { display:flex; align-items:center; gap:9px; min-height:34px; margin:0 0 2px; }
+      .page .menu-heading-icon { display:grid; flex:0 0 30px; width:30px; height:30px; place-items:center; border:1px solid var(--ouro-escuro); background:#46381a; color:var(--ouro-claro); font-size:16px; }
+      .page .menu-heading-copy { display:grid; min-width:0; gap:1px; line-height:1.2; }
+      .page .menu-heading-copy strong { color:var(--ui); font-size:12px; font-weight:700; }
+      .page .menu-heading-copy small { color:var(--ui-2); font-size:10px; font-weight:500; }
+      .page .menu-block > .hint,.page .menu-block > .result { margin:0 2px; line-height:1.4; }
+      .page .menu-block > .pref,.page .menu-block > .setting-toggle { min-height:40px; margin:0; padding:8px 9px; background:var(--slot); font-size:11px; }
+      .page .menu-block > .pref { flex-direction:row-reverse; cursor:pointer; }
+      .page .menu-block > .pref:hover,.page .menu-block > .setting-toggle:hover { border-color:var(--ouro-escuro); }
+      .page .menu-block > .attack-range { display:grid; gap:3px; min-width:0; }
+      .page .menu-block > .attack-range :is(select,input) { width:100%; min-width:0; }
+      .page .menu-block > .hunt-toggle { margin:0; min-height:36px; }
+      .page .menu-block > .creature-list,.page .menu-block > .target-list,.page .menu-block > .waypoint-list,.page .menu-block > .console-list { margin:0; max-height:220px; }
+      .page .menu-block > .target-search,.page .menu-block > .target-tools,.page .menu-block > .waypoint-actions { margin:0; }
+      .page .menu-block > .destination-settings { display:grid; gap:8px; }
+      .page .menu-block .destination-form { margin:0; padding:9px; border-color:var(--luz); }
+      .page .menu-block .refill-action-row,.page .menu-block .refill-items,.page .menu-block .training-delay,.page .menu-block .waypoint-reverse-card { margin:0; }
+      .page .menu-block .training-delay,.page .menu-block .waypoint-reverse-card,.page .menu-block .lure-status-card { border-color:var(--luz); background:var(--slot); }
+      .page .menu-block .refill-item-list { max-height:140px; }
+      .page .menu-block .resource-summary { margin:0; }
+      .page .menu-block .console-toolbar { flex-wrap:wrap; gap:6px; margin:0; }
+      .page .menu-block :is(select,input[type="number"],input[type="search"]):focus-visible { outline:2px solid var(--ouro); outline-offset:1px; }
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.29</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.30</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -414,7 +437,8 @@
         <div class="page-content">
           <section class="page" data-section="creatures" hidden>
             <h2>Criaturas próximas</h2>
-            <div class="creature-search">
+            <div class="creature-search menu-block">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">◈</span><span class="menu-heading-copy"><strong>Buscar criaturas</strong><small>Encontre alvos próximos pela distância</small></span></div>
               <div class="search-row">
                 <label>Raio da busca<input class="creature-radius" type="number" min="1" max="100" step="1" value="10"></label>
                 <button class="search">Buscar</button>
@@ -424,7 +448,8 @@
           </section>
           <section class="page" data-section="hunt" hidden>
             <h2>Sistema de caça</h2>
-            <div class="hunt">
+            <div class="hunt menu-block">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">⚔</span><span class="menu-heading-copy"><strong>Caça automática</strong><small>Combate, coleta e retorno à cidade</small></span></div>
               <button class="hunt-toggle">Iniciar caça</button>
               <label class="setting-toggle">
                 <span class="setting-toggle-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4M11 8v6M8 11h6"/></svg></span>
@@ -463,6 +488,8 @@
           </section>
           <section class="page" data-section="training" hidden>
             <h2>Treino</h2>
+            <section class="menu-block" aria-label="Configurações de treino">
+            <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✦</span><span class="menu-heading-copy"><strong>Treino automático</strong><small>Alvos, intervalo e viagem à cidade</small></span></div>
             <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo.</p>
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
@@ -490,11 +517,13 @@
             <p class="hint">Na cidade, vende os itens selecionados e faz o refill configurado em Loja / Refill.</p>
             <label class="pref"><input class="auto-loot-gold" type="checkbox"> Coletar ouro automaticamente</label>
             <p class="hint training-status" role="status"></p>
+            </section>
           </section>
           <section class="page" data-section="focus" hidden>
             <h2>Focar</h2>
-            <p class="hint">Controla o target selecionado no jogo e segue até o alcance de ataque de 4 tiles, separado do sistema de caça.</p>
-            <div class="hunt">
+            <div class="hunt menu-block">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">◎</span><span class="menu-heading-copy"><strong>Foco no alvo</strong><small>Controle do alvo selecionado no jogo</small></span></div>
+              <p class="hint">Segue até o alcance de ataque de 4 tiles, separado do sistema de caça.</p>
               <button class="hunt-toggle focus-toggle" type="button">Iniciar Focar</button>
               <label class="setting-toggle">
                 <span class="setting-toggle-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v3M5.6 5.6l2.1 2.1M3 12h3M18 12h3M16.3 7.7l2.1-2.1M8 13.5l3 7 2-4 4-2-7-3Z"/></svg></span>
@@ -513,7 +542,12 @@
           </section>
           <section class="page" data-section="refill" hidden>
             <h2>Loja e refill</h2>
-            <div class="destination-settings"></div>
+            <section class="menu-block" aria-label="Destinos da loja e do refill">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">⌖</span><span class="menu-heading-copy"><strong>Destinos</strong><small>Coordenadas da loja e do refill</small></span></div>
+              <div class="destination-settings"></div>
+            </section>
+            <section class="menu-block" aria-label="Recursos e execução do refill">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✚</span><span class="menu-heading-copy"><strong>Recursos</strong><small>Estoque atual e execução do refill</small></span></div>
             <div class="resource-summary" aria-live="polite">
               <div class="resource-card" data-kind="arrows">
                 <span class="resource-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20 18 6M13 5l6 1-1 6M4 20l1-5 5 5"/><path d="m7 16 2 2"/></svg></span>
@@ -532,6 +566,9 @@
               <button class="refill-action refill-test" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 5l7 7-7 7"/></svg>Refill</button>
               <p class="hint refill-status" role="status">Pronto</p>
             </div>
+            </section>
+            <section class="menu-block" aria-label="Itens do refill">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">▣</span><span class="menu-heading-copy"><strong>Estoque desejado</strong><small>Escolha o item e a quantidade</small></span></div>
             <div class="refill-items">
               <div class="refill-item-controls">
                 <div><select class="refill-item-select" aria-hidden="true" tabindex="-1" style="display:none"><option value="">Selecione um item</option></select><details class="refill-item-picker"><summary><span class="refill-picker-current-icon refill-picker-icon" aria-hidden="true">◇</span><span class="refill-picker-name">Selecione um item</span></summary><div class="refill-picker-menu" aria-label="Itens da loja"></div></details></div>
@@ -540,15 +577,21 @@
               </div>
               <div class="refill-item-list" aria-live="polite"></div>
             </div>
+            </section>
           </section>
           <section class="page" data-section="targets" hidden>
             <h2>Alvos</h2>
+            <section class="menu-block" aria-label="Lista de alvos">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">◎</span><span class="menu-heading-copy"><strong>Alvos disponíveis</strong><small>Filtre e selecione as criaturas</small></span></div>
             <input class="target-search" type="search" placeholder="Filtrar criaturas…" aria-label="Filtrar criaturas">
             <div class="target-tools"><button class="targets-all">Ativar todos</button><button class="targets-none">Desativar todos</button></div>
             <div class="target-list" aria-live="polite"></div>
+            </section>
           </section>
           <section class="page" data-section="waypoints" hidden>
             <h2>Waypoints</h2>
+            <section class="menu-block" aria-label="Configuração da rota">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">⇄</span><span class="menu-heading-copy"><strong>Rota</strong><small>Patrulha, sentido e pausas</small></span></div>
             <label class="pref"><input class="waypoint-patrol-toggle" type="checkbox"> Percorrer quando não houver alvos</label>
             <div class="waypoint-reverse-card">
               <div class="waypoint-reverse-head"><span class="waypoint-reverse-icon" aria-hidden="true">⇄</span><span>Sentido da rota</span></div>
@@ -557,6 +600,9 @@
               <label class="waypoint-reverse-settings"><span>Pausa após inverter (segundos)</span><input class="waypoint-reverse-delay" type="number" min="0" max="300" step="0.1" value="0"></label>
               <p class="hint">Uma volta termina ao retornar ao primeiro ponto depois de alcançar o último.</p>
             </div>
+            </section>
+            <section class="menu-block" aria-label="Gerenciar waypoints">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">⌖</span><span class="menu-heading-copy"><strong>Pontos da rota</strong><small>Grave, importe ou adicione posições</small></span></div>
             <div class="waypoint-actions" style="grid-template-columns:1fr">
               <button class="waypoint-current">Adicionar posição atual</button>
               <button class="waypoint-record" type="button">Iniciar gravação ao andar</button>
@@ -568,9 +614,12 @@
             <input class="waypoint-file" type="file" accept="application/json,.json" hidden>
             <p class="result waypoint-result" role="status"></p>
             <div class="waypoint-list" aria-live="polite"></div>
+            </section>
           </section>
           <section class="page" data-section="clone" hidden>
             <h2>Clone</h2>
+            <section class="menu-block" aria-label="Importar e exportar configuração">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">▤</span><span class="menu-heading-copy"><strong>Backup da configuração</strong><small>Copie as preferências para outro cliente</small></span></div>
             <p class="hint">Exporte ou importe as configurações salvas do mod, incluindo waypoints, alvos, caça, loot, refill e automações.</p>
             <div class="waypoint-actions">
               <button class="config-export" type="button">Exportar configuração</button>
@@ -578,6 +627,7 @@
             </div>
             <input class="config-file" type="file" accept="application/json,.json" hidden>
             <p class="result config-result" role="status"></p>
+            </section>
           </section>
           <section class="page" data-section="automation" hidden>
             <h2>Configuração</h2>
@@ -637,8 +687,11 @@
           </section>
           <section class="page" data-section="console" hidden>
             <h2>Console</h2>
+            <section class="menu-block" aria-label="Histórico do console">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">⌘</span><span class="menu-heading-copy"><strong>Histórico</strong><small>Eventos e mensagens do bot</small></span></div>
             <div class="console-toolbar"><span>Histórico de bot e WebSocket (até 1.000 registros cada)</span><span class="console-actions"><button class="console-export" type="button">Exportar logs</button><button class="console-clear" type="button">Limpar</button></span></div>
             <div class="console-list" aria-live="polite"></div>
+            </section>
           </section>
         </div>
       </div>
