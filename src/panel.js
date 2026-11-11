@@ -371,7 +371,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.24</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.25</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -514,11 +514,6 @@
               </div>
               <div class="refill-item-list" aria-live="polite"></div>
             </div>
-            <div class="loot-picker">
-              <div class="loot-picker-head"><span>Itens para venda automática</span><span class="loot-picker-actions"><button class="loot-select-all" type="button">Todos</button><button class="loot-select-none" type="button">Limpar</button></span></div>
-              <div class="loot-item-list" aria-live="polite"></div>
-            </div>
-            <p class="hint loot-assets-status" role="status"></p>
           </section>
           <section class="page" data-section="targets" hidden>
             <h2>Alvos</h2>
@@ -593,6 +588,11 @@
               <label class="pref"><input class="auto-confirmation" type="checkbox"> Responder confirmação de monstro</label>
               <p class="hint">Compara os sprites das opções. Se a imagem for ambígua ou pedir texto, responda manualmente.</p>
               <label class="pref"><input class="auto-refresh" type="checkbox"> Atualizar estado automaticamente</label>
+              <div class="loot-picker">
+                <div class="loot-picker-head"><span>Itens para venda automática</span><span class="loot-picker-actions"><button class="loot-select-all" type="button">Todos</button><button class="loot-select-none" type="button">Limpar</button></span></div>
+                <div class="loot-item-list" aria-live="polite"></div>
+              </div>
+              <p class="hint loot-assets-status" role="status"></p>
               <section class="protected-sell-card" aria-label="Itens que não serão vendidos">
                 <div class="protected-sell-head"><strong>Itens que não serão vendidos</strong><span class="protected-sell-count">0 protegidos</span></div>
                 <p class="hint">Itens protegidos permanecem na mochila durante a venda automática.</p>
