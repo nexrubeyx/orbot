@@ -2223,6 +2223,99 @@
       ? scrolls[0] ?? null
       : scrolls.find(scroll => scroll.id === huntState.cityTpItemId) ?? null;
   }
+  function processCityTeleport() {
+    const attempt = cityTpWaiting;
+    if (!attempt) return false;
+    if (gameSocket?.readyState !== WebSocket.OPEN) {
+      if (attempt.phase === "clear") attempt.quietSince = null;
+      huntState.status = "TP: aguardando conexão com o jogo";
+      return true;
+    }
+    const now = Date.now();
+    if (attempt.phase === "clear") {
+      const radius = 10;
+      const mob = [...entities.values()]
+        .filter(entity => entity.k === 1 && Number.isInteger(entity.x) && Number.isInteger(entity.y)
+          && (entity.f == null || entity.f === myself.floor)
+          && !(Number.isFinite(entity.hp) && entity.hp <= 0)
+          && Math.max(Math.abs(entity.x - myself.x), Math.abs(entity.y - myself.y)) <= radius)
+        .sort((a, b) => Math.max(Math.abs(a.x - myself.x), Math.abs(a.y - myself.y))
+          - Math.max(Math.abs(b.x - myself.x), Math.abs(b.y - myself.y)))[0];
+      if (mob) {
+        attempt.quietSince = null;
+        attempt.quietPosition = null;
+        if (String(attempt.targetId) !== String(mob.id)) {
+          attempt.targetId = mob.id;
+          attempt.nextMoveAt = 0;
+          huntTargetId = mob.id;
+          huntTargetSent = null;
+        }
+        if (!ensureHuntTarget({ id: mob.id })) return true;
+        const distance = Math.max(Math.abs(mob.x - myself.x), Math.abs(mob.y - myself.y));
+        const attackRange = Math.max(1, Number(huntState.attackRange) || 1);
+        const canAttack = distance <= attackRange && hasAttackLine(myself.x, myself.y, mob);
+        if (canAttack) mod.useHuntSpecial();
+        else if (now >= attempt.nextMoveAt) {
+          const outcome = moveTowardAttackRange(mob);
+          attempt.nextMoveAt = now + (outcome.ok ? 900 : 1200);
+        }
+        huntState.status = `TP: limpando mobs próximos (${mob.n ?? "criatura"})`;
+        return true;
+      }
+      if (attempt.targetId != null) {
+        gameSocket.send(JSON.stringify({ t: "untarget" }));
+        attempt.targetId = null;
+        huntTargetId = null;
+        huntTargetSent = null;
+        pursuitGoal = null;
+      }
+      const position = `${myself.floor}:${myself.x}:${myself.y}`;
+      if (attempt.quietSince == null || attempt.quietPosition !== position) {
+        attempt.quietSince = now;
+        attempt.quietPosition = position;
+      }
+      const remaining = 5000 - (now - attempt.quietSince);
+      if (remaining > 0) {
+        huntState.status = `TP: área livre; aguardando ${Math.ceil(remaining / 1000)} s`;
+        return true;
+      }
+      const scroll = townScrollInBag();
+      if (!scroll) {
+        cityTpWaiting = null;
+        fullBagTravelStarted = false;
+        fullBagTravelPending = true;
+        fullBagTravelStage = 0;
+        huntState.status = "TP indisponível após limpar a área; seguindo andando até a loja";
+        mod.log("warn", huntState.status);
+        return true;
+      }
+      gameSocket.send(JSON.stringify({ t: "use", i: scroll.index }));
+      attempt.phase = "casting";
+      attempt.from = { x: myself.x, y: myself.y, floor: myself.floor };
+      attempt.castStartedAt = now;
+      attempt.deadline = now + 25000;
+      huntState.status = `Ativando ${scroll.name}; aguardando 15 s`;
+      mod.log("info", huntState.status);
+      return true;
+    }
+    const { from, deadline } = attempt;
+    const moved = myself.floor !== from.floor
+      || Math.max(Math.abs(myself.x - from.x), Math.abs(myself.y - from.y)) > 20;
+    if (moved || now >= deadline) {
+      cityTpWaiting = null;
+      fullBagTravelStarted = false;
+      fullBagTravelPending = true;
+      fullBagTravelStage = 0;
+      huntState.status = moved ? "TP concluído; seguindo até a loja" : "TP não confirmado; seguindo andando até a loja";
+      mod.log(moved ? "info" : "warn", huntState.status);
+    } else {
+      const remaining = Math.max(0, 15000 - (now - attempt.castStartedAt));
+      huntState.status = remaining > 0
+        ? `TP em ativação; aguardando ${Math.ceil(remaining / 1000)} s`
+        : "TP: aguardando confirmação do teleporte";
+    }
+    return true;
+  }
   function handleFullInventory() {
     const inventoryFull = mod.inventory.known && mod.inventory.full;
     const arrowsExhausted = myself.arrows != null
@@ -2246,22 +2339,7 @@
       fullBagNpcInteractionSent = false;
       return false;
     }
-    if (fullBagTravelStage === 3 && cityTpWaiting) {
-      const { from, deadline } = cityTpWaiting;
-      const moved = myself.floor !== from.floor
-        || Math.max(Math.abs(myself.x - from.x), Math.abs(myself.y - from.y)) > 20;
-      if (moved || Date.now() >= deadline) {
-        cityTpWaiting = null;
-        fullBagTravelStarted = false;
-        fullBagTravelPending = true;
-        fullBagTravelStage = 0;
-        huntState.status = moved ? "TP concluído; seguindo até a loja" : "TP não confirmado; seguindo andando até a loja";
-        mod.log(moved ? "info" : "warn", huntState.status);
-      } else {
-        huntState.status = "Aguardando teleporte para a cidade";
-      }
-      return true;
-    }
+    if (fullBagTravelStage === 3 && cityTpWaiting) return processCityTeleport();
     if (fullBagTravelStarted) return false;
     if (!fullBagTravelPending) {
       if (!huntState.enabled && !huntState.lureEnabled) return false;
@@ -2303,15 +2381,11 @@
           cityTpAttempted = true;
           const scroll = townScrollInBag();
           if (scroll && Number.isInteger(myself.x) && Number.isInteger(myself.y) && Number.isInteger(myself.floor)) {
-            gameSocket.send(JSON.stringify({ t: "use", i: scroll.index }));
-            cityTpWaiting = {
-              from: { x: myself.x, y: myself.y, floor: myself.floor },
-              deadline: Date.now() + 30000
-            };
+            cityTpWaiting = { phase: "clear", quietSince: null, targetId: null, nextMoveAt: 0 };
             fullBagTravelStage = 3;
             fullBagTravelPending = false;
             fullBagTravelStarted = true;
-            huntState.status = `Usando ${scroll.name} para voltar à cidade`;
+            huntState.status = `Preparando ${scroll.name}; limpando mobs próximos`;
             mod.log("info", huntState.status);
             return true;
           }
@@ -2908,6 +2982,8 @@
     resumeLureAfterReturn = !!lure;
     fullBagTravelPending = fullBagTravelStarted = returnTravelPending = returnTravelStarted = false;
     fullBagTravelStage = returnTravelStage = 0;
+    cityTpWaiting = null;
+    cityTpAttempted = false;
     refillTrip = null;
     refillPurchaseQueue = [];
     refillReturnTo = null;

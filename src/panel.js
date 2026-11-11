@@ -163,6 +163,8 @@
       .city-route-fields select { width:100%; min-width:0; min-height:35px; padding:7px 9px; border:1px solid var(--luz); background:var(--poco); color:var(--ui); }
       .city-route-fields select:focus-visible { outline:2px solid var(--ouro); outline-offset:2px; }
       .city-route-fields select:disabled { opacity:.5; }
+      .city-route-note { margin:0; padding:7px 8px; border-left:2px solid var(--ouro-escuro); background:#46381a66; color:var(--ui-2); font-size:10px; line-height:1.35; }
+      .city-route-card[data-mode="walk"] .city-route-note { display:none; }
       .city-route-status { margin:0; color:var(--ui-2); font-size:10px; line-height:1.35; }
       .pref { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:36px; margin:5px 0; padding:7px 9px; border:1px solid var(--luz); border-radius:0; background:var(--painel); color:var(--ui); }
       .pref input[type="checkbox"],.automation-title input[type="checkbox"],.target-row input[type="checkbox"],.loot-item input[type="checkbox"] { appearance:none; -webkit-appearance:none; position:relative; display:block; flex:0 0 34px; width:34px; height:19px; margin:0; border:1px solid var(--luz); border-radius:0; background:var(--poco); cursor:pointer; transition:background .18s,border-color .18s; }
@@ -335,7 +337,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.16</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.17</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -539,6 +541,7 @@
                   </select></label>
                   <label>Pergaminho de Cidade<select class="city-tp-item"></select></label>
                 </div>
+                <p class="city-route-note">Antes do TP, o bot elimina mobs em até 10 tiles e espera 5 s com a área livre. O pergaminho leva 15 s para ativar.</p>
                 <p class="city-route-status" role="status"></p>
               </section>
               <strong>Poções</strong>
