@@ -460,7 +460,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.48</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.49</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -582,7 +582,7 @@
               <p class="hint captcha-result"></p>
               <button class="refill-action captcha-simulate" type="button">Repetir último captcha real</button>
               <div class="captcha-demo" hidden><strong class="captcha-demo-name"></strong><p class="hint captcha-demo-status" role="status" aria-live="polite"></p></div>
-              <div class="captcha-history-head"><strong>Captchas salvos</strong><button class="captcha-export" type="button">Exportar JSON</button></div>
+              <div class="captcha-history-head"><strong>Captchas salvos</strong><button class="captcha-export" type="button">Exportar logs de captcha</button></div>
               <p class="hint captcha-history-status" role="status"></p>
               <div class="captcha-history-list" aria-live="polite"></div>
             </section>
@@ -1020,7 +1020,7 @@
     window.__fantasyModConsole?.splice(0);
     showConsole();
   });
-  consoleExport.addEventListener("click", () => {
+  consoleExport.addEventListener("click", async () => {
     const botLogs = (window.__fantasyModConsole ?? []).slice(-1000);
     const wsLogs = (window.__gameMonitor?.latest?.(1000)
       ?? window.__gameMonitor?.packets?.slice(-1000)
@@ -1033,11 +1033,15 @@
       }
       return value;
     };
+    let captchas = [];
+    try { captchas = await window.mod?.exportCaptchaLogs?.() ?? []; }
+    catch (error) { window.mod?.log?.("warn", `Não foi possível incluir o histórico de captcha na exportação: ${error.message}`); }
     const exportData = {
       exportedAt: new Date().toISOString(),
-      counts: { bot: botLogs.length, websocket: wsLogs.length },
+      counts: { bot: botLogs.length, websocket: wsLogs.length, captchas: captchas.length },
       bot: redactSecrets(botLogs),
-      websocket: redactSecrets(wsLogs)
+      websocket: redactSecrets(wsLogs),
+      captchas
     };
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);

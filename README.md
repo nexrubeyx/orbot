@@ -24,7 +24,8 @@ e não fecha a janela por conta própria; aguarda o evento de fechamento do jogo
 
 Na aba **Captcha**, os desafios de monstro recebidos são salvos no IndexedDB
 do navegador com imagem, horário e resposta enviada. O histórico guarda até
-50 captchas e permite exportar um JSON. **Repetir último captcha real** e os
+50 captchas e permite exportar um JSON pela própria aba ou junto dos demais
+logs em **Console → Exportar logs**. **Repetir último captcha real** e os
 botões **Repetir** abrem a janela original do cliente com a imagem e mensagem
 salvas, inclusive após reiniciar o cliente. O reconhecimento roda em uma
 simulação separada; nenhum pacote de teste é enviado ao servidor.
