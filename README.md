@@ -22,10 +22,12 @@ Uma resposta manual, o encerramento da conexão ou a substituição do desafio
 cancela a análise pendente. O bot não repete uma resposta ao mesmo desafio
 e não fecha a janela por conta própria; aguarda o evento de fechamento do jogo.
 
-Na aba **Captcha**, o botão **Simular captcha de monstro** monta um desafio de
-quatro opções com sprites locais e abre a janela de confirmação do próprio
-cliente. O reconhecimento roda em uma simulação separada e o resultado aparece
-no painel; nenhum pacote de teste é enviado ao servidor.
+Na aba **Captcha**, os desafios de monstro recebidos são salvos no IndexedDB
+do navegador com imagem, horário e resposta enviada. O histórico guarda até
+50 captchas e permite exportar um JSON. **Repetir último captcha real** e os
+botões **Repetir** abrem a janela original do cliente com a imagem e mensagem
+salvas, inclusive após reiniciar o cliente. O reconhecimento roda em uma
+simulação separada; nenhum pacote de teste é enviado ao servidor.
 
 Desafios de texto/contas, sprites indisponíveis e comparações inconclusivas
 exigem resposta manual. O Console informa o resultado; `mod.confirmation`

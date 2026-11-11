@@ -24,12 +24,8 @@ test('simulated monster challenge stays local and uses the confirmation controll
     send: () => { sentToGame = true; },
     log: () => {}
   };
-  const monsters = ['A', 'B', 'C', 'D'].map((name, index) => ({ name, anims: [[index]] }));
-  const assets = { c8: {}, monsters, entities: { monsters: monsters.map((_, index) => [index * 10, 0, 10, 10]) } };
-  const canvas = {
-    getContext: () => ({ fillRect() {}, drawImage() {} }),
-    toDataURL: () => 'data:image/png;base64,dGVzdA=='
-  };
+  const packet = { t: 'vq', k: 1, c: 4, n: 'A', i: 'dGVzdA==', s: 45, r: 3,
+    q: { key: 'monster', params: { name: 'A' } } };
   const mod = { log() {} };
   let shownPacket;
   let closed = false;
@@ -37,23 +33,26 @@ test('simulated monster challenge stays local and uses the confirmation controll
     abrirConfirma: packet => { shownPacket = packet; },
     fecharConfirma: () => { closed = true; }
   };
-  new Function('createConfirmationController', 'confirmationDependencies', 'monsterAssets', 'document', 'Math', 'mod', 'confirmation', 'ui', 'setTimeout', `
+  const i18n = { t: value => value, tMsg: () => 'A', tMonster: value => value };
+  new Function('createConfirmationController', 'confirmationDependencies', 'mod', 'confirmation', 'ui', 'i18n', 'packet', 'setTimeout', `
     let confirmationSimulationGeneration = 0;
     let clientCaptchaSimulation = null;
-    const loadClientConfirmationUi = async () => ui;
+    let lastMonsterConfirmationPacket = packet;
+    const readCaptchaLog = async id => id === 42 ? { packet } : null;
+    const readCaptchaLogs = async () => [{ packet }];
+    const loadClientConfirmationUi = async () => [ui, i18n];
     ${simulator}
-  `)(createConfirmationController, deps, assets, { createElement: () => canvas },
-    Object.assign(Object.create(Math), { random: () => 0 }), mod,
-    { state: { active: false } }, ui, () => 0);
+  `)(createConfirmationController, deps, mod, { state: { active: false } }, ui, i18n, packet, () => 0);
 
   assert.deepEqual(await mod.simulateMonsterConfirmation(), { ok: true });
-  assert.equal(shownPacket.t, 'vq');
-  assert.equal(shownPacket.k, 1);
-  assert.equal(shownPacket.c, 4);
+  assert.deepEqual(shownPacket, packet);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(mod.confirmationSimulation.answer, 0);
-  assert.equal(mod.confirmationSimulation.expected, 0);
-  assert.ok(['A', 'B', 'C', 'D'].includes(mod.confirmationSimulation.name));
+  assert.equal(mod.confirmationSimulation.name, 'A');
   assert.equal(sentToGame, false);
   assert.equal(closed, true);
+
+  assert.deepEqual(await mod.simulateMonsterConfirmation(42), { ok: true });
+  assert.deepEqual(shownPacket, packet);
+  assert.equal(sentToGame, false);
 });

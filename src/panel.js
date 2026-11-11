@@ -308,6 +308,13 @@
       .captcha-demo[hidden] { display:none; }
       .captcha-demo { padding:9px; border:1px solid var(--luz); background:var(--slot); }
       .captcha-demo strong { color:var(--ouro-claro); font-size:12px; }
+      .captcha-history-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+      .captcha-history-head strong { color:var(--ouro-claro); font-size:12px; }
+      .captcha-history-list { display:grid; gap:5px; max-height:175px; overflow:auto; }
+      .captcha-history-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px; border:1px solid var(--luz); background:var(--slot); }
+      .captcha-history-row span { min-width:0; color:var(--ui); font-size:11px; }
+      .captcha-history-row small { display:block; color:var(--ui-2); font-size:10px; }
+      .captcha-history-row button,.captcha-export { padding:5px 8px; border:1px solid var(--luz); background:var(--painel); color:var(--ui); cursor:pointer; }
       select { width:100%; margin-top:3px; padding:7px; border:1px solid var(--luz); border-radius:0; background:var(--slot); color:var(--ui); }
       .console-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:var(--ui-2); font-size:11px; }
       .console-toolbar button { padding:5px 8px; border:1px solid var(--luz); border-radius:0; background:#3d3328; color:var(--ui); cursor:pointer; }
@@ -453,7 +460,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.47</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.48</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -573,8 +580,11 @@
               <p class="hint">Quando reconhece uma opção, aguarda de 5 a 20 segundos antes de responder.</p>
               <p class="hint captcha-status" role="status" aria-live="polite">Aguardando confirmação</p>
               <p class="hint captcha-result"></p>
-              <button class="refill-action captcha-simulate" type="button">Simular captcha de monstro</button>
+              <button class="refill-action captcha-simulate" type="button">Repetir último captcha real</button>
               <div class="captcha-demo" hidden><strong class="captcha-demo-name"></strong><p class="hint captcha-demo-status" role="status" aria-live="polite"></p></div>
+              <div class="captcha-history-head"><strong>Captchas salvos</strong><button class="captcha-export" type="button">Exportar JSON</button></div>
+              <p class="hint captcha-history-status" role="status"></p>
+              <div class="captcha-history-list" aria-live="polite"></div>
             </section>
           </section>
           <section class="page" data-section="focus" hidden>
@@ -899,6 +909,9 @@
   const captchaDemo = root.querySelector(".captcha-demo");
   const captchaDemoName = root.querySelector(".captcha-demo-name");
   const captchaDemoStatus = root.querySelector(".captcha-demo-status");
+  const captchaHistoryList = root.querySelector(".captcha-history-list");
+  const captchaHistoryStatus = root.querySelector(".captcha-history-status");
+  const captchaExport = root.querySelector(".captcha-export");
   const hpThreshold = root.querySelector(".hp-threshold");
   const mpThreshold = root.querySelector(".mp-threshold");
   const sideLinks = [...root.querySelectorAll(".side-link")];
@@ -988,6 +1001,8 @@
   lureStepInput.value = String(window.mod?.hunt?.lureStepTiles ?? 3);
   attackRangeSelect.value = String(window.mod?.hunt?.attackRange ?? 1);
   lureSpecialToggle.checked = !!window.mod?.hunt?.useSpecial;
+  let captchaHistoryRevision = -1;
+  let captchaHistoryLoading = false;
   const setPage = name => {
     if (!pages.some(page => page.dataset.section === name)) name = pages[0]?.dataset.section ?? "creatures";
     for (const page of pages) page.hidden = page.dataset.section !== name;
@@ -995,6 +1010,7 @@
     try { localStorage.setItem("fantasy-mod-panel-page", name); } catch {}
     if (name === "console") showConsole();
     if (name === "training") renderTrainingMobs();
+    if (name === "captcha") renderCaptchaHistory(true);
   };
   let initialPage = "creatures";
   try { initialPage = localStorage.getItem("fantasy-mod-panel-page") ?? initialPage; } catch {}
@@ -1261,12 +1277,16 @@
     }));
   });
   autoConfirmation.addEventListener("change", () => savePreference("auto-confirmation", autoConfirmation.checked));
-  captchaSimulate.addEventListener("click", async () => {
+  let captchaReplayBusy = false;
+  async function replayCaptcha(id) {
+    if (captchaReplayBusy) return;
+    captchaReplayBusy = true;
     captchaSimulate.disabled = true;
     let outcome;
-    try { outcome = await window.mod?.simulateMonsterConfirmation?.(); }
+    try { outcome = await window.mod?.simulateMonsterConfirmation?.(id); }
     catch (error) { outcome = { ok: false, error: error.message }; }
     captchaSimulate.disabled = false;
+    captchaReplayBusy = false;
     if (!outcome?.ok) {
       captchaDemo.hidden = false;
       captchaDemoName.textContent = "Simulação indisponível";
@@ -1275,6 +1295,22 @@
     }
     renderCaptchaStatus();
     close();
+  }
+  captchaSimulate.addEventListener("click", () => replayCaptcha());
+  captchaExport.addEventListener("click", async () => {
+    try {
+      const logs = await window.mod?.exportCaptchaLogs?.();
+      if (!logs?.length) { captchaHistoryStatus.textContent = "Nenhum captcha salvo para exportar."; return; }
+      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), captchas: logs }, null, 2)],
+        { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `fantasy-captchas-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      captchaHistoryStatus.textContent = `${logs.length} captcha(s) exportado(s).`;
+    } catch (error) { captchaHistoryStatus.textContent = `Falha ao exportar: ${error.message}`; }
   });
   hpThreshold.addEventListener("change", () => { hpThreshold.value = String(Math.max(5, Math.min(95, Number(hpThreshold.value) || 50))); persistAutomation(); });
   mpThreshold.addEventListener("change", () => { mpThreshold.value = String(Math.max(5, Math.min(95, Number(mpThreshold.value) || 30))); persistAutomation(); });
@@ -1576,8 +1612,43 @@
     if (!simulation) return;
     captchaDemo.hidden = false;
     captchaDemoName.textContent = `Teste no cliente: ${simulation.name}`;
-    captchaDemoStatus.textContent = simulation.answer == null ? simulation.status
-      : `${simulation.status} · ${simulation.answer === simulation.expected ? "Resposta correta" : `Esperada: opção ${simulation.expected + 1}`}`;
+    captchaDemoStatus.textContent = simulation.status;
+  }
+
+  async function renderCaptchaHistory(force = false) {
+    const mod = window.mod;
+    if (!mod?.listCaptchaLogs || captchaHistoryLoading
+      || !force && captchaHistoryRevision === mod.captchaHistoryRevision) return;
+    captchaHistoryLoading = true;
+    const revision = mod.captchaHistoryRevision;
+    try {
+      const logs = await mod.listCaptchaLogs();
+      captchaHistoryList.replaceChildren();
+      for (const log of logs) {
+        const row = document.createElement("div");
+        row.className = "captcha-history-row";
+        const description = document.createElement("span");
+        description.textContent = log.name ?? "Monstro desconhecido";
+        const details = document.createElement("small");
+        const time = new Date(log.receivedAt).toLocaleString();
+        const score = Number.isFinite(log.recognition?.score)
+          ? ` · semelhança ${(log.recognition.score * 100).toFixed(0)}%` : "";
+        details.textContent = `${time} · ${log.answer == null ? "Sem resposta registrada" : `Opção ${Number(log.answer) + 1}`}${score}`;
+        description.append(details);
+        const replay = document.createElement("button");
+        replay.type = "button";
+        replay.textContent = "Repetir";
+        replay.addEventListener("click", () => replayCaptcha(log.id));
+        row.append(description, replay);
+        captchaHistoryList.append(row);
+      }
+      captchaHistoryStatus.textContent = mod.captchaHistoryStatus !== "Pronto"
+        ? mod.captchaHistoryStatus : logs.length ? `${logs.length} captcha(s) salvo(s) neste navegador.`
+          : "Nenhum captcha de monstro recebido ainda.";
+      captchaHistoryRevision = revision;
+    } catch (error) {
+      captchaHistoryStatus.textContent = `Não foi possível ler os captchas: ${error.message}`;
+    } finally { captchaHistoryLoading = false; }
   }
 
   function syncHuntUI() {
@@ -2337,6 +2408,7 @@
     else if (!backdrop.hidden && window.mod?.refill?.status) setRefillStatus(window.mod.refill.status);
     if (!backdrop.hidden) renderCityTravel();
     if (!backdrop.hidden) renderCaptchaStatus();
+    if (!backdrop.hidden && root.querySelector('[data-section="captcha"]')?.hidden === false) renderCaptchaHistory();
     if (!backdrop.hidden) showResourceCounts();
     if (!backdrop.hidden) renderRefillItems();
     if (!backdrop.hidden) syncHuntUI();

@@ -250,51 +250,124 @@
   mod.confirmation = confirmation.state;
   let confirmationSimulationGeneration = 0;
   let clientCaptchaSimulation = null;
-  const loadClientConfirmationUi = () => import(new URL("/src/confirma.mjs", location.origin).href);
-  mod.simulateMonsterConfirmation = async () => {
+  let lastMonsterConfirmationPacket = null;
+  let currentCaptchaLog = null;
+  let captchaDbPromise = null;
+  mod.captchaHistoryRevision = 0;
+  mod.captchaHistoryStatus = "Pronto";
+  function openCaptchaDb() {
+    if (captchaDbPromise) return captchaDbPromise;
+    captchaDbPromise = new Promise((resolve, reject) => {
+      if (typeof indexedDB === "undefined") { reject(new Error("IndexedDB indisponível")); return; }
+      const request = indexedDB.open("fantasy-mod-captcha", 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("challenges", { keyPath: "id", autoIncrement: true });
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    return captchaDbPromise;
+  }
+  async function readCaptchaLogs() {
+    const db = await openCaptchaDb();
+    return new Promise((resolve, reject) => {
+      const request = db.transaction("challenges", "readonly").objectStore("challenges").getAll();
+      request.onsuccess = () => resolve(request.result.reverse());
+      request.onerror = () => reject(request.error);
+    });
+  }
+  async function readCaptchaLog(id) {
+    const db = await openCaptchaDb();
+    return new Promise((resolve, reject) => {
+      const request = db.transaction("challenges", "readonly").objectStore("challenges").get(id);
+      request.onsuccess = () => resolve(request.result ?? null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+  function saveCaptchaLog(log) {
+    return openCaptchaDb().then(db => new Promise((resolve, reject) => {
+      const transaction = db.transaction("challenges", "readwrite");
+      const store = transaction.objectStore("challenges");
+      const request = store.add({ receivedAt: log.receivedAt, packet: log.packet,
+        answer: null, answeredAt: null, recognition: null });
+      let count = 0;
+      store.openCursor(null, "prev").onsuccess = event => {
+        const cursor = event.target.result;
+        if (!cursor) return;
+        if (++count > 50) cursor.delete();
+        cursor.continue();
+      };
+      transaction.oncomplete = () => resolve(request.result);
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    }));
+  }
+  async function updateCaptchaLog(log) {
+    const id = await log.saved;
+    if (id == null) return;
+    const db = await openCaptchaDb();
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction("challenges", "readwrite");
+      const store = transaction.objectStore("challenges");
+      store.put({ id, receivedAt: log.receivedAt, packet: log.packet,
+        answer: log.answer, answeredAt: log.answeredAt, recognition: log.recognition });
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+    mod.captchaHistoryRevision++;
+  }
+  mod.listCaptchaLogs = async () => (await readCaptchaLogs()).map(({ id, receivedAt, packet, answer, answeredAt, recognition }) =>
+    ({ id, receivedAt, name: packet.n, answer, answeredAt, recognition }));
+  mod.exportCaptchaLogs = readCaptchaLogs;
+  function recordCaptchaChallenge(packet) {
+    lastMonsterConfirmationPacket = { ...packet };
+    const log = { receivedAt: new Date().toISOString(), packet: lastMonsterConfirmationPacket,
+      answer: null, answeredAt: null, recognition: null };
+    currentCaptchaLog = log;
+    log.saved = saveCaptchaLog(log).then(id => {
+      mod.captchaHistoryStatus = "Pronto";
+      mod.captchaHistoryRevision++;
+      return id;
+    }).catch(error => {
+      mod.captchaHistoryStatus = `Não foi possível salvar o captcha: ${error.message}`;
+      mod.captchaHistoryRevision++;
+      mod.log("warn", mod.captchaHistoryStatus);
+      return null;
+    });
+  }
+  function recordCaptchaAnswer(answer) {
+    const log = currentCaptchaLog;
+    if (!log || log.answer != null) return;
+    log.answer = answer;
+    log.answeredAt = new Date().toISOString();
+    const result = confirmation.state.result;
+    if (result) log.recognition = { index: result.index, score: result.score,
+      margin: result.margin, confident: result.confident, scores: result.scores };
+    updateCaptchaLog(log).catch(error => {
+      mod.captchaHistoryStatus = `Não foi possível salvar a resposta do captcha: ${error.message}`;
+      mod.captchaHistoryRevision++;
+      mod.log("warn", mod.captchaHistoryStatus);
+    });
+  }
+  const loadClientConfirmationUi = () => Promise.all([
+    import(new URL("/src/confirma.mjs", location.origin).href),
+    import(new URL("/src/i18n.mjs", location.origin).href)
+  ]);
+  mod.simulateMonsterConfirmation = async id => {
     if (confirmation.state.active) return { ok: false, error: "Aguarde o captcha real terminar antes de iniciar a simulação." };
     clientCaptchaSimulation?.ui.fecharConfirma();
     clientCaptchaSimulation = null;
     const generation = ++confirmationSimulationGeneration;
     mod.confirmationSimulation = null;
-    const atlas = monsterAssets?.c8;
-    const frames = monsterAssets?.entities?.monsters ?? [];
-    if (!atlas) return { ok: false, error: "Aguarde o carregamento dos sprites dos monstros." };
-    const candidates = (monsterAssets.monsters ?? []).flatMap(monster => {
-      const rawName = monster.name ?? monster.n ?? monster.label;
-      const name = typeof rawName === "string" ? rawName : rawName?.pt ?? rawName?.en ?? rawName?.es;
-      const frameIndex = monster.anims?.[0]?.[0];
-      const frame = frames[frameIndex];
-      if (!name || !Array.isArray(frame) || frame.length < 4
-        || !frame.slice(0, 4).every(Number.isInteger) || frame[2] < 1 || frame[3] < 1) return [];
-      return [{ name, frame }];
-    });
-    const uniqueCandidates = [...new Map(candidates.map(candidate => [candidate.name, candidate])).values()];
-    if (uniqueCandidates.length < 4) return { ok: false, error: "É preciso carregar ao menos quatro sprites de monstros." };
-    for (let index = uniqueCandidates.length - 1; index > 0; index--) {
-      const other = Math.floor(Math.random() * (index + 1));
-      [uniqueCandidates[index], uniqueCandidates[other]] = [uniqueCandidates[other], uniqueCandidates[index]];
+    let packet = lastMonsterConfirmationPacket;
+    try {
+      if (id != null) packet = (await readCaptchaLog(Number(id)))?.packet ?? null;
+      else if (!packet) packet = (await readCaptchaLogs())[0]?.packet ?? null;
+    } catch (error) {
+      return { ok: false, error: `Não foi possível ler os captchas salvos: ${error.message}` };
     }
-    const shuffled = uniqueCandidates.slice(0, 4);
-    const expected = Math.floor(Math.random() * 4);
-    const canvas = document.createElement("canvas");
-    canvas.width = 208;
-    canvas.height = 64;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    context.fillStyle = "#132030";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    for (const [index, candidate] of shuffled.entries()) {
-      const [x, y, width, height] = candidate.frame;
-      const scale = Math.min(24 / width, 36 / height);
-      const drawWidth = Math.max(1, Math.round(width * scale));
-      const drawHeight = Math.max(1, Math.round(height * scale));
-      context.drawImage(atlas, x, y, width, height,
-        index * 52 + Math.floor((52 - drawWidth) / 2), Math.floor((64 - drawHeight) / 2), drawWidth, drawHeight);
-    }
-    const image = canvas.toDataURL("image/png");
-    const name = shuffled[expected].name;
-    let ui;
-    try { ui = await loadClientConfirmationUi(); }
+    if (!packet) return { ok: false, error: "Nenhum captcha de monstro salvo ainda." };
+    let ui, i18n;
+    try { [ui, i18n] = await loadClientConfirmationUi(); }
     catch (error) { return { ok: false, error: `Não foi possível abrir o captcha do cliente: ${error.message}` }; }
     if (generation !== confirmationSimulationGeneration || confirmation.state.active) {
       return { ok: false, error: "A simulação foi interrompida por outro desafio." };
@@ -310,10 +383,8 @@
       },
       log: (level, message) => mod.log(level, `Simulação de captcha: ${message}`)
     });
-    Object.assign(simulation.state, { name, expected, answer: null });
+    Object.assign(simulation.state, { name: packet.n, answer: null });
     mod.confirmationSimulation = simulation.state;
-    const packet = { t: "vq", k: 1, c: 4, n: name, i: image.split(",")[1], s: 45, r: 3,
-      q: { params: { name } } };
     try { ui.abrirConfirma(packet, {
       send: response => {
         if (generation !== confirmationSimulationGeneration) return;
@@ -323,9 +394,9 @@
         clientCaptchaSimulation = null;
         ui.fecharConfirma();
       },
-      t: (text, params = {}) => text.replace(/\{(\w+)\}/g, (_match, key) => params[key] ?? ""),
-      tMsg: () => `Encontre: ${name}`,
-      tMonster: value => value
+      t: i18n.t,
+      tMsg: i18n.tMsg,
+      tMonster: i18n.tMonster
     }); }
     catch (error) {
       mod.confirmationSimulation = null;
@@ -4191,6 +4262,9 @@
 
   function finishRecord(packet, socket) {
     if (packet.direction === "RECEBIDO" && packet.decoded) {
+      if (socket === gameSocket && packet.decoded.t === "vq" && packet.decoded.k === 1 && packet.decoded.i) {
+        recordCaptchaChallenge(packet.decoded);
+      }
       if (clientCaptchaSimulation && socket === gameSocket && packet.decoded.t === "vq" && packet.decoded.i) {
         confirmationSimulationGeneration++;
         clientCaptchaSimulation.state.status = "Simulação interrompida por um captcha real";
@@ -4426,7 +4500,10 @@
             const outgoing = JSON.parse(data);
             if (outgoing?.t === "k") assetSockets.add(this);
             else if (outgoing?.t) gameSocket = this;
-            if (outgoing?.t === "va") confirmation.answered(this);
+            if (outgoing?.t === "va") {
+              confirmation.answered(this);
+              if (this === gameSocket) recordCaptchaAnswer(outgoing.a);
+            }
             if (outgoing?.t === "logout") {
               confirmation.reset(this);
               intentionalCloses.add(this);
