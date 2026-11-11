@@ -895,16 +895,34 @@
     const assets = getGameAssets();
     mod.lootIconStatus = assets?.c1 && assets?.ui ? "Ícones do atlas disponíveis" : "Miniaturas capturadas dos drops visíveis";
     let changed = false;
+    const lang = (localStorage.getItem("fantasy.lang") ?? "pt").slice(0, 2);
+    const displayName = (item, id) => {
+      const rawName = item?.name;
+      const englishName = typeof rawName === "string" ? rawName
+        : String(rawName?.pt ?? rawName?.en ?? rawName?.es ?? `Item ${id}`);
+      return lootItemNames[englishName]?.[lang] ?? englishName;
+    };
     // Populate the picker before these items have appeared as drops.
     for (const item of assets?.items ?? assets?.itemById?.values?.() ?? []) {
       if (item?.id == null || catalog.has(String(item.id))) continue;
       const id = String(item.id);
-      const rawName = item.name;
-      const englishName = typeof rawName === "string" ? rawName
-        : String(rawName?.pt ?? rawName?.en ?? rawName?.es ?? `Item ${id}`);
-      const lang = (localStorage.getItem("fantasy.lang") ?? "pt").slice(0, 2);
-      catalog.set(id, { id, name: lootItemNames[englishName]?.[lang] ?? englishName, sprite: null });
+      catalog.set(id, { id, name: displayName(item, id), sprite: null });
       changed = true;
+    }
+    // Items carried or protected must have a catalog entry even when no drop was seen.
+    const relevantIds = new Set((huntState.sellProtectedItemIds ?? []).map(String));
+    for (const entry of mod.inventory.bag ?? []) {
+      const id = Array.isArray(entry) ? entry[0] : entry;
+      if (id != null && id !== false) relevantIds.add(String(id));
+    }
+    for (const id of relevantIds) {
+      const item = getAssetItem(assets, id);
+      const previous = catalog.get(id);
+      const name = item ? displayName(item, id) : previous?.name ?? `Item ${id}`;
+      if (!previous || previous.name.startsWith("Item ") && name !== previous.name) {
+        catalog.set(id, { id, name, sprite: previous?.sprite ?? null });
+        changed = true;
+      }
     }
     for (const entity of entities.values()) {
       if (entity.k !== 3 || entity.it == null && !entity.n) continue;
@@ -940,12 +958,8 @@
     for (const [id, previous] of catalog) {
       const itemId = Number(id);
       const assetItem = getAssetItem(assets, id);
-      if (!assetItem) continue;
-      const rawName = assetItem.name;
-      const englishName = typeof rawName === "string" ? rawName : String(rawName?.pt ?? rawName?.en ?? rawName?.es ?? `Item ${id}`);
-      const lang = (localStorage.getItem("fantasy.lang") ?? "pt").slice(0, 2);
-      const name = lootItemNames[englishName]?.[lang] ?? englishName;
-      if ((previous.name.startsWith("Item ") || previous.name === englishName) && name !== previous.name) {
+      const name = assetItem ? displayName(assetItem, id) : previous.name;
+      if (assetItem && (previous.name.startsWith("Item ") || previous.name === assetItem.name) && name !== previous.name) {
         catalog.set(id, { ...previous, name });
         changed = true;
       }
