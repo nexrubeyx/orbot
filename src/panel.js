@@ -316,7 +316,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.11</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.12</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -327,7 +327,7 @@
           <button class="side-link" data-page="refill">Loja / Refill</button>
           <button class="side-link" data-page="waypoints">Waypoints</button>
           <button class="side-link" data-page="clone">Clone</button>
-          <button class="side-link" data-page="automation">Automações</button>
+          <button class="side-link" data-page="automation">Configuração</button>
           <button class="side-link" data-page="console">Console</button>
         </nav>
         <div class="page-content">
@@ -433,13 +433,6 @@
           <section class="page" data-section="refill" hidden>
             <h2>Loja e refill</h2>
             <div class="destination-settings"></div>
-            <label class="attack-range">Voltar para a cidade
-              <select class="city-travel-mode">
-                <option value="walk">Andando</option>
-                <option value="tp">Usar TP (Pergaminho de Cidade)</option>
-              </select>
-            </label>
-            <p class="hint">Se o pergaminho faltar ou o teleporte falhar, o bot seguirá andando até a loja.</p>
             <div class="resource-summary" aria-live="polite">
               <div class="resource-card" data-kind="arrows">
                 <span class="resource-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20 18 6M13 5l6 1-1 6M4 20l1-5 5 5"/><path d="m7 16 2 2"/></svg></span>
@@ -511,8 +504,16 @@
             <p class="result config-result" role="status"></p>
           </section>
           <section class="page" data-section="automation" hidden>
-            <h2>Automações</h2>
+            <h2>Configuração</h2>
             <div class="prefs">
+              <strong>Viagem à cidade</strong>
+              <label class="attack-range">Como voltar para a cidade
+                <select class="city-travel-mode">
+                  <option value="walk">Andando</option>
+                  <option value="tp">Usar TP (Pergaminho de Cidade)</option>
+                </select>
+              </label>
+              <p class="hint">Se o pergaminho faltar ou o teleporte falhar, o bot seguirá andando até a loja.</p>
               <strong>Poções</strong>
               <div class="automation">
                 <label class="automation-title"><input class="auto-heal" type="checkbox"> Auto heal (HP)</label>
