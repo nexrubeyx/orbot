@@ -1010,6 +1010,9 @@
       const id = Array.isArray(entry) ? entry[0] : entry;
       if (id != null && id !== false) relevantIds.add(String(id));
     }
+    for (const id of Object.values(mod.inventory.equip ?? {})) {
+      if (id != null && id !== false) relevantIds.add(String(id));
+    }
     for (const id of relevantIds) {
       const item = getAssetItem(assets, id);
       const previous = catalog.get(id);

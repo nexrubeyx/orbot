@@ -450,7 +450,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.42</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.43</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -1453,7 +1453,7 @@
       .filter(id => id != null && id !== false && id !== "").map(String));
     const catalog = new Map((window.mod?.lootCatalog ?? []).map(item => [String(item.id), item]));
     const choices = [...ids].map(id => ({ id, name: catalog.get(id)?.name ?? `Item ${id}`, sprite: catalog.get(id)?.sprite ?? null }));
-    const signature = JSON.stringify(choices);
+    const signature = JSON.stringify({ known: inventory?.known, choices });
     const fields = [trainingWeapon, trainingCombatWeapon].map(select => ({
       select,
       picker: select.parentElement.querySelector(".training-weapon-picker"),
@@ -1478,6 +1478,14 @@
         field.select.replaceChildren(new Option("Escolha uma arma", ""),
           ...choices.map(item => new Option(`${item.name} (ID ${item.id})`, item.id)));
         field.menu.replaceChildren();
+        if (!choices.length) {
+          const empty = document.createElement("span");
+          empty.className = "refill-picker-empty";
+          empty.textContent = inventory?.known
+            ? "Nenhum item disponível para a classe do treino ou na mochila."
+            : "Aguardando dados da mochila e dos equipamentos.";
+          field.menu.append(empty);
+        }
         for (const item of [{ id: "", name: "Escolha uma arma", sprite: null }, ...choices]) {
           const button = document.createElement("button");
           button.type = "button";
