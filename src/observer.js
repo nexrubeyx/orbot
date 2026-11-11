@@ -918,6 +918,9 @@
     }
     // Items carried or protected must have a catalog entry even when no drop was seen.
     const relevantIds = new Set((huntState.sellProtectedItemIds ?? []).map(String));
+    for (const offer of mod.refill.shopItems ?? []) {
+      if (offer?.id != null) relevantIds.add(String(offer.id));
+    }
     for (const entry of mod.inventory.bag ?? []) {
       const id = Array.isArray(entry) ? entry[0] : entry;
       if (id != null && id !== false) relevantIds.add(String(id));

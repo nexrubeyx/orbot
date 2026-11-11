@@ -86,9 +86,24 @@
       .refill-items { display:grid; gap:6px; margin-top:10px; }
       .refill-items-title { color:var(--ui); font-size:12px; font-weight:700; }
       .refill-item-controls { display:grid; grid-template-columns:minmax(0,1fr) 92px 100px; gap:7px; align-items:end; }
+      .refill-item-controls > div { min-width:0; }
       .refill-item-controls label { min-width:0; color:var(--ui-2); font-size:10px; }
       .refill-item-controls select,.refill-item-controls input { width:100%; min-width:0; margin-top:3px; padding:7px; border:1px solid var(--luz); border-radius:0; background:var(--slot); color:var(--ui); }
       .refill-item-controls select { min-height:34px; }
+      .refill-item-picker { min-width:0; border:1px solid var(--luz); background:var(--slot); }
+      .refill-item-picker summary { display:flex; align-items:center; gap:7px; min-height:34px; padding:4px 7px; color:var(--ui); font-size:11px; cursor:pointer; list-style:none; }
+      .refill-item-picker summary::-webkit-details-marker { display:none; }
+      .refill-item-picker summary::after { margin-left:auto; color:var(--ui-2); content:"▾"; }
+      .refill-item-picker[open] summary { border-bottom:1px solid var(--luz); }
+      .refill-picker-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .refill-picker-menu { display:grid; max-height:180px; overflow:auto; }
+      .refill-picker-option { display:flex; align-items:center; gap:7px; width:100%; min-width:0; padding:5px 7px; border:0; border-bottom:1px solid #57473566; background:var(--slot); color:var(--ui); text-align:left; font-size:11px; cursor:pointer; }
+      .refill-picker-option:hover,.refill-picker-option:focus-visible { background:#46381a; outline:none; }
+      .refill-picker-option[data-selected="true"] { color:var(--ouro-claro); }
+      .refill-picker-option span:last-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .refill-picker-icon { display:grid; flex:0 0 28px; width:28px; height:28px; place-items:center; border:1px solid var(--luz); background:var(--poco); color:var(--ouro); font-size:15px; }
+      .refill-picker-icon img { width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
+      .refill-picker-empty { padding:8px; color:var(--ui-2); font-size:11px; }
       .refill-item-add { display:flex; align-items:center; justify-content:center; gap:6px; min-height:34px; padding:6px 10px; border:1px solid var(--ouro); border-radius:0; background:var(--painel); color:var(--ui); font-size:11px; font-weight:700; box-shadow:0 3px 9px #00000066; cursor:pointer; transition:filter .15s,transform .15s; }
       .refill-item-add:hover { filter:brightness(1.13); transform:translateY(-1px); }
       .refill-item-add:active { transform:translateY(0); }
@@ -356,7 +371,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.23</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.24</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -493,7 +508,7 @@
             </div>
             <div class="refill-items">
               <div class="refill-item-controls">
-                <select class="refill-item-select" aria-label="Item"><option value="">Selecione um item</option></select>
+                <div><select class="refill-item-select" aria-hidden="true" tabindex="-1" style="display:none"><option value="">Selecione um item</option></select><details class="refill-item-picker"><summary><span class="refill-picker-current-icon refill-picker-icon" aria-hidden="true">◇</span><span class="refill-picker-name">Selecione um item</span></summary><div class="refill-picker-menu" aria-label="Itens da loja"></div></details></div>
                 <label>Estoque desejado<input class="refill-item-quantity" type="number" min="1" max="1000000" step="1" value="100"></label>
                 <button class="refill-item-add" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>Adicionar</button>
               </div>
@@ -669,6 +684,10 @@
   const refillTest = root.querySelector(".refill-test");
   const refillStatus = root.querySelector(".refill-status");
   const refillItemSelect = root.querySelector(".refill-item-select");
+  const refillItemPicker = root.querySelector(".refill-item-picker");
+  const refillPickerMenu = root.querySelector(".refill-picker-menu");
+  const refillPickerName = root.querySelector(".refill-picker-name");
+  const refillPickerCurrentIcon = root.querySelector(".refill-picker-current-icon");
   const refillItemQuantity = root.querySelector(".refill-item-quantity");
   const refillItemAdd = root.querySelector(".refill-item-add");
   const refillItemList = root.querySelector(".refill-item-list");
@@ -883,7 +902,9 @@
     if (editingRefillId !== null) return;
     const offers = window.mod?.refill?.shopItems ?? [];
     const configured = window.mod?.refill?.items ?? [];
-    const signature = JSON.stringify({ offers, configured, stocks: configured.map(item => currentRefillStock(item.id)) });
+    const catalog = new Map((window.mod?.lootCatalog ?? []).map(item => [String(item.id), item]));
+    const icons = offers.map(offer => catalog.get(String(offer.id))?.sprite ?? null);
+    const signature = JSON.stringify({ offers, icons, configured, stocks: configured.map(item => currentRefillStock(item.id)) });
     if (refillItemList.dataset.signature === signature) return;
     refillItemList.dataset.signature = signature;
     const previous = refillItemSelect.value;
@@ -901,6 +922,51 @@
       refillItemSelect.append(option);
     }
     if (offers.some(offer => String(offer.id) === previous)) refillItemSelect.value = previous;
+    const uniqueOffers = offers.filter((offer, index) => offers.findIndex(candidate => String(candidate.id) === String(offer.id)) === index);
+    const makeIcon = id => {
+      const icon = document.createElement("span");
+      icon.className = "refill-picker-icon";
+      const sprite = catalog.get(String(id))?.sprite;
+      if (sprite) {
+        const image = document.createElement("img");
+        image.src = sprite;
+        image.alt = "";
+        icon.append(image);
+      } else icon.textContent = "◇";
+      return icon;
+    };
+    const updatePickerSelection = () => {
+      const selectedOffer = uniqueOffers.find(offer => String(offer.id) === refillItemSelect.value);
+      refillPickerName.textContent = selectedOffer ? `${selectedOffer.name} · ID ${selectedOffer.id}`
+        : offers.length ? "Selecione um item" : "Itens indisponíveis";
+      refillPickerCurrentIcon.replaceChildren(...makeIcon(selectedOffer?.id).childNodes);
+      for (const button of refillPickerMenu.querySelectorAll(".refill-picker-option")) {
+        button.dataset.selected = String(button.dataset.id === refillItemSelect.value);
+      }
+    };
+    refillPickerMenu.replaceChildren();
+    if (!uniqueOffers.length) {
+      const empty = document.createElement("span");
+      empty.className = "refill-picker-empty";
+      empty.textContent = "Aguardando itens da loja.";
+      refillPickerMenu.append(empty);
+    }
+    for (const offer of uniqueOffers) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "refill-picker-option";
+      button.dataset.id = String(offer.id);
+      const name = document.createElement("span");
+      name.textContent = `${offer.name} · ID ${offer.id}`;
+      button.append(makeIcon(offer.id), name);
+      button.addEventListener("click", () => {
+        refillItemSelect.value = String(offer.id);
+        updatePickerSelection();
+        refillItemPicker.open = false;
+      });
+      refillPickerMenu.append(button);
+    }
+    updatePickerSelection();
     refillItemList.replaceChildren();
     if (!configured.length) {
       const empty = document.createElement("span");
