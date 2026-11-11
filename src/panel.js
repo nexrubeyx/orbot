@@ -434,7 +434,7 @@
       .page .menu-block > .attack-range[hidden],.training-weapon-options[hidden] { display:none; }
       .training-weapon-options { display:grid; gap:7px; margin-top:9px; }
       .training-weapon-options .attack-range { display:grid; gap:3px; max-width:260px; margin:0; }
-      .training-weapon-options .attack-range select { width:100%; min-width:0; }
+      .training-weapon-options .training-weapon-picker { width:100%; }
       .page .menu-block > .attack-range :is(select,input) { width:100%; min-width:0; }
       .page .menu-block > .hunt-toggle { margin:0; min-height:36px; }
       .page .menu-block > .creature-list,.page .menu-block > .target-list,.page .menu-block > .waypoint-list,.page .menu-block > .console-list { margin:0; max-height:220px; }
@@ -450,7 +450,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.41</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.42</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -543,8 +543,8 @@
             <label class="attack-range">Como combater mobs, exaustos e elite<select class="training-combat-mode"><option value="class">Trocar de classe</option><option value="weapon">Trocar de arma</option></select></label>
             <label class="attack-range training-combat-class-row">Classe para matar<select class="training-combat-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
             <div class="training-weapon-options" hidden>
-              <label class="attack-range">Arma padrão do treino<select class="training-weapon"><option value="">Escolha uma arma</option></select></label>
-              <label class="attack-range">Arma para matar<select class="training-combat-weapon"><option value="">Escolha uma arma</option></select></label>
+              <div class="attack-range training-weapon-field"><span>Arma padrão do treino</span><select class="training-weapon" aria-hidden="true" tabindex="-1" hidden><option value="">Escolha uma arma</option></select><details class="refill-item-picker training-weapon-picker"><summary><span class="refill-picker-icon training-weapon-icon" aria-hidden="true">◇</span><span class="refill-picker-name training-weapon-name">Escolha uma arma</span></summary><div class="refill-picker-menu training-weapon-menu" aria-label="Armas do treino"></div></details></div>
+              <div class="attack-range training-weapon-field"><span>Arma para matar</span><select class="training-combat-weapon" aria-hidden="true" tabindex="-1" hidden><option value="">Escolha uma arma</option></select><details class="refill-item-picker training-weapon-picker"><summary><span class="refill-picker-icon training-weapon-icon" aria-hidden="true">◇</span><span class="refill-picker-name training-weapon-name">Escolha uma arma</span></summary><div class="refill-picker-menu training-weapon-menu" aria-label="Armas para matar"></div></details></div>
               <p class="hint">Escolha armas equipadas ou na mochila. A troca usa a classe do treino e restaura a arma padrão após o combate.</p>
             </div>
             <label class="pref"><input class="training-elite-enabled" type="checkbox"> Matar elite quando atacar</label>
@@ -1451,16 +1451,64 @@
     const equipped = inventory?.equip?.[{ melee: "sword", distance: "bow", mage: "wand" }[hunt?.trainingClass ?? "melee"]];
     const ids = new Set([equipped, ...(inventory?.bag ?? []).map(entry => Array.isArray(entry) ? entry[0] : entry), hunt?.trainingWeaponId, hunt?.trainingCombatWeaponId]
       .filter(id => id != null && id !== false && id !== "").map(String));
-    const catalog = new Map((window.mod?.lootCatalog ?? []).map(item => [String(item.id), item.name]));
-    const signature = JSON.stringify([[...ids], [...ids].map(id => catalog.get(id))]);
+    const catalog = new Map((window.mod?.lootCatalog ?? []).map(item => [String(item.id), item]));
+    const choices = [...ids].map(id => ({ id, name: catalog.get(id)?.name ?? `Item ${id}`, sprite: catalog.get(id)?.sprite ?? null }));
+    const signature = JSON.stringify(choices);
+    const fields = [trainingWeapon, trainingCombatWeapon].map(select => ({
+      select,
+      picker: select.parentElement.querySelector(".training-weapon-picker"),
+      menu: select.parentElement.querySelector(".training-weapon-menu"),
+      icon: select.parentElement.querySelector(".training-weapon-icon"),
+      name: select.parentElement.querySelector(".training-weapon-name")
+    }));
+    const makeIcon = sprite => {
+      const icon = document.createElement("span");
+      icon.className = "refill-picker-icon";
+      if (sprite) {
+        const image = document.createElement("img");
+        image.src = sprite;
+        image.alt = "";
+        icon.append(image);
+      } else icon.textContent = "◇";
+      return icon;
+    };
     if (signature !== trainingWeaponChoicesSignature) {
       trainingWeaponChoicesSignature = signature;
-      for (const select of [trainingWeapon, trainingCombatWeapon]) {
-        select.replaceChildren(new Option("Escolha uma arma", ""), ...[...ids].map(id => new Option(`${catalog.get(id) ?? `Item ${id}`} (ID ${id})`, id)));
+      for (const field of fields) {
+        field.select.replaceChildren(new Option("Escolha uma arma", ""),
+          ...choices.map(item => new Option(`${item.name} (ID ${item.id})`, item.id)));
+        field.menu.replaceChildren();
+        for (const item of [{ id: "", name: "Escolha uma arma", sprite: null }, ...choices]) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "refill-picker-option";
+          button.dataset.id = item.id;
+          const name = document.createElement("span");
+          name.textContent = item.id ? `${item.name} · ID ${item.id}` : item.name;
+          button.append(makeIcon(item.sprite), name);
+          button.addEventListener("click", () => {
+            field.select.value = item.id;
+            field.select.dispatchEvent(new Event("change"));
+            field.picker.open = false;
+            renderTrainingWeaponChoices(window.mod?.hunt);
+          });
+          field.menu.append(button);
+        }
       }
     }
-    if (root.activeElement !== trainingWeapon) trainingWeapon.value = hunt?.trainingWeaponId ?? "";
-    if (root.activeElement !== trainingCombatWeapon) trainingCombatWeapon.value = hunt?.trainingCombatWeaponId ?? "";
+    for (const [index, field] of fields.entries()) {
+      const selectedId = String(index === 0 ? hunt?.trainingWeaponId ?? "" : hunt?.trainingCombatWeaponId ?? "");
+      field.select.value = selectedId;
+      const selected = choices.find(item => item.id === selectedId);
+      field.name.textContent = selected ? `${selected.name} · ID ${selected.id}` : "Escolha uma arma";
+      if ((field.icon.firstElementChild?.getAttribute("src") ?? null) !== (selected?.sprite ?? null)
+        || !field.icon.firstElementChild && field.icon.textContent !== "◇") {
+        field.icon.replaceChildren(...makeIcon(selected?.sprite).childNodes);
+      }
+      for (const button of field.menu.querySelectorAll(".refill-picker-option")) {
+        button.dataset.selected = String(button.dataset.id === selectedId);
+      }
+    }
   }
 
   function refresh(force = false) {
