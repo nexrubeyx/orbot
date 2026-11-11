@@ -9,6 +9,7 @@
   let reconnectPending = false;
   let reconnectNextAt = 0;
   let reconnectTimer = null;
+  const reconnectDelayMs = 4000;
   const intentionalCloses = new WeakSet();
   const socketDecoders = new WeakMap();
   const assetSockets = new WeakSet();
@@ -4068,8 +4069,12 @@
       confirmation.receive(socket, packet.decoded);
       if (packet.decoded.t === "kick") {
         confirmation.reset(socket);
-        intentionalCloses.add(socket);
-        reconnectPending = false;
+        const duplicateLogin = packet.decoded.reasonKey === "Sua conta entrou em outro lugar."
+          || /(?:conta entrou em outro lugar|account logged in somewhere else|cuenta inició sesión en otro lugar)/i.test(packet.decoded.reason ?? "");
+        if (!duplicateLogin) {
+          intentionalCloses.add(socket);
+          reconnectPending = false;
+        }
       }
       updateMyself(packet.decoded);
       if (huntState.enabled && huntState.training && huntState.trainingExhaustedEnabled && !trainingElite
@@ -4339,7 +4344,7 @@
             && deathRecovery?.stage !== "reconnect") {
           try { reconnectPending = localStorage.getItem("fantasy-mod-auto-reconnect") === "true"; } catch { reconnectPending = false; }
           if (reconnectPending) {
-            reconnectNextAt = Date.now() + 2000;
+            reconnectNextAt = Date.now() + reconnectDelayMs;
             mod.log("info", "Conexão perdida; aguardando a tela de reconexão.");
             scheduleReconnect();
           }
@@ -4384,6 +4389,7 @@
       let enabled = false;
       try { enabled = localStorage.getItem("fantasy-mod-auto-reconnect") === "true"; } catch {}
       if (!enabled || !reconnectPending) { reconnectPending = false; return; }
+      if (Date.now() < reconnectNextAt) return scheduleReconnect();
       if (document.hidden) { reconnectNextAt = Date.now() + 1000; return scheduleReconnect(); }
       reconnectNextAt = Date.now() + 8000;
       if (clickReconnectButton(2)) {
@@ -4401,7 +4407,7 @@
       reconnectTimer = null;
     } else if (gameSocket?.readyState === 3) {
       reconnectPending = true;
-      reconnectNextAt = Date.now() + 2000;
+      reconnectNextAt = Date.now() + reconnectDelayMs;
       scheduleReconnect();
     }
   });
