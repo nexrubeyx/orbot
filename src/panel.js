@@ -152,6 +152,10 @@
       .city-route-icon svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
       .city-route-title { display:grid; gap:1px; color:var(--ui); font-size:13px; line-height:1.2; }
       .city-route-title small { color:var(--ui-2); font-size:10px; font-weight:500; }
+      .city-tp-count { display:grid; flex:0 0 auto; min-width:55px; margin-left:auto; padding:4px 7px; border:1px solid var(--ouro-escuro); background:#46381a; color:var(--ouro-claro); text-align:center; line-height:1; }
+      .city-tp-count strong { font-size:20px; font-variant-numeric:tabular-nums; }
+      .city-tp-count small { margin-top:2px; color:var(--ui-2); font-size:8px; font-weight:700; letter-spacing:.04em; }
+      .city-tp-count[data-empty="true"] { border-color:var(--luz); background:var(--poco); color:var(--ui-2); }
       .city-route-path { display:flex; align-items:center; gap:8px; color:var(--ouro); font-size:10px; font-weight:700; letter-spacing:.08em; }
       .city-route-path i { flex:1; height:1px; background:linear-gradient(90deg,var(--ouro),var(--luz)); }
       .city-route-fields { display:grid; gap:8px; }
@@ -331,7 +335,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.14</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.15</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -525,6 +529,7 @@
                 <div class="city-route-head">
                   <span class="city-route-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19h5l3-4h8M4 19V6h8l3 4h5M4 6l3-3m-3 3 3 3M20 15l-3-3m3 3-3 3"/></svg></span>
                   <span class="city-route-title"><strong>Volta para a cidade</strong><small>Escolha como sair da área de farm</small></span>
+                  <span class="city-tp-count" data-empty="true" aria-live="polite"><strong>0</strong><small>TP ESCOLHIDO</small></span>
                 </div>
                 <div class="city-route-path" aria-hidden="true"><span>FARM</span><i></i><span>CIDADE</span></div>
                 <div class="city-route-fields">
@@ -631,6 +636,7 @@
   const cityRouteCard = root.querySelector(".city-route-card");
   const cityTravelMode = root.querySelector(".city-travel-mode");
   const cityTpItem = root.querySelector(".city-tp-item");
+  const cityTpCount = root.querySelector(".city-tp-count");
   const cityRouteStatus = root.querySelector(".city-route-status");
   const refillTest = root.querySelector(".refill-test");
   const refillStatus = root.querySelector(".refill-status");
@@ -727,6 +733,11 @@
     cityRouteCard.dataset.mode = mode;
     cityTpItem.disabled = mode !== "tp";
     const chosen = selected === "auto" ? scrolls[0] : scrolls.find(scroll => scroll.id === selected);
+    const count = Math.max(0, Math.floor(Number(chosen?.count) || 0));
+    const countText = cityTpCount.querySelector("strong");
+    if (countText.textContent !== String(count)) countText.textContent = String(count);
+    cityTpCount.dataset.empty = String(count === 0);
+    cityTpCount.title = chosen ? `${count} unidade(s) de ${chosen.name} na mochila` : "Nenhum TP escolhido disponível na mochila";
     cityRouteStatus.textContent = mode === "walk"
       ? "O bot irá andando até a loja configurada."
       : chosen ? `Usará ${chosen.name}. Se o TP falhar, seguirá andando até a loja.`
