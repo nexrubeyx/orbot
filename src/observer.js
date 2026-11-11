@@ -325,7 +325,7 @@
   window.addEventListener("keydown", blockGameShortcut, true);
   window.addEventListener("keyup", blockGameShortcut, true);
   const myself = mod.myself ?? (mod.myself = {});
-  mod.inventory = { known: false, full: null, used: null, capacity: null, bag: [] };
+  mod.inventory = { known: false, full: null, used: null, capacity: null, bag: [], equip: {} };
   mod.mapReady = false;
   mod.pathStatus = "Aguardando mapa do jogo";
   const POTION_COOLDOWN_MS = 1300;
@@ -338,10 +338,11 @@
   huntState.trainingMobTypes = [];
   huntState.trainingCombatMobTypes = [];
   huntState.trainingCombatClass = "melee";
+  huntState.trainingCombatMode = "class";
+  huntState.trainingWeaponId = "";
+  huntState.trainingCombatWeaponId = "";
   huntState.trainingEliteEnabled = false;
-  huntState.trainingEliteClass = "melee";
   huntState.trainingExhaustedEnabled = false;
-  huntState.trainingExhaustedClass = "melee";
   huntState.trainingWaypoints = false;
   huntState.trainingRadius = 4;
   huntState.trainingIdleMinutes = 0;
@@ -410,12 +411,11 @@
     if (Array.isArray(trainingCombatMobTypes)) huntState.trainingCombatMobTypes = trainingCombatMobTypes.map(String);
     const trainingCombatClass = localStorage.getItem("fantasy-mod-training-combat-class");
     if (["mage", "melee", "distance"].includes(trainingCombatClass)) huntState.trainingCombatClass = trainingCombatClass;
+    huntState.trainingCombatMode = localStorage.getItem("fantasy-mod-training-combat-mode") === "weapon" ? "weapon" : "class";
+    huntState.trainingWeaponId = localStorage.getItem("fantasy-mod-training-weapon-id") ?? "";
+    huntState.trainingCombatWeaponId = localStorage.getItem("fantasy-mod-training-combat-weapon-id") ?? "";
     huntState.trainingEliteEnabled = localStorage.getItem("fantasy-mod-training-elite-enabled") === "true";
-    const eliteClass = localStorage.getItem("fantasy-mod-training-elite-class");
-    if (["mage", "melee", "distance"].includes(eliteClass)) huntState.trainingEliteClass = eliteClass;
     huntState.trainingExhaustedEnabled = localStorage.getItem("fantasy-mod-training-exhausted-enabled") === "true";
-    const exhaustedClass = localStorage.getItem("fantasy-mod-training-exhausted-class");
-    if (["mage", "melee", "distance"].includes(exhaustedClass)) huntState.trainingExhaustedClass = exhaustedClass;
     huntState.trainingWaypoints = localStorage.getItem("fantasy-mod-training-waypoints") === "true";
     const previousCityReturn = localStorage.getItem("fantasy-mod-training-city-return") !== "false";
     huntState.trainingCityBag = (localStorage.getItem("fantasy-mod-training-city-bag") ?? String(previousCityReturn)) === "true";
@@ -660,6 +660,22 @@
     try { localStorage.setItem("fantasy-mod-training-combat-class", combatClass); } catch {}
     return { ok: true };
   };
+  mod.setTrainingCombatMode = mode => {
+    if (mode !== "class" && mode !== "weapon") return { ok: false, error: "Modo de combate inválido." };
+    if (trainingElite) finishTrainingElite();
+    huntState.trainingCombatMode = mode;
+    try { localStorage.setItem("fantasy-mod-training-combat-mode", mode); } catch {}
+    return { ok: true };
+  };
+  mod.setTrainingWeapon = (kind, itemId) => {
+    if (kind !== "training" && kind !== "combat" || itemId !== "" && !/^[1-9]\d*$/.test(String(itemId))) {
+      return { ok: false, error: "Escolha uma arma válida." };
+    }
+    const key = kind === "training" ? "trainingWeaponId" : "trainingCombatWeaponId";
+    huntState[key] = String(itemId);
+    try { localStorage.setItem(kind === "training" ? "fantasy-mod-training-weapon-id" : "fantasy-mod-training-combat-weapon-id", String(itemId)); } catch {}
+    return { ok: true };
+  };
   mod.setTrainingCityOption = (option, enabled) => {
     const settings = { bag: "trainingCityBag", arrows: "trainingCityArrows", potions: "trainingCityPotions" };
     const key = settings[option];
@@ -681,24 +697,18 @@
     try { localStorage.setItem("fantasy-mod-city-tp-item-id", value); } catch {}
     return { ok: true, itemId: value };
   };
-  mod.setTrainingEliteOptions = (enabled, combatClass) => {
-    if (!["mage", "melee", "distance"].includes(combatClass)) return { ok: false, error: "Classe de combate inválida." };
+  mod.setTrainingEliteOptions = enabled => {
     huntState.trainingEliteEnabled = !!enabled;
-    huntState.trainingEliteClass = combatClass;
     try {
       localStorage.setItem("fantasy-mod-training-elite-enabled", String(huntState.trainingEliteEnabled));
-      localStorage.setItem("fantasy-mod-training-elite-class", combatClass);
     } catch {}
     if (!enabled && trainingElite?.kind === "elite") finishTrainingElite();
     return { ok: true };
   };
-  mod.setTrainingExhaustedOptions = (enabled, combatClass) => {
-    if (!["mage", "melee", "distance"].includes(combatClass)) return { ok: false, error: "Classe de combate inválida." };
+  mod.setTrainingExhaustedOptions = enabled => {
     huntState.trainingExhaustedEnabled = !!enabled;
-    huntState.trainingExhaustedClass = combatClass;
     try {
       localStorage.setItem("fantasy-mod-training-exhausted-enabled", String(!!enabled));
-      localStorage.setItem("fantasy-mod-training-exhausted-class", combatClass);
     } catch {}
     if (!enabled) {
       exhaustedTargetId = null;
@@ -1335,6 +1345,10 @@
       ? [...new Set([...huntState.trainingMobTypes, ...huntState.trainingCombatMobTypes])]
       : [...new Set((Array.isArray(types) ? types : []).map(String))];
     if (!list.length && training) return { ok: false, error: "Selecione pelo menos um mob para treinar ou combater na aba Treino." };
+    if (training && huntState.trainingCombatMode === "weapon"
+      && (!huntState.trainingWeaponId || !huntState.trainingCombatWeaponId)) {
+      return { ok: false, error: "Escolha a arma padrão do treino e a arma para matar." };
+    }
     if (!list.length && !huntState.attackAny) return { ok: false, error: "Ative uma criatura em Alvos ou habilite atacar qualquer criatura." };
     const range = Number(radius);
     if (!Number.isFinite(range) || range < 1 || range > 100) return { ok: false, error: "O raio deve ficar entre 1 e 100 tiles." };
@@ -1390,6 +1404,20 @@
   let exhaustedTargetId = null;
   const trainingEliteAttackers = new Map();
   const classIds = { melee: 0, distance: 1, mage: 2 };
+  let nextTrainingWeaponAt = 0;
+  function ensureTrainingWeapon(itemId) {
+    if (!itemId || !mod.inventory.known) return false;
+    const slot = { 0: "sword", 1: "bow", 2: "wand" }[Number(playerStats.cls ?? playerStats.cl ?? myself.cls)];
+    if (!slot) return false;
+    if (String(mod.inventory.equip?.[slot] ?? "") === itemId) return true;
+    const index = mod.inventory.bag.findIndex(entry => String(Array.isArray(entry) ? entry[0] : entry) === itemId);
+    if (index < 0) return false;
+    if (Date.now() >= nextTrainingWeaponAt && gameSocket?.readyState === WebSocket.OPEN) {
+      gameSocket.send(JSON.stringify({ t: "equip", i: index }));
+      nextTrainingWeaponAt = Date.now() + 1200;
+    }
+    return false;
+  }
   let nextTrainingBaseClassAt = 0;
   function sendTrainingClass(classId) {
     if (!Number.isInteger(classId) || gameSocket?.readyState !== WebSocket.OPEN) return false;
@@ -1399,8 +1427,7 @@
     return true;
   }
   function finishTrainingElite() {
-    if (trainingElite) sendTrainingClass(trainingElite.kind === "selected"
-      ? classIds[huntState.trainingClass] : trainingElite.previousClass);
+    if (trainingElite && huntState.trainingCombatMode === "class") sendTrainingClass(classIds[huntState.trainingClass]);
     trainingElite = null;
     exhaustedTargetId = null;
     trainingEliteAttackers.clear();
@@ -3523,9 +3550,8 @@
           .find(creature => huntState.trainingCombatMobTypes.includes(String(creature.type))
             && !isAttackedByAnotherPlayer(creature) && !isIgnoredAtBlockedPosition(creature));
         const combatTarget = elite || exhausted || selected;
-        const previousClass = Number(playerStats.cls ?? playerStats.cl ?? myself.cls);
-        if (combatTarget && Number.isInteger(previousClass)) {
-          trainingElite = { id: combatTarget.id, previousClass, sentAt: 0, kind: elite ? "elite" : exhausted ? "exhausted" : "selected" };
+        if (combatTarget) {
+          trainingElite = { id: combatTarget.id, sentAt: 0, kind: elite ? "elite" : exhausted ? "exhausted" : "selected" };
           exhaustedTargetId = null;
           huntTargetId = combatTarget.id;
           huntTargetSent = null;
@@ -3533,12 +3559,11 @@
           pursuitGoal = null;
         }
       }
-      if (trainingElite && Date.now() - trainingElite.sentAt >= 1200) {
-        const desired = classIds[trainingElite.kind === "exhausted" ? huntState.trainingExhaustedClass
-          : trainingElite.kind === "selected" ? huntState.trainingCombatClass : huntState.trainingEliteClass];
+      if (trainingElite && huntState.trainingCombatMode === "class" && Date.now() - trainingElite.sentAt >= 1200) {
+        const desired = classIds[huntState.trainingCombatClass];
         if (Number(playerStats.cls ?? playerStats.cl ?? myself.cls) !== desired && sendTrainingClass(desired)) trainingElite.sentAt = Date.now();
       }
-      if (trainingElite?.kind === "selected"
+      if (trainingElite && huntState.trainingCombatMode === "class"
         && Number(playerStats.cls ?? playerStats.cl ?? myself.cls) !== classIds[huntState.trainingCombatClass]) {
         huntState.status = "Treino: trocando classe para combater o mob";
         return;
@@ -3552,8 +3577,14 @@
       huntState.status = "Treino: ajustando classe do treino";
       return;
     }
-    const activeClass = trainingElite ? (trainingElite.kind === "exhausted" ? huntState.trainingExhaustedClass
-      : trainingElite.kind === "selected" ? huntState.trainingCombatClass : huntState.trainingEliteClass) : huntState.trainingClass;
+    if (huntState.training && huntState.trainingCombatMode === "weapon") {
+      const desiredWeapon = trainingElite ? huntState.trainingCombatWeaponId : huntState.trainingWeaponId;
+      if (!desiredWeapon || !ensureTrainingWeapon(desiredWeapon)) {
+        huntState.status = desiredWeapon ? `Treino: equipando ou aguardando arma ${desiredWeapon}` : "Treino: escolha as armas de treino e combate";
+        return;
+      }
+    }
+    const activeClass = trainingElite && huntState.trainingCombatMode === "class" ? huntState.trainingCombatClass : huntState.trainingClass;
     const attackRange = huntState.training ? (activeClass === "melee" ? 1 : 4) : huntState.attackRange;
     let target = huntTargetId == null
       ? null
@@ -3633,8 +3664,8 @@
     ensureHuntTarget(target);
     if (target.distance <= attackRange && hasAttackLine(myself.x, myself.y, target)) {
       huntState.status = `${trainingElite?.kind === "exhausted" ? "Exausto: atacando"
-        : trainingElite?.kind === "selected" ? "Classe de combate: atacando" : trainingElite ? "Elite: atacando" : "Atacando"} ${target.name}`;
-      if (trainingElite?.kind === "elite" && Number(playerStats.cls ?? playerStats.cl) === classIds[huntState.trainingEliteClass]) {
+        : trainingElite?.kind === "selected" ? "Combate: atacando" : trainingElite ? "Elite: atacando" : "Atacando"} ${target.name}`;
+      if (trainingElite?.kind === "elite" && Number(playerStats.cls ?? playerStats.cl) === classIds[activeClass]) {
         const outcome = mod.useHuntSpecial();
         if (!outcome.ok && !/cooldown/i.test(outcome.error ?? "")) huntState.status += ` · ${outcome.error}`;
       }
@@ -4135,11 +4166,11 @@
     if (packet?.t !== "inv" || !Array.isArray(packet.bag)) return;
     const capacity = Number(packet.bagSize);
     if (!Number.isInteger(capacity) || capacity < 1) {
-      mod.inventory = { known: false, full: null, used: null, capacity: null, bag: [] };
+      mod.inventory = { known: false, full: null, used: null, capacity: null, bag: [], equip: {} };
       return;
     }
     const used = packet.bag.slice(0, capacity).filter(item => item != null && item !== false).length;
-    mod.inventory = { known: true, full: used >= capacity, used, capacity, bag: packet.bag.slice(0, capacity) };
+    mod.inventory = { known: true, full: used >= capacity, used, capacity, bag: packet.bag.slice(0, capacity), equip: packet.equip ?? {} };
   }
 
   function updateShop(packet) {

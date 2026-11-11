@@ -431,6 +431,10 @@
       .page .menu-block > .pref { flex-direction:row-reverse; cursor:pointer; }
       .page .menu-block > .pref:hover,.page .menu-block > .setting-toggle:hover { border-color:var(--ouro-escuro); }
       .page .menu-block > .attack-range { display:grid; gap:3px; min-width:0; }
+      .page .menu-block > .attack-range[hidden],.training-weapon-options[hidden] { display:none; }
+      .training-weapon-options { display:grid; gap:7px; margin-top:9px; }
+      .training-weapon-options .attack-range { display:grid; gap:3px; max-width:260px; margin:0; }
+      .training-weapon-options .attack-range select { width:100%; min-width:0; }
       .page .menu-block > .attack-range :is(select,input) { width:100%; min-width:0; }
       .page .menu-block > .hunt-toggle { margin:0; min-height:36px; }
       .page .menu-block > .creature-list,.page .menu-block > .target-list,.page .menu-block > .waypoint-list,.page .menu-block > .console-list { margin:0; max-height:220px; }
@@ -446,7 +450,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.37</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.38</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -521,10 +525,9 @@
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
             <div class="training-mobs">
               <strong>Escolher mobs próximos</strong>
-              <p class="hint">Mobs de treino são atacados até morrer. Mobs de combate só são caçados quando não houver alvo de treino; o bot troca de classe e depois volta à classe do treino.</p>
+              <p class="hint">Mobs de treino são atacados até morrer. Mobs de combate só são caçados quando não houver alvo de treino.</p>
               <div class="training-mob-head"><span></span><span>Mob</span><span>Treinar</span><span>Combater</span></div>
               <div class="training-mob-list" aria-live="polite"></div>
-              <label class="attack-range">Classe para mobs de combate<select class="training-combat-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
             </div>
             <label class="attack-range">Tempo parado para aproximar do waypoint (minutos)<input class="training-idle-minutes" type="number" min="0" max="1440" step="1" value="0"></label>
             <div class="hint">Use 0 para desativar. Requer um waypoint no andar atual.</div>
@@ -537,12 +540,17 @@
               <p class="hint">Um tempo é sorteado entre os dois valores.</p>
             </div>
             <label class="attack-range">Classe do treino<select class="training-class"><option value="mage">Mage — 4 tiles</option><option value="melee">Melee — 1 tile</option><option value="distance">Distance — 4 tiles</option></select></label>
-            <label class="pref"><input class="training-elite-enabled" type="checkbox"> Trocar de classe quando um elite atacar</label>
-            <label class="attack-range">Classe para combater elite<select class="training-elite-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
-            <p class="hint">Prioriza o elite, usa a habilidade especial e retorna à classe anterior após o combate. Para Mage, ative o especial automático no jogo.</p>
+            <label class="attack-range">Como combater mobs, exaustos e elite<select class="training-combat-mode"><option value="class">Trocar de classe</option><option value="weapon">Trocar de arma</option></select></label>
+            <label class="attack-range training-combat-class-row">Classe para matar<select class="training-combat-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
+            <div class="training-weapon-options" hidden>
+              <label class="attack-range">Arma padrão do treino<select class="training-weapon"><option value="">Escolha uma arma</option></select></label>
+              <label class="attack-range">Arma para matar<select class="training-combat-weapon"><option value="">Escolha uma arma</option></select></label>
+              <p class="hint">Escolha armas equipadas ou na mochila. A troca usa a classe do treino e restaura a arma padrão após o combate.</p>
+            </div>
+            <label class="pref"><input class="training-elite-enabled" type="checkbox"> Matar elite quando atacar</label>
+            <p class="hint">Prioriza o elite e usa a habilidade especial. Para Mage, ative o especial automático no jogo.</p>
             <label class="pref"><input class="training-exhausted-enabled" type="checkbox"> Matar monstros exaustos</label>
-            <label class="attack-range">Classe para monstros exaustos<select class="training-exhausted-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
-            <p class="hint">Troca de classe ao detectar o aviso de exaustão e volta à classe anterior após o combate, sem usar habilidade especial.</p>
+            <p class="hint">Usa a mesma classe ou arma de combate e volta ao padrão após o combate, sem habilidade especial.</p>
             <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver alvos próximos</label>
             <label class="pref"><input class="training-city-bag" type="checkbox"> Ir à cidade com mochila cheia</label>
             <label class="pref"><input class="training-city-arrows" type="checkbox"> Ir à cidade sem flechas</label>
@@ -840,11 +848,14 @@
   const trainingStatus = root.querySelector(".training-status");
   const trainingClass = root.querySelector(".training-class");
   const trainingCombatClass = root.querySelector(".training-combat-class");
+  const trainingCombatMode = root.querySelector(".training-combat-mode");
+  const trainingCombatClassRow = root.querySelector(".training-combat-class-row");
+  const trainingWeaponOptions = root.querySelector(".training-weapon-options");
+  const trainingWeapon = root.querySelector(".training-weapon");
+  const trainingCombatWeapon = root.querySelector(".training-combat-weapon");
   const trainingMobList = root.querySelector(".training-mob-list");
   const trainingEliteEnabled = root.querySelector(".training-elite-enabled");
-  const trainingEliteClass = root.querySelector(".training-elite-class");
   const trainingExhaustedEnabled = root.querySelector(".training-exhausted-enabled");
-  const trainingExhaustedClass = root.querySelector(".training-exhausted-class");
   const trainingRadius = root.querySelector(".training-radius");
   const trainingIdleMinutes = root.querySelector(".training-idle-minutes");
   const trainingTargetDelayMin = root.querySelector(".training-target-delay-min");
@@ -1429,6 +1440,24 @@
     }
   });
 
+  let trainingWeaponChoicesSignature = "";
+  function renderTrainingWeaponChoices(hunt) {
+    const inventory = window.mod?.inventory;
+    const equipped = inventory?.equip?.[{ melee: "sword", distance: "bow", mage: "wand" }[hunt?.trainingClass ?? "melee"]];
+    const ids = new Set([equipped, ...(inventory?.bag ?? []).map(entry => Array.isArray(entry) ? entry[0] : entry), hunt?.trainingWeaponId, hunt?.trainingCombatWeaponId]
+      .filter(id => id != null && id !== false && id !== "").map(String));
+    const catalog = new Map((window.mod?.lootCatalog ?? []).map(item => [String(item.id), item.name]));
+    const signature = JSON.stringify([[...ids], [...ids].map(id => catalog.get(id))]);
+    if (signature !== trainingWeaponChoicesSignature) {
+      trainingWeaponChoicesSignature = signature;
+      for (const select of [trainingWeapon, trainingCombatWeapon]) {
+        select.replaceChildren(new Option("Escolha uma arma", ""), ...[...ids].map(id => new Option(`${catalog.get(id) ?? `Item ${id}`} (ID ${id})`, id)));
+      }
+    }
+    if (root.activeElement !== trainingWeapon) trainingWeapon.value = hunt?.trainingWeaponId ?? "";
+    if (root.activeElement !== trainingCombatWeapon) trainingCombatWeapon.value = hunt?.trainingCombatWeaponId ?? "";
+  }
+
   function refresh(force = false) {
     if (!autoRefresh.checked && !force) return;
     showCreatures();
@@ -1462,12 +1491,12 @@
     if (root.activeElement !== trainingTargetDelayMax) trainingTargetDelayMax.value = String(hunt?.trainingTargetDelayMax ?? 0);
     trainingClass.value = hunt?.trainingClass ?? "melee";
     trainingCombatClass.value = hunt?.trainingCombatClass ?? "melee";
+    trainingCombatMode.value = hunt?.trainingCombatMode ?? "class";
+    renderTrainingWeaponChoices(hunt);
+    trainingCombatClassRow.hidden = trainingCombatMode.value !== "class";
+    trainingWeaponOptions.hidden = trainingCombatMode.value !== "weapon";
     trainingEliteEnabled.checked = !!hunt?.trainingEliteEnabled;
-    trainingEliteClass.value = hunt?.trainingEliteClass ?? "melee";
-    trainingEliteClass.disabled = !trainingEliteEnabled.checked;
     trainingExhaustedEnabled.checked = !!hunt?.trainingExhaustedEnabled;
-    trainingExhaustedClass.value = hunt?.trainingExhaustedClass ?? "melee";
-    trainingExhaustedClass.disabled = !trainingExhaustedEnabled.checked;
     trainingWaypoints.checked = !!hunt?.trainingWaypoints;
     trainingCityOptions.bag.checked = hunt?.trainingCityBag !== false;
     trainingCityOptions.arrows.checked = hunt?.trainingCityArrows !== false;
@@ -2116,18 +2145,22 @@
       trainingStatus.textContent = outcome?.error ?? "Não foi possível salvar a classe de combate.";
     }
   });
+  trainingCombatMode.addEventListener("change", () => {
+    const outcome = window.mod?.setTrainingCombatMode?.(trainingCombatMode.value);
+    if (!outcome?.ok) trainingStatus.textContent = outcome?.error ?? "Não foi possível salvar o modo de combate.";
+    trainingCombatClassRow.hidden = trainingCombatMode.value !== "class";
+    trainingWeaponOptions.hidden = trainingCombatMode.value !== "weapon";
+  });
+  trainingWeapon.addEventListener("change", () => window.mod?.setTrainingWeapon?.("training", trainingWeapon.value));
+  trainingCombatWeapon.addEventListener("change", () => window.mod?.setTrainingWeapon?.("combat", trainingCombatWeapon.value));
   const saveTrainingEliteOptions = () => {
-    window.mod?.setTrainingEliteOptions?.(trainingEliteEnabled.checked, trainingEliteClass.value);
-    trainingEliteClass.disabled = !trainingEliteEnabled.checked;
+    window.mod?.setTrainingEliteOptions?.(trainingEliteEnabled.checked);
   };
   trainingEliteEnabled.addEventListener("change", saveTrainingEliteOptions);
-  trainingEliteClass.addEventListener("change", saveTrainingEliteOptions);
   const saveTrainingExhaustedOptions = () => {
-    window.mod?.setTrainingExhaustedOptions?.(trainingExhaustedEnabled.checked, trainingExhaustedClass.value);
-    trainingExhaustedClass.disabled = !trainingExhaustedEnabled.checked;
+    window.mod?.setTrainingExhaustedOptions?.(trainingExhaustedEnabled.checked);
   };
   trainingExhaustedEnabled.addEventListener("change", saveTrainingExhaustedOptions);
-  trainingExhaustedClass.addEventListener("change", saveTrainingExhaustedOptions);
   trainingWaypoints.addEventListener("change", saveTrainingOptions);
   for (const [option, toggle] of Object.entries(trainingCityOptions)) toggle.addEventListener("change", () => window.mod?.setTrainingCityOption?.(option, toggle.checked));
   trainingToggle.addEventListener("click", () => {
