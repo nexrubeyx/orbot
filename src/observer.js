@@ -349,6 +349,7 @@
   huntState.trainingCityArrows = true;
   huntState.trainingCityPotions = false;
   huntState.cityTravelMode = "walk";
+  huntState.cityTpItemId = "auto";
   huntState.status = "Parado";
   const focusState = mod.focus ?? (mod.focus = { enabled: false, useSkill: false, followTarget: true, status: "Focar desligado" });
   focusState.enabled = false;
@@ -413,6 +414,8 @@
     huntState.trainingCityArrows = (localStorage.getItem("fantasy-mod-training-city-arrows") ?? String(previousCityReturn)) === "true";
     huntState.trainingCityPotions = localStorage.getItem("fantasy-mod-training-city-potions") === "true";
     huntState.cityTravelMode = localStorage.getItem("fantasy-mod-city-travel-mode") === "tp" ? "tp" : "walk";
+    const savedCityTpItemId = localStorage.getItem("fantasy-mod-city-tp-item-id");
+    huntState.cityTpItemId = savedCityTpItemId && /^[1-9]\d*$/.test(savedCityTpItemId) ? savedCityTpItemId : "auto";
     const oldDelay = Number(localStorage.getItem("fantasy-mod-training-target-delay"));
     const minDelay = Number(localStorage.getItem("fantasy-mod-training-target-delay-min") ?? oldDelay);
     const maxDelay = Number(localStorage.getItem("fantasy-mod-training-target-delay-max") ?? oldDelay);
@@ -627,6 +630,13 @@
     huntState.cityTravelMode = mode;
     try { localStorage.setItem("fantasy-mod-city-travel-mode", mode); } catch {}
     return { ok: true, mode };
+  };
+  mod.setCityTpItemId = itemId => {
+    const value = String(itemId);
+    if (value !== "auto" && !/^[1-9]\d*$/.test(value)) return { ok: false, error: "Escolha um Pergaminho de Cidade válido." };
+    huntState.cityTpItemId = value;
+    try { localStorage.setItem("fantasy-mod-city-tp-item-id", value); } catch {}
+    return { ok: true, itemId: value };
   };
   mod.setTrainingEliteOptions = (enabled, combatClass) => {
     if (!["mage", "melee", "distance"].includes(combatClass)) return { ok: false, error: "Classe de combate inválida." };
@@ -2184,17 +2194,29 @@
     }
     return true;
   }
-  function townScrollInBag() {
+  function townScrollsInBag() {
     const assets = getGameAssets();
+    const found = new Map();
     for (const [index, entry] of (mod.inventory.bag ?? []).entries()) {
       const itemId = Array.isArray(entry) ? entry[0] : entry;
       const rawName = getAssetItem(assets, itemId)?.name;
       const names = typeof rawName === "string" ? [rawName]
         : Object.values(rawName ?? {}).filter(value => typeof value === "string");
       const name = names.find(value => /\bTown Scroll\b|Pergaminho de Cidade|Pergamino de Ciudad/i.test(value));
-      if (name) return { index, name };
+      if (!name) continue;
+      const id = String(itemId);
+      const count = Array.isArray(entry) ? Math.max(1, Number(entry[1]) || 1) : 1;
+      if (found.has(id)) found.get(id).count += count;
+      else found.set(id, { id, index, name: names.find(value => /Pergaminho de Cidade/i.test(value)) ?? name, count });
     }
-    return null;
+    return [...found.values()];
+  }
+  mod.townScrollOptions = () => townScrollsInBag().map(({ id, name, count }) => ({ id, name, count }));
+  function townScrollInBag() {
+    const scrolls = townScrollsInBag();
+    return huntState.cityTpItemId === "auto"
+      ? scrolls[0] ?? null
+      : scrolls.find(scroll => scroll.id === huntState.cityTpItemId) ?? null;
   }
   function handleFullInventory() {
     const inventoryFull = mod.inventory.known && mod.inventory.full;
@@ -2288,7 +2310,9 @@
             mod.log("info", huntState.status);
             return true;
           }
-          mod.log("warn", "TP selecionado, mas não há Pergaminho de Cidade na mochila; seguindo andando.");
+          mod.log("warn", huntState.cityTpItemId === "auto"
+            ? "TP selecionado, mas não há Pergaminho de Cidade na mochila; seguindo andando."
+            : `TP ID ${huntState.cityTpItemId} não está na mochila; seguindo andando.`);
         }
         gameSocket.send(JSON.stringify({ t: "travel", id: 1, go: false, f: shopDestination.floor, x: shopDestination.x, y: shopDestination.y }));
         fullBagTravelStage = 1;

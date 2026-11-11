@@ -145,6 +145,21 @@
       input[type=number] { width:100%; margin-top:3px; padding:7px; border:1px solid var(--luz); border-radius:0; background:var(--slot); color:var(--ui); }
       .result { min-height:18px; margin:7px 0 0; color:var(--ui-2); font-size:12px; overflow-wrap:anywhere; }
       .prefs { padding-top:10px; margin-top:10px; border-top:1px solid var(--luz); }
+      .city-route-card { display:grid; gap:10px; margin:0 0 18px; padding:12px; border:1px solid var(--luz); background:linear-gradient(145deg,#33291d,var(--slot) 75%); box-shadow:inset 0 1px #ffffff16,0 5px 14px #0005; }
+      .city-route-card[data-mode="tp"] { border-color:var(--ouro-escuro); }
+      .city-route-head { display:flex; align-items:center; gap:10px; }
+      .city-route-icon { display:grid; flex:0 0 34px; width:34px; height:34px; place-items:center; border:1px solid var(--ouro-escuro); background:#46381a; color:var(--ouro-claro); }
+      .city-route-icon svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+      .city-route-title { display:grid; gap:1px; color:var(--ui); font-size:13px; line-height:1.2; }
+      .city-route-title small { color:var(--ui-2); font-size:10px; font-weight:500; }
+      .city-route-path { display:flex; align-items:center; gap:8px; color:var(--ouro); font-size:10px; font-weight:700; letter-spacing:.08em; }
+      .city-route-path i { flex:1; height:1px; background:linear-gradient(90deg,var(--ouro),var(--luz)); }
+      .city-route-fields { display:grid; gap:8px; }
+      .city-route-fields label { display:grid; gap:4px; color:var(--ui-2); font-size:11px; }
+      .city-route-fields select { width:100%; min-width:0; min-height:35px; padding:7px 9px; border:1px solid var(--luz); background:var(--poco); color:var(--ui); }
+      .city-route-fields select:focus-visible { outline:2px solid var(--ouro); outline-offset:2px; }
+      .city-route-fields select:disabled { opacity:.5; }
+      .city-route-status { margin:0; color:var(--ui-2); font-size:10px; line-height:1.35; }
       .pref { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:36px; margin:5px 0; padding:7px 9px; border:1px solid var(--luz); border-radius:0; background:var(--painel); color:var(--ui); }
       .pref input[type="checkbox"],.automation-title input[type="checkbox"],.target-row input[type="checkbox"],.loot-item input[type="checkbox"] { appearance:none; -webkit-appearance:none; position:relative; display:block; flex:0 0 34px; width:34px; height:19px; margin:0; border:1px solid var(--luz); border-radius:0; background:var(--poco); cursor:pointer; transition:background .18s,border-color .18s; }
       .pref input[type="checkbox"]::after,.automation-title input[type="checkbox"]::after,.target-row input[type="checkbox"]::after,.loot-item input[type="checkbox"]::after { position:absolute; top:2px; left:2px; width:13px; height:13px; border-radius:0; background:var(--ui-2); content:""; transition:transform .18s,background .18s; }
@@ -316,7 +331,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.13</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.14</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -506,14 +521,21 @@
           <section class="page" data-section="automation" hidden>
             <h2>Configuração</h2>
             <div class="prefs">
-              <strong>Viagem à cidade</strong>
-              <label class="attack-range">Como voltar para a cidade
-                <select class="city-travel-mode">
-                  <option value="walk">Andando</option>
-                  <option value="tp">Usar TP (Pergaminho de Cidade)</option>
-                </select>
-              </label>
-              <p class="hint">Se o pergaminho faltar ou o teleporte falhar, o bot seguirá andando até a loja.</p>
+              <section class="city-route-card" aria-label="Viagem à cidade">
+                <div class="city-route-head">
+                  <span class="city-route-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19h5l3-4h8M4 19V6h8l3 4h5M4 6l3-3m-3 3 3 3M20 15l-3-3m3 3-3 3"/></svg></span>
+                  <span class="city-route-title"><strong>Volta para a cidade</strong><small>Escolha como sair da área de farm</small></span>
+                </div>
+                <div class="city-route-path" aria-hidden="true"><span>FARM</span><i></i><span>CIDADE</span></div>
+                <div class="city-route-fields">
+                  <label>Modo de viagem<select class="city-travel-mode">
+                    <option value="walk">Andando</option>
+                    <option value="tp">Usar TP</option>
+                  </select></label>
+                  <label>Pergaminho de Cidade<select class="city-tp-item"></select></label>
+                </div>
+                <p class="city-route-status" role="status"></p>
+              </section>
               <strong>Poções</strong>
               <div class="automation">
                 <label class="automation-title"><input class="auto-heal" type="checkbox"> Auto heal (HP)</label>
@@ -606,7 +628,10 @@
   const huntAttackAny = root.querySelector(".hunt-attack-any");
   const huntAutoSell = root.querySelector(".hunt-auto-sell");
   const refillAfterSale = root.querySelector(".refill-after-sale");
+  const cityRouteCard = root.querySelector(".city-route-card");
   const cityTravelMode = root.querySelector(".city-travel-mode");
+  const cityTpItem = root.querySelector(".city-tp-item");
+  const cityRouteStatus = root.querySelector(".city-route-status");
   const refillTest = root.querySelector(".refill-test");
   const refillStatus = root.querySelector(".refill-status");
   const refillItemSelect = root.querySelector(".refill-item-select");
@@ -672,6 +697,44 @@
   huntAutoSell.checked = !!window.mod?.hunt?.autoSell;
   refillAfterSale.checked = !!window.mod?.hunt?.refillAfterSale;
   cityTravelMode.value = window.mod?.hunt?.cityTravelMode === "tp" ? "tp" : "walk";
+  function renderCityTravel() {
+    const mode = window.mod?.hunt?.cityTravelMode === "tp" ? "tp" : "walk";
+    const selected = String(window.mod?.hunt?.cityTpItemId ?? "auto");
+    const scrolls = window.mod?.townScrollOptions?.() ?? [];
+    const signature = JSON.stringify({ selected, scrolls });
+    if (cityTpItem.dataset.signature !== signature) {
+      cityTpItem.replaceChildren();
+      const automatic = document.createElement("option");
+      automatic.value = "auto";
+      automatic.textContent = "Automático — primeiro disponível";
+      cityTpItem.append(automatic);
+      for (const scroll of scrolls) {
+        const option = document.createElement("option");
+        option.value = scroll.id;
+        option.textContent = `${scroll.name} · ${scroll.count} na mochila`;
+        cityTpItem.append(option);
+      }
+      if (selected !== "auto" && !scrolls.some(scroll => scroll.id === selected)) {
+        const unavailable = document.createElement("option");
+        unavailable.value = selected;
+        unavailable.textContent = `TP ID ${selected} — fora da mochila`;
+        cityTpItem.append(unavailable);
+      }
+      cityTpItem.value = selected;
+      cityTpItem.dataset.signature = signature;
+    }
+    if (root.activeElement !== cityTravelMode) cityTravelMode.value = mode;
+    cityRouteCard.dataset.mode = mode;
+    cityTpItem.disabled = mode !== "tp";
+    const chosen = selected === "auto" ? scrolls[0] : scrolls.find(scroll => scroll.id === selected);
+    cityRouteStatus.textContent = mode === "walk"
+      ? "O bot irá andando até a loja configurada."
+      : chosen ? `Usará ${chosen.name}. Se o TP falhar, seguirá andando até a loja.`
+        : !window.mod?.inventory?.known ? "Aguardando dados da mochila para encontrar os pergaminhos."
+          : selected === "auto" ? "Nenhum Pergaminho de Cidade na mochila; o bot irá andando."
+            : "O pergaminho escolhido não está na mochila; o bot irá andando.";
+  }
+  renderCityTravel();
   focusSkillToggle.checked = !!window.mod?.focus?.useSkill;
   focusFollowToggle.checked = window.mod?.focus?.followTarget !== false;
   focusStatus.textContent = window.mod?.focus?.status ?? "Focar desligado";
@@ -929,6 +992,11 @@
   cityTravelMode.addEventListener("change", () => {
     const outcome = window.mod?.setCityTravelMode?.(cityTravelMode.value);
     if (!outcome?.ok) cityTravelMode.value = window.mod?.hunt?.cityTravelMode === "tp" ? "tp" : "walk";
+    renderCityTravel();
+  });
+  cityTpItem.addEventListener("change", () => {
+    window.mod?.setCityTpItemId?.(cityTpItem.value);
+    renderCityTravel();
   });
   refillTest.addEventListener("click", () => {
     const outcome = window.mod?.testRefill?.();
@@ -1522,6 +1590,7 @@
   window.__fantasyModPanel = { open, close };
   setInterval(() => {
     if (!backdrop.hidden && autoRefresh.checked) refresh();
+    if (!backdrop.hidden) renderCityTravel();
     if (!backdrop.hidden) showResourceCounts();
     if (!backdrop.hidden) renderRefillItems();
     if (!backdrop.hidden) syncHuntUI();
