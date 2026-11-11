@@ -2196,13 +2196,18 @@
   }
   function townScrollsInBag() {
     const assets = getGameAssets();
+    const knownTownScrolls = new Map([
+      [109, "Pergaminho de Cidade dos Iniciantes"],
+      [294, "Pergaminho de Cidade dos Exploradores"]
+    ]);
     const found = new Map();
     for (const [index, entry] of (mod.inventory.bag ?? []).entries()) {
       const itemId = Array.isArray(entry) ? entry[0] : entry;
       const rawName = getAssetItem(assets, itemId)?.name;
       const names = typeof rawName === "string" ? [rawName]
         : Object.values(rawName ?? {}).filter(value => typeof value === "string");
-      const name = names.find(value => /\bTown Scroll\b|Pergaminho de Cidade|Pergamino de Ciudad/i.test(value));
+      const name = names.find(value => /\bTown Scroll\b|Pergaminho de Cidade|Pergamino de Ciudad/i.test(value))
+        ?? knownTownScrolls.get(Number(itemId));
       if (!name) continue;
       const id = String(itemId);
       const count = Array.isArray(entry) ? Math.max(1, Number(entry[1]) || 1) : 1;
