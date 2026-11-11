@@ -368,10 +368,36 @@
         .search-row { grid-template-columns:minmax(0,1fr) 72px; }
         .search-row .search { grid-column:1 / -1; }
       }
+      /* Only the Configuração page uses this shared card layout. */
+      .page[data-section="automation"] .prefs { display:grid; gap:10px; margin:0; padding:0; border:0; }
+      .page[data-section="automation"] .config-block { min-width:0; margin:0; padding:11px; border:1px solid var(--luz); background:linear-gradient(145deg,#282118,#17120e); box-shadow:inset 0 1px #ffffff10,0 4px 12px #0004; }
+      .page[data-section="automation"] .city-route-card.config-block { gap:9px; }
+      .page[data-section="automation"] .config-heading,.page[data-section="automation"] .city-route-head { display:flex; align-items:center; gap:9px; min-height:34px; margin-bottom:2px; }
+      .page[data-section="automation"] .config-heading-icon,.page[data-section="automation"] .city-route-icon { display:grid; flex:0 0 30px; width:30px; height:30px; place-items:center; border:1px solid var(--ouro-escuro); background:#46381a; color:var(--ouro-claro); font-size:16px; }
+      .page[data-section="automation"] .city-route-icon svg { width:19px; height:19px; }
+      .page[data-section="automation"] .config-heading-copy,.page[data-section="automation"] .city-route-title { display:grid; min-width:0; gap:1px; line-height:1.2; }
+      .page[data-section="automation"] .config-heading-copy strong,.page[data-section="automation"] .city-route-title strong { color:var(--ui); font-size:12px; font-weight:700; }
+      .page[data-section="automation"] .config-heading-copy small,.page[data-section="automation"] .city-route-title small { color:var(--ui-2); font-size:10px; font-weight:500; }
+      .page[data-section="automation"] .config-potions .automation { grid-template-columns:minmax(0,1fr) 72px; gap:8px; min-height:44px; margin-top:5px; padding:7px 8px; border:1px solid var(--luz); background:var(--slot); }
+      .page[data-section="automation"] .config-potions .automation-title { display:flex; flex-direction:row-reverse; justify-content:space-between; min-width:0; gap:8px; font-size:11px; }
+      .page[data-section="automation"] .config-potions .automation > label:last-child { color:var(--ui-2); text-align:center; }
+      .page[data-section="automation"] .config-potions .threshold { margin:0 0 2px; text-align:center; }
+      .page[data-section="automation"] .config-options .pref { flex-direction:row-reverse; min-height:40px; margin:5px 0 0; padding:8px 9px; background:var(--slot); font-size:11px; line-height:1.3; cursor:pointer; }
+      .page[data-section="automation"] .config-options .pref:hover { border-color:var(--ouro-escuro); }
+      .page[data-section="automation"] .config-options > .hint { margin:2px 2px 5px; line-height:1.4; }
+      .page[data-section="automation"] .config-sales .loot-picker,.page[data-section="automation"] .config-sales .protected-sell-card { margin:5px 0 0; padding:9px; border:1px solid var(--luz); background:var(--slot); box-shadow:inset 0 1px #ffffff0a; }
+      .page[data-section="automation"] .config-sales .loot-picker-head,.page[data-section="automation"] .config-sales .protected-sell-head { flex-wrap:wrap; gap:6px; color:var(--ui); font-size:12px; }
+      .page[data-section="automation"] .config-sales .loot-item-list { max-height:150px; }
+      .page[data-section="automation"] .config-sales .loot-item { min-height:31px; padding:4px 6px; border:1px solid transparent; }
+      .page[data-section="automation"] .config-sales .loot-item:hover { border-color:var(--luz); background:var(--painel); }
+      .page[data-section="automation"] .config-sales > .hint { margin:1px 2px 0; }
+      .page[data-section="automation"] .config-sales .protected-item-row,.page[data-section="automation"] .config-sales .protected-inventory-row { background:#1d1812; }
+      .page[data-section="automation"] .config-sales .protected-inventory-title { color:var(--ui); }
+      .page[data-section="automation"] .config-block :is(select,input[type="number"]):focus-visible { outline:2px solid var(--ouro); outline-offset:1px; }
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.28</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.29</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -556,7 +582,7 @@
           <section class="page" data-section="automation" hidden>
             <h2>Configuração</h2>
             <div class="prefs">
-              <section class="city-route-card" aria-label="Viagem à cidade">
+              <section class="city-route-card config-block" aria-label="Viagem à cidade">
                 <div class="city-route-head">
                   <span class="city-route-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19h5l3-4h8M4 19V6h8l3 4h5M4 6l3-3m-3 3 3 3M20 15l-3-3m3 3-3 3"/></svg></span>
                   <span class="city-route-title"><strong>Volta para a cidade</strong><small>Escolha como sair da área de farm</small></span>
@@ -573,31 +599,39 @@
                 <p class="city-route-note">Antes do TP, o bot elimina mobs em até 10 tiles e espera 12 s com a área livre. O pergaminho leva 15 s para ativar.</p>
                 <p class="city-route-status" role="status"></p>
               </section>
-              <strong>Poções</strong>
-              <div class="automation">
-                <label class="automation-title"><input class="auto-heal" type="checkbox"> Auto heal (HP)</label>
-                <label><input class="hp-threshold threshold" type="number" min="5" max="95" step="5" aria-label="Usar poção de vida abaixo de porcentagem">%</label>
-              </div>
-              <div class="automation">
-                <label class="automation-title"><input class="auto-mana" type="checkbox"> Auto mana (MP)</label>
-                <label><input class="mp-threshold threshold" type="number" min="5" max="95" step="5" aria-label="Usar poção de mana abaixo de porcentagem">%</label>
-              </div>
-              <label class="pref"><input class="auto-switch-server" type="checkbox"> Trocar de servidor após morrer ou finalizar o refill</label>
-              <p class="hint">Usa servidores das Américas do Norte e do Sul antes de retornar à caça.</p>
-              <label class="pref"><input class="auto-reconnect" type="checkbox"> Reconectar automaticamente</label>
-              <label class="pref"><input class="auto-confirmation" type="checkbox"> Responder confirmação de monstro</label>
-              <p class="hint">Compara os sprites das opções. Se a imagem for ambígua ou pedir texto, responda manualmente.</p>
-              <label class="pref"><input class="auto-refresh" type="checkbox"> Atualizar estado automaticamente</label>
-              <div class="loot-picker">
-                <div class="loot-picker-head"><span>Itens para venda automática</span><span class="loot-picker-actions"><button class="loot-select-all" type="button">Todos</button><button class="loot-select-none" type="button">Limpar</button></span></div>
-                <div class="loot-item-list" aria-live="polite"></div>
-              </div>
-              <p class="hint loot-assets-status" role="status"></p>
-              <section class="protected-sell-card" aria-label="Itens que não serão vendidos">
-                <div class="protected-sell-head"><strong>Itens que não serão vendidos</strong><span class="protected-sell-count">0 protegidos</span></div>
-                <p class="hint">Itens protegidos permanecem na mochila durante a venda automática.</p>
-                <div class="protected-sell-list" aria-live="polite"></div>
-                <div class="protected-inventory"><span class="protected-inventory-title">Adicionar da mochila</span><div class="protected-inventory-list" aria-live="polite"></div></div>
+              <section class="config-block config-potions" aria-label="Poções">
+                <div class="config-heading"><span class="config-heading-icon" aria-hidden="true">✚</span><span class="config-heading-copy"><strong>Poções</strong><small>Uso automático durante a caça</small></span></div>
+                <div class="automation">
+                  <label class="automation-title"><input class="auto-heal" type="checkbox"> Auto heal (HP)</label>
+                  <label><input class="hp-threshold threshold" type="number" min="5" max="95" step="5" aria-label="Usar poção de vida abaixo de porcentagem">%</label>
+                </div>
+                <div class="automation">
+                  <label class="automation-title"><input class="auto-mana" type="checkbox"> Auto mana (MP)</label>
+                  <label><input class="mp-threshold threshold" type="number" min="5" max="95" step="5" aria-label="Usar poção de mana abaixo de porcentagem">%</label>
+                </div>
+              </section>
+              <section class="config-block config-options" aria-label="Preferências gerais">
+                <div class="config-heading"><span class="config-heading-icon" aria-hidden="true">⚙</span><span class="config-heading-copy"><strong>Preferências gerais</strong><small>Conexão e respostas automáticas</small></span></div>
+                <label class="pref"><input class="auto-switch-server" type="checkbox"> Trocar de servidor após morrer ou finalizar o refill</label>
+                <p class="hint">Usa servidores das Américas do Norte e do Sul antes de retornar à caça.</p>
+                <label class="pref"><input class="auto-reconnect" type="checkbox"> Reconectar automaticamente</label>
+                <label class="pref"><input class="auto-confirmation" type="checkbox"> Responder confirmação de monstro</label>
+                <p class="hint">Compara os sprites das opções. Se a imagem for ambígua ou pedir texto, responda manualmente.</p>
+                <label class="pref"><input class="auto-refresh" type="checkbox"> Atualizar estado automaticamente</label>
+              </section>
+              <section class="config-block config-sales" aria-label="Configuração de itens">
+                <div class="config-heading"><span class="config-heading-icon" aria-hidden="true">▣</span><span class="config-heading-copy"><strong>Itens</strong><small>Venda automática e proteção da mochila</small></span></div>
+                <div class="loot-picker">
+                  <div class="loot-picker-head"><span>Itens para venda automática</span><span class="loot-picker-actions"><button class="loot-select-all" type="button">Todos</button><button class="loot-select-none" type="button">Limpar</button></span></div>
+                  <div class="loot-item-list" aria-live="polite"></div>
+                </div>
+                <p class="hint loot-assets-status" role="status"></p>
+                <section class="protected-sell-card" aria-label="Itens que não serão vendidos">
+                  <div class="protected-sell-head"><strong>Itens que não serão vendidos</strong><span class="protected-sell-count">0 protegidos</span></div>
+                  <p class="hint">Itens protegidos permanecem na mochila durante a venda automática.</p>
+                  <div class="protected-sell-list" aria-live="polite"></div>
+                  <div class="protected-inventory"><span class="protected-inventory-title">Adicionar da mochila</span><div class="protected-inventory-list" aria-live="polite"></div></div>
+                </section>
               </section>
             </div>
           </section>
