@@ -855,6 +855,36 @@
       return screens?.a ?? screens?.assets ?? (screens?.itemById ? screens : null);
     } catch { return null; }
   };
+  mod.waypointMap = {
+    info() {
+      const assets = getGameAssets();
+      if (!gameWorld || !assets?.c9 || !Number.isInteger(assets.meta?.tileColumns)) return null;
+      return { width: gameWorld.width, height: gameWorld.height, floors: gameWorld.floors.length };
+    },
+    isWalkable(floor, x, y) {
+      return !!gameWorld?.isWalkable(floor, x, y);
+    },
+    draw(context, floor, centerX, centerY, tileSize, width, height) {
+      const assets = getGameAssets();
+      if (!gameWorld || !assets?.c9 || !gameWorld.floors[floor]) return false;
+      const columns = assets.meta.tileColumns;
+      const left = Math.max(0, Math.floor(centerX - width / (2 * tileSize)));
+      const top = Math.max(0, Math.floor(centerY - height / (2 * tileSize)));
+      const right = Math.min(gameWorld.width, Math.ceil(centerX + width / (2 * tileSize)));
+      const bottom = Math.min(gameWorld.height, Math.ceil(centerY + height / (2 * tileSize)));
+      context.fillStyle = "#0d0a07";
+      context.fillRect(0, 0, width, height);
+      context.imageSmoothingEnabled = false;
+      for (let y = top; y < bottom; y++) for (let x = left; x < right; x++) {
+        const tile = gameWorld.tile(floor, x, y);
+        if (tile === 65535) continue;
+        context.drawImage(assets.c9, tile % columns * 26 + 1, Math.floor(tile / columns) * 26 + 1,
+          24, 24, (x - centerX) * tileSize + width / 2,
+          (y - centerY) * tileSize + height / 2, tileSize, tileSize);
+      }
+      return true;
+    }
+  };
   const getAssetItem = (assets, id) => {
     const numericId = Number(id);
     if (!Number.isFinite(numericId)) return null;

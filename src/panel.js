@@ -269,6 +269,19 @@
       .waypoint-reverse-card .hint { margin-top:8px; line-height:1.4; }
       .waypoint-list { display:grid; gap:6px; max-height:210px; overflow:auto; margin-top:10px; }
       .waypoint-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; padding:7px 8px; border:1px solid var(--luz); border-radius:0; background:var(--slot); }
+      .waypoint-map-dialog { position:fixed; inset:0; z-index:2; display:grid; place-items:center; padding:12px; background:#070503d9; pointer-events:auto; }
+      .waypoint-map-dialog[hidden] { display:none; }
+      .waypoint-map-shell { display:flex; flex-direction:column; width:min(1000px,96vw); height:min(760px,94vh); min-height:300px; padding:12px; border:1px solid var(--luz); background:var(--painel); box-shadow:0 20px 65px #000c; }
+      .waypoint-map-head,.waypoint-map-tools { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+      .waypoint-map-head { margin-bottom:9px; }
+      .waypoint-map-head strong { color:var(--ouro-claro); font-size:16px; }
+      .waypoint-map-tools { justify-content:flex-start; margin-bottom:8px; }
+      .waypoint-map-tools label { display:flex; align-items:center; gap:5px; color:var(--ui-2); font-size:11px; }
+      .waypoint-map-tools select,.waypoint-map-tools button,.waypoint-map-head button { min-height:30px; padding:4px 9px; border:1px solid var(--luz); background:var(--slot); color:var(--ui); cursor:pointer; }
+      .waypoint-map-tools button:hover,.waypoint-map-head button:hover { border-color:var(--ouro); }
+      .waypoint-map-canvas { display:block; flex:1; min-height:0; width:100%; border:1px solid var(--luz); background:var(--slot); cursor:crosshair; touch-action:none; }
+      .waypoint-map-canvas[data-dragging="true"] { cursor:grabbing; }
+      .waypoint-map-status { min-height:18px; margin:8px 0 0; color:var(--ui-2); font-size:11px; }
       .waypoint-name { color:var(--ui); font-weight:600; }
       .waypoint-floor { color:var(--ui-2); font-size:11px; }
       .lure-count { max-width:150px; margin-top:9px; }
@@ -420,7 +433,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.31</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.32</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -606,6 +619,7 @@
             <div class="waypoint-actions" style="grid-template-columns:1fr">
               <button class="waypoint-current">Adicionar posição atual</button>
               <button class="waypoint-record" type="button">Iniciar gravação ao andar</button>
+              <button class="waypoint-map-open" type="button">Criar waypoints pelo mapa</button>
             </div>
             <div class="waypoint-actions waypoint-file-actions">
               <button class="waypoint-export" type="button">Exportar waypoints</button>
@@ -696,6 +710,20 @@
         </div>
       </div>
     </section>
+    <div class="waypoint-map-dialog" hidden role="dialog" aria-modal="true" aria-label="Criar waypoints pelo mapa">
+      <div class="waypoint-map-shell">
+        <div class="waypoint-map-head"><strong>Waypoints pelo mapa</strong><button class="waypoint-map-close" type="button" aria-label="Fechar mapa">Fechar</button></div>
+        <div class="waypoint-map-tools">
+          <label>Andar <select class="waypoint-map-floor" aria-label="Andar do mapa"></select></label>
+          <button class="waypoint-map-center" type="button">Minha posição</button>
+          <button class="waypoint-map-zoom-out" type="button" aria-label="Diminuir zoom">−</button>
+          <button class="waypoint-map-zoom-in" type="button" aria-label="Aumentar zoom">+</button>
+          <button class="waypoint-map-undo" type="button">Desfazer último</button>
+        </div>
+        <canvas class="waypoint-map-canvas" aria-label="Mapa do jogo; clique para adicionar waypoint e arraste para navegar"></canvas>
+        <p class="waypoint-map-status" role="status">Clique em um local caminhável para adicionar. Arraste para navegar e use a roda para ampliar.</p>
+      </div>
+    </div>
     </div>
   `;
 
@@ -746,6 +774,10 @@
   const targetList = root.querySelector(".target-list");
   const targetSearch = root.querySelector(".target-search");
   const waypointList = root.querySelector(".waypoint-list");
+  const waypointMapDialog = root.querySelector(".waypoint-map-dialog");
+  const waypointMapCanvas = root.querySelector(".waypoint-map-canvas");
+  const waypointMapFloor = root.querySelector(".waypoint-map-floor");
+  const waypointMapStatus = root.querySelector(".waypoint-map-status");
   const waypointFile = root.querySelector(".waypoint-file");
   const configFile = root.querySelector(".config-file");
   const configResult = root.querySelector(".config-result");
@@ -1155,7 +1187,7 @@
   }
 
   const open = () => { backdrop.hidden = false; refresh(true); };
-  const close = () => { backdrop.hidden = true; };
+  const close = () => { waypointMapDialog.hidden = true; backdrop.hidden = true; };
   root.querySelector(".close").addEventListener("click", close);
   backdrop.addEventListener("click", event => { if (event.target === backdrop) close(); });
   const persistAutomation = () => {
@@ -1609,6 +1641,202 @@
     showWaypoints();
   }
 
+  const mapView = { floor: 0, x: 0, y: 0, tileSize: 14, drag: null };
+  const mapPoint = (x, y, width, height) => ({
+    x: (x + 0.5 - mapView.x) * mapView.tileSize + width / 2,
+    y: (y + 0.5 - mapView.y) * mapView.tileSize + height / 2
+  });
+  const mapTileAt = (x, y, width, height) => ({
+    x: Math.floor(mapView.x + (x - width / 2) / mapView.tileSize),
+    y: Math.floor(mapView.y + (y - height / 2) / mapView.tileSize)
+  });
+  function drawWaypointMap() {
+    if (waypointMapDialog.hidden) return;
+    const api = window.mod?.waypointMap;
+    const info = api?.info?.();
+    if (!info) {
+      waypointMapStatus.textContent = "Aguardando o mapa do jogo carregar.";
+      return;
+    }
+    const rect = waypointMapCanvas.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const width = Math.round(rect.width);
+    const height = Math.round(rect.height);
+    if (waypointMapCanvas.width !== Math.round(width * ratio) || waypointMapCanvas.height !== Math.round(height * ratio)) {
+      waypointMapCanvas.width = Math.round(width * ratio);
+      waypointMapCanvas.height = Math.round(height * ratio);
+    }
+    const context = waypointMapCanvas.getContext("2d");
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    try {
+      if (!api.draw(context, mapView.floor, mapView.x, mapView.y, mapView.tileSize, width, height)) return;
+    } catch (error) {
+      waypointMapStatus.textContent = `Não foi possível desenhar o mapa: ${error?.message ?? error}`;
+      return;
+    }
+    const points = (window.mod?.waypoints ?? [])
+      .map((point, index) => ({ ...point, index }))
+      .filter(point => point.floor === mapView.floor);
+    context.lineWidth = 2;
+    context.strokeStyle = "#f2c14e";
+    context.beginPath();
+    points.forEach((point, index) => {
+      const at = mapPoint(point.x, point.y, width, height);
+      if (index === 0 || point.index !== points[index - 1].index + 1) context.moveTo(at.x, at.y);
+      else context.lineTo(at.x, at.y);
+    });
+    if (points.length > 1) context.stroke();
+    for (const point of points) {
+      const at = mapPoint(point.x, point.y, width, height);
+      if (at.x < -15 || at.y < -15 || at.x > width + 15 || at.y > height + 15) continue;
+      const number = point.index + 1;
+      context.fillStyle = "#f2c14e";
+      context.fillRect(at.x - 10, at.y - 10, 20, 20);
+      context.strokeStyle = "#0d0a07";
+      context.strokeRect(at.x - 10, at.y - 10, 20, 20);
+      context.fillStyle = "#0d0a07";
+      context.font = "bold 11px sans-serif";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(String(number), at.x, at.y);
+    }
+    const me = window.mod?.myself;
+    if (me?.floor === mapView.floor && Number.isInteger(me.x) && Number.isInteger(me.y)) {
+      const at = mapPoint(me.x, me.y, width, height);
+      context.fillStyle = "#2ee6ff";
+      context.strokeStyle = "#0d0a07";
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(at.x, at.y, 5, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+    }
+  }
+  function centerWaypointMapOnPlayer() {
+    const me = window.mod?.myself;
+    if (!Number.isInteger(me?.x) || !Number.isInteger(me?.y) || !Number.isInteger(me?.floor)) {
+      waypointMapStatus.textContent = "Aguardando a posição do personagem.";
+      return;
+    }
+    mapView.floor = me.floor;
+    mapView.x = me.x + 0.5;
+    mapView.y = me.y + 0.5;
+    waypointMapFloor.value = String(mapView.floor);
+    drawWaypointMap();
+  }
+  function zoomWaypointMap(factor, x, y) {
+    const rect = waypointMapCanvas.getBoundingClientRect();
+    const worldX = mapView.x + (x - rect.width / 2) / mapView.tileSize;
+    const worldY = mapView.y + (y - rect.height / 2) / mapView.tileSize;
+    const next = Math.max(6, Math.min(32, mapView.tileSize * factor));
+    if (next === mapView.tileSize) return;
+    mapView.tileSize = next;
+    mapView.x = worldX - (x - rect.width / 2) / next;
+    mapView.y = worldY - (y - rect.height / 2) / next;
+    drawWaypointMap();
+  }
+  root.querySelector(".waypoint-map-open").addEventListener("click", () => {
+    const info = window.mod?.waypointMap?.info?.();
+    if (!info) {
+      waypointResult.textContent = "Aguardando o mapa do jogo carregar para abrir o editor.";
+      return;
+    }
+    waypointMapFloor.replaceChildren();
+    for (let floor = 0; floor < info.floors; floor++) {
+      const option = document.createElement("option");
+      option.value = String(floor);
+      option.textContent = `Andar ${floor}`;
+      waypointMapFloor.append(option);
+    }
+    waypointMapDialog.hidden = false;
+    const me = window.mod?.myself;
+    const last = window.mod?.waypoints?.at(-1);
+    mapView.floor = Number.isInteger(me?.floor) ? me.floor : last?.floor ?? 0;
+    mapView.x = Number.isInteger(me?.x) ? me.x + 0.5 : last?.x + 0.5 || info.width / 2;
+    mapView.y = Number.isInteger(me?.y) ? me.y + 0.5 : last?.y + 0.5 || info.height / 2;
+    mapView.tileSize = 14;
+    waypointMapFloor.value = String(mapView.floor);
+    waypointMapStatus.textContent = "Clique em um local caminhável para adicionar. Arraste para navegar e use a roda para ampliar.";
+    requestAnimationFrame(drawWaypointMap);
+    root.querySelector(".waypoint-map-close").focus();
+  });
+  root.querySelector(".waypoint-map-close").addEventListener("click", () => { waypointMapDialog.hidden = true; root.querySelector(".waypoint-map-open").focus(); });
+  waypointMapDialog.addEventListener("click", event => { if (event.target === waypointMapDialog) waypointMapDialog.hidden = true; });
+  root.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !waypointMapDialog.hidden) {
+      event.preventDefault();
+      event.stopPropagation();
+      waypointMapDialog.hidden = true;
+      root.querySelector(".waypoint-map-open").focus();
+    }
+  });
+  waypointMapFloor.addEventListener("change", () => { mapView.floor = Number(waypointMapFloor.value); drawWaypointMap(); });
+  root.querySelector(".waypoint-map-center").addEventListener("click", centerWaypointMapOnPlayer);
+  root.querySelector(".waypoint-map-zoom-out").addEventListener("click", () => zoomWaypointMap(1 / 1.4, waypointMapCanvas.clientWidth / 2, waypointMapCanvas.clientHeight / 2));
+  root.querySelector(".waypoint-map-zoom-in").addEventListener("click", () => zoomWaypointMap(1.4, waypointMapCanvas.clientWidth / 2, waypointMapCanvas.clientHeight / 2));
+  root.querySelector(".waypoint-map-undo").addEventListener("click", () => {
+    const last = window.mod?.waypoints?.at(-1);
+    if (!last) { waypointMapStatus.textContent = "A rota ainda não tem waypoints."; return; }
+    const outcome = window.mod?.removeWaypoint?.(window.mod.waypoints.length - 1);
+    waypointMapStatus.textContent = outcome?.ok
+      ? `Último waypoint removido: X ${last.x}, Y ${last.y} · andar ${last.floor}.`
+      : outcome?.error ?? "Não foi possível remover o waypoint.";
+    waypointResult.textContent = waypointMapStatus.textContent;
+    waypointList.dataset.signature = "";
+    showWaypoints();
+    drawWaypointMap();
+  });
+  waypointMapCanvas.addEventListener("wheel", event => {
+    event.preventDefault();
+    const rect = waypointMapCanvas.getBoundingClientRect();
+    zoomWaypointMap(event.deltaY < 0 ? 1.2 : 1 / 1.2, event.clientX - rect.left, event.clientY - rect.top);
+  }, { passive: false });
+  waypointMapCanvas.addEventListener("pointerdown", event => {
+    if (event.button !== 0) return;
+    waypointMapCanvas.setPointerCapture(event.pointerId);
+    mapView.drag = { id: event.pointerId, x: event.clientX, y: event.clientY, centerX: mapView.x, centerY: mapView.y, moved: false };
+  });
+  waypointMapCanvas.addEventListener("pointermove", event => {
+    const drag = mapView.drag;
+    if (!drag || drag.id !== event.pointerId) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true;
+    if (!drag.moved) return;
+    mapView.x = drag.centerX - dx / mapView.tileSize;
+    mapView.y = drag.centerY - dy / mapView.tileSize;
+    waypointMapCanvas.dataset.dragging = "true";
+    drawWaypointMap();
+  });
+  waypointMapCanvas.addEventListener("pointerup", event => {
+    const drag = mapView.drag;
+    if (!drag || drag.id !== event.pointerId) return;
+    mapView.drag = null;
+    waypointMapCanvas.dataset.dragging = "false";
+    if (drag.moved) return;
+    const rect = waypointMapCanvas.getBoundingClientRect();
+    const tile = mapTileAt(event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height);
+    if (!window.mod?.waypointMap?.isWalkable(mapView.floor, tile.x, tile.y)) {
+      waypointMapStatus.textContent = `X ${tile.x}, Y ${tile.y} não é um local caminhável.`;
+      return;
+    }
+    const previous = window.mod?.waypoints?.at(-1);
+    if (previous?.x === tile.x && previous?.y === tile.y && previous?.floor === mapView.floor) {
+      waypointMapStatus.textContent = "Esse já é o último waypoint da rota.";
+      return;
+    }
+    const outcome = window.mod?.addWaypoint?.(tile.x, tile.y, mapView.floor);
+    waypointMapStatus.textContent = outcome?.ok
+      ? `Waypoint ${outcome.count} adicionado: X ${tile.x}, Y ${tile.y} · andar ${mapView.floor}.`
+      : outcome?.error ?? "Não foi possível adicionar o waypoint.";
+    waypointResult.textContent = waypointMapStatus.textContent;
+    waypointList.dataset.signature = "";
+    showWaypoints();
+    drawWaypointMap();
+  });
+  waypointMapCanvas.addEventListener("pointercancel", () => { mapView.drag = null; waypointMapCanvas.dataset.dragging = "false"; });
+
   function showTargets() {
     const catalog = window.mod?.monsterCatalog ?? [];
     const filter = targetSearch.value.trim().toLocaleLowerCase();
@@ -1860,6 +2088,7 @@
   placeTopButton();
   window.__fantasyModPanel = { open, close };
   setInterval(() => {
+    if (!waypointMapDialog.hidden) drawWaypointMap();
     if (!backdrop.hidden && autoRefresh.checked) refresh();
     else if (!backdrop.hidden && window.mod?.refill?.status) setRefillStatus(window.mod.refill.status);
     if (!backdrop.hidden) renderCityTravel();
