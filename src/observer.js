@@ -843,6 +843,9 @@
     .catch(() => {});
   const lootSpriteAttempts = new Map();
   const getGameAssets = () => {
+    // The bot already receives the decoded asset pack from the game's worker.
+    // The public gameDebug hook is absent in some client builds.
+    if (monsterAssets?.items) return monsterAssets;
     try {
       const screens = window.gameDebug?.state?.().screens;
       return screens?.a ?? screens?.assets ?? (screens?.itemById ? screens : null);
@@ -4092,6 +4095,7 @@
           monsterAssets = result;
           monsterData = new Map((result.monsters ?? []).map(monster => [monster.type, monster]));
           rebuildMonsterCatalog();
+          mod.updateLootCatalog();
           mod.mapReady = true;
           mod.pathStatus = "Mapa e colisões carregados";
         } catch (error) {

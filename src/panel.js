@@ -243,11 +243,6 @@
       .protected-inventory { padding-top:9px; border-top:1px solid var(--luz); }
       .protected-inventory-title { display:block; margin-bottom:6px; color:var(--ui); font-size:11px; font-weight:700; }
       .protected-inventory-list { max-height:145px; }
-      .protected-catalog { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; align-items:end; }
-      .protected-catalog label { min-width:0; font-size:10px; }
-      .protected-catalog select { margin-top:3px; }
-      .protected-catalog button { min-height:34px; padding:5px 9px; border:1px solid var(--ouro-escuro); background:#46381a; color:var(--ouro-claro); font-size:10px; cursor:pointer; }
-      .protected-catalog button:disabled { opacity:.45; cursor:default; }
       .waypoint-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:8px; }
       .waypoint-actions button,.waypoint-remove { padding:7px 8px; border:1px solid var(--luz); border-radius:0; background:#3d3328; color:var(--ui); cursor:pointer; }
       .waypoint-reverse-card { margin-top:8px; padding:10px; border:1px solid var(--luz); background:var(--painel); }
@@ -361,7 +356,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.21</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.22</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -588,7 +583,6 @@
                 <p class="hint">Itens protegidos permanecem na mochila durante a venda automática.</p>
                 <div class="protected-sell-list" aria-live="polite"></div>
                 <div class="protected-inventory"><span class="protected-inventory-title">Adicionar da mochila</span><div class="protected-inventory-list" aria-live="polite"></div></div>
-                <div class="protected-catalog"><label>Ou escolha no catálogo<select class="protected-catalog-select"></select></label><button class="protected-catalog-add" type="button">Adicionar</button></div>
               </section>
             </div>
           </section>
@@ -682,8 +676,6 @@
   const protectedSellList = root.querySelector(".protected-sell-list");
   const protectedSellCount = root.querySelector(".protected-sell-count");
   const protectedInventoryList = root.querySelector(".protected-inventory-list");
-  const protectedCatalogSelect = root.querySelector(".protected-catalog-select");
-  const protectedCatalogAdd = root.querySelector(".protected-catalog-add");
   const huntToggle = root.querySelector(".hunt-toggle");
   const trainingToggle = root.querySelector(".training-toggle");
   const autoLootGoldToggles = root.querySelectorAll(".auto-loot-gold");
@@ -1414,22 +1406,7 @@
         : bagCounts.size ? "Todos os itens da mochila já estão protegidos." : "A mochila está vazia.";
       protectedInventoryList.append(empty);
     }
-    const previous = protectedCatalogSelect.value;
-    protectedCatalogSelect.replaceChildren();
-    for (const item of catalog.filter(item => !selected.has(String(item.id)))) {
-      const option = document.createElement("option");
-      option.value = String(item.id);
-      option.textContent = `${item.name} · ID ${item.id}`;
-      protectedCatalogSelect.append(option);
-    }
-    if ([...protectedCatalogSelect.options].some(option => option.value === previous)) protectedCatalogSelect.value = previous;
-    protectedCatalogSelect.disabled = protectedCatalogAdd.disabled = !protectedCatalogSelect.options.length;
   }
-  protectedCatalogAdd.addEventListener("click", () => {
-    if (!protectedCatalogSelect.value) return;
-    window.mod?.setSellProtectedItemEnabled?.(protectedCatalogSelect.value, true);
-    showProtectedSellItems();
-  });
 
   function showWaypoints() {
     const waypoints = window.mod?.waypoints ?? [];
