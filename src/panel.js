@@ -450,7 +450,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.43</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.44</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -831,10 +831,10 @@
   const refillTest = root.querySelector(".refill-test");
   const refillStatus = root.querySelector(".refill-status");
   const refillItemSelect = root.querySelector(".refill-item-select");
-  const refillItemPicker = root.querySelector(".refill-item-picker");
-  const refillPickerMenu = root.querySelector(".refill-picker-menu");
-  const refillPickerName = root.querySelector(".refill-picker-name");
-  const refillPickerCurrentIcon = root.querySelector(".refill-picker-current-icon");
+  const refillItemPicker = root.querySelector(".refill-items .refill-item-picker");
+  const refillPickerMenu = refillItemPicker.querySelector(".refill-picker-menu");
+  const refillPickerName = refillItemPicker.querySelector(".refill-picker-name");
+  const refillPickerCurrentIcon = refillItemPicker.querySelector(".refill-picker-current-icon");
   const refillItemQuantity = root.querySelector(".refill-item-quantity");
   const refillItemAdd = root.querySelector(".refill-item-add");
   const refillItemList = root.querySelector(".refill-item-list");
