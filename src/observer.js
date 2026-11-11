@@ -1356,6 +1356,7 @@
     if (!Number.isFinite(range) || range < 1 || range > 100) return { ok: false, error: "O raio deve ficar entre 1 e 100 tiles." };
     huntState.training = !!training;
     if (huntState.training) {
+      trainingClassSwitch = null;
       trainingIdleWatch = null;
       trainingIdleMove = null;
       huntTargetId = null;
@@ -1384,6 +1385,7 @@
   };
   mod.stopHunt = (reason = "Caça parada pelo usuário.", preserveResume = false) => {
     finishTrainingElite();
+    trainingClassSwitch = null;
     waypointTravel = null;
     if (!preserveResume) {
       cancelHuntAutomation();
@@ -1406,6 +1408,7 @@
   let exhaustedTargetId = null;
   const trainingEliteAttackers = new Map();
   const classIds = { melee: 0, distance: 1, mage: 2 };
+  let trainingClassSwitch = null;
   let nextTrainingWeaponAt = 0;
   function ensureTrainingWeapon(itemId) {
     if (!itemId || !mod.inventory.known) return false;
@@ -1420,7 +1423,6 @@
     }
     return false;
   }
-  let nextTrainingBaseClassAt = 0;
   function sendTrainingClass(classId) {
     if (!Number.isInteger(classId) || gameSocket?.readyState !== WebSocket.OPEN) return false;
     const packet = { t: "class", c: classId };
@@ -1428,8 +1430,22 @@
     else gameSocket.send(JSON.stringify(packet));
     return true;
   }
+  function ensureTrainingClass(className) {
+    const desired = classIds[className];
+    if (Number(playerStats.cls ?? playerStats.cl ?? myself.cls) === desired) {
+      trainingClassSwitch = null;
+      return true;
+    }
+    const now = Date.now();
+    if (trainingClassSwitch?.desired !== desired) {
+      trainingClassSwitch = { desired, nextAt: now + 1000 + Math.random() * 1000 };
+    }
+    if (now >= trainingClassSwitch.nextAt && sendTrainingClass(desired)) {
+      trainingClassSwitch.nextAt = now + 1200;
+    }
+    return false;
+  }
   function finishTrainingElite() {
-    if (trainingElite && huntState.trainingCombatMode === "class") sendTrainingClass(classIds[huntState.trainingClass]);
     trainingElite = null;
     exhaustedTargetId = null;
     trainingEliteAttackers.clear();
@@ -3553,7 +3569,7 @@
             && !isAttackedByAnotherPlayer(creature) && !isIgnoredAtBlockedPosition(creature));
         const combatTarget = elite || exhausted || selected;
         if (combatTarget) {
-          trainingElite = { id: combatTarget.id, sentAt: 0, kind: elite ? "elite" : exhausted ? "exhausted" : "selected" };
+          trainingElite = { id: combatTarget.id, kind: elite ? "elite" : exhausted ? "exhausted" : "selected" };
           exhaustedTargetId = null;
           huntTargetId = combatTarget.id;
           huntTargetSent = null;
@@ -3561,21 +3577,13 @@
           pursuitGoal = null;
         }
       }
-      if (trainingElite && huntState.trainingCombatMode === "class" && Date.now() - trainingElite.sentAt >= 1200) {
-        const desired = classIds[huntState.trainingCombatClass];
-        if (Number(playerStats.cls ?? playerStats.cl ?? myself.cls) !== desired && sendTrainingClass(desired)) trainingElite.sentAt = Date.now();
-      }
       if (trainingElite && huntState.trainingCombatMode === "class"
-        && Number(playerStats.cls ?? playerStats.cl ?? myself.cls) !== classIds[huntState.trainingCombatClass]) {
+        && !ensureTrainingClass(huntState.trainingCombatClass)) {
         huntState.status = "Treino: trocando classe para combater o mob";
         return;
       }
     } else if (trainingElite) finishTrainingElite();
-    if (huntState.training && !trainingElite
-      && Number(playerStats.cls ?? playerStats.cl ?? myself.cls) !== classIds[huntState.trainingClass]) {
-      if (Date.now() >= nextTrainingBaseClassAt && sendTrainingClass(classIds[huntState.trainingClass])) {
-        nextTrainingBaseClassAt = Date.now() + 1200;
-      }
+    if (huntState.training && !trainingElite && !ensureTrainingClass(huntState.trainingClass)) {
       huntState.status = "Treino: ajustando classe do treino";
       return;
     }
