@@ -2827,6 +2827,15 @@
       stopGameMovement();
       return false;
     }
+    const distance = Math.max(Math.abs(point.x - myself.x), Math.abs(point.y - myself.y));
+    if (myself.floor === point.floor && distance <= 2) {
+      waypointTravel = null;
+      waypointTravelRetryAt = 0;
+      waypointMovePending = null;
+      waypointMoveFailures = waypointNoProgressFailures = 0;
+      huntState.status = `Waypoint ${trip.waypointIndex + 1}: viagem concluída`;
+      return false;
+    }
     if (gameSocket?.readyState !== WebSocket.OPEN) {
       huntState.status = "Waypoint: aguardando conexão para viajar";
       return true;
@@ -2834,6 +2843,10 @@
     const now = Date.now();
     try {
       if (trip.stage === 0) {
+        if (now < (trip.retryAt ?? 0)) {
+          huntState.status = `Waypoint ${trip.waypointIndex + 1}: aguardando para repetir o Travel`;
+          return true;
+        }
         gameSocket.send(JSON.stringify({ t: "travel", id: 1, go: false,
           f: point.floor, x: point.x, y: point.y }));
         trip.stage = 1;
@@ -2852,15 +2865,6 @@
         mod.log("info", huntState.status);
         return true;
       }
-      const distance = Math.max(Math.abs(point.x - myself.x), Math.abs(point.y - myself.y));
-      if (myself.floor === point.floor && distance <= 2) {
-        waypointTravel = null;
-        waypointTravelRetryAt = 0;
-        waypointMovePending = null;
-        waypointMoveFailures = waypointNoProgressFailures = 0;
-        huntState.status = `Waypoint ${trip.waypointIndex + 1}: viagem concluída`;
-        return false;
-      }
       if (now >= trip.deadline) {
         waypointTravel = null;
         waypointTravelRetryAt = now + 15000;
@@ -2878,6 +2882,17 @@
       mod.log("warn", huntState.status);
       return false;
     }
+  }
+  function startWaypointTravel(entry, label) {
+    waypointMovePending = null;
+    waypointMoveFailures = waypointNoProgressFailures = 0;
+    nextWaypointMoveAt = 0;
+    waypointTravel = {
+      point: { ...entry.point }, waypointIndex: entry.index,
+      stage: 0, retryAt: waypointTravelRetryAt
+    };
+    mod.log("info", `${label}: iniciando Travel para waypoint ${entry.index + 1} (${entry.point.x}, ${entry.point.y}).`);
+    return processWaypointTravel();
   }
   function followWaypointRoute(label = "Waypoint", keepTargetInRange = null) {
     const lureRoute = label.startsWith("Lure");
@@ -2941,12 +2956,8 @@
         waypointMovePending = null;
         waypointNoProgressFailures++;
         if (waypointNoProgressFailures >= 8) {
-          mod.log("warn", `${label}: waypoint ${current.index + 1} sem progresso; pulando para o próximo ponto.`);
-          setHuntWaypointIndex(sameFloor[(order + waypointDirection + sameFloor.length) % sameFloor.length].index);
-          waypointNoProgressFailures = 0;
-          waypointMoveFailures = 0;
-          nextWaypointMoveAt = 0;
-          return true;
+          mod.log("warn", `${label}: waypoint ${current.index + 1} sem progresso; iniciando Travel para o mesmo ponto.`);
+          return startWaypointTravel(current, label);
         }
         nextWaypointMoveAt = 0;
       }
@@ -2994,9 +3005,7 @@
       const remaining = Math.max(Math.abs(current.point.x - myself.x), Math.abs(current.point.y - myself.y));
       if ((!lureRoute || huntState.lureProgress.current === 0) && !keepTargetInRange
         && remaining > 20 && Date.now() >= waypointTravelRetryAt) {
-        waypointMovePending = null;
-        waypointTravel = { point: { ...current.point }, waypointIndex: current.index, stage: 0 };
-        return processWaypointTravel();
+        return startWaypointTravel(current, label);
       }
       const maxAdvance = lureRoute ? huntState.lureStepTiles : 20;
       const destination = {
@@ -3037,11 +3046,8 @@
         };
       }
       if (waypointMoveFailures >= 8) {
-        mod.log("warn", `${label}: waypoint ${current.index + 1} sem rota válida; pulando para o próximo ponto.`);
-        setHuntWaypointIndex(sameFloor[(order + waypointDirection + sameFloor.length) % sameFloor.length].index);
-        waypointMovePending = null;
-        waypointMoveFailures = 0;
-        waypointNoProgressFailures = 0;
+        mod.log("warn", `${label}: waypoint ${current.index + 1} sem rota válida; iniciando Travel para o mesmo ponto.`);
+        return startWaypointTravel(current, label);
       }
     }
     return true;
