@@ -468,7 +468,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.58</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.59</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -542,7 +542,8 @@
             <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✦</span><span class="menu-heading-copy"><strong>Treino automático</strong><small>Alvos, intervalo e viagem à cidade</small></span></div>
             <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo.</p>
-            <label class="pref"><input class="training-online-bonus" type="checkbox"> Ativar bônus de treino online com 3 min ou mais</label>
+            <label class="pref"><input class="training-online-bonus" type="checkbox"> Ativar automaticamente o bônus de treino online</label>
+            <label class="attack-range">Tempo mínimo disponível (minutos)<input class="training-online-minutes" type="number" min="1" max="1440" step="1" value="3"></label>
             <p class="hint training-online-bonus-status">Usa o tempo disponível (grátis e pago) quando o treino automático estiver ativo. Não compra tempo.</p>
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
             <div class="training-mobs">
@@ -907,6 +908,7 @@
   const autoLootGoldToggles = root.querySelectorAll(".auto-loot-gold");
   const trainingStatus = root.querySelector(".training-status");
   const trainingOnlineBonus = root.querySelector(".training-online-bonus");
+  const trainingOnlineMinutes = root.querySelector(".training-online-minutes");
   const trainingOnlineBonusStatus = root.querySelector(".training-online-bonus-status");
   const trainingClass = root.querySelector(".training-class");
   const trainingCombatClass = root.querySelector(".training-combat-class");
@@ -1743,6 +1745,7 @@
     trainingWeaponOptions.hidden = trainingCombatMode.value !== "weapon";
     trainingEliteEnabled.checked = !!hunt?.trainingEliteEnabled;
     trainingOnlineBonus.checked = !!hunt?.trainingOnlineBonusEnabled;
+    if (root.activeElement !== trainingOnlineMinutes) trainingOnlineMinutes.value = String(hunt?.trainingOnlineBonusMinimumMinutes ?? 3);
     const online = window.mod?.myself?.online;
     const availableOnlineSeconds = Number(online?.free ?? 0) + Number(online?.paid ?? 0);
     const onlineSeconds = Number.isFinite(availableOnlineSeconds) ? Math.max(0, availableOnlineSeconds) : 0;
@@ -2411,6 +2414,12 @@
   };
   trainingEliteEnabled.addEventListener("change", saveTrainingEliteOptions);
   trainingOnlineBonus.addEventListener("change", () => window.mod?.setTrainingOnlineBonus?.(trainingOnlineBonus.checked));
+  trainingOnlineMinutes.addEventListener("change", () => {
+    const outcome = window.mod?.setTrainingOnlineBonusMinimumMinutes?.(trainingOnlineMinutes.value);
+    if (outcome?.ok) return;
+    trainingOnlineMinutes.value = String(window.mod?.hunt?.trainingOnlineBonusMinimumMinutes ?? 3);
+    trainingStatus.textContent = outcome?.error ?? "Não foi possível salvar o tempo mínimo.";
+  });
   const saveTrainingExhaustedOptions = () => {
     window.mod?.setTrainingExhaustedOptions?.(trainingExhaustedEnabled.checked);
   };

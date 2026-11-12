@@ -513,6 +513,7 @@
   huntState.trainingExhaustedEnabled = false;
   huntState.trainingWaypoints = false;
   huntState.trainingOnlineBonusEnabled = false;
+  huntState.trainingOnlineBonusMinimumMinutes = 3;
   let nextOnlineTrainingAttemptAt = 0;
   huntState.trainingRadius = 4;
   huntState.trainingIdleMinutes = 0;
@@ -591,6 +592,10 @@
     huntState.trainingExhaustedEnabled = localStorage.getItem("fantasy-mod-training-exhausted-enabled") === "true";
     huntState.trainingWaypoints = localStorage.getItem("fantasy-mod-training-waypoints") === "true";
     huntState.trainingOnlineBonusEnabled = localStorage.getItem("fantasy-mod-training-online-bonus") === "true";
+    const onlineMinimumMinutes = Number(localStorage.getItem("fantasy-mod-training-online-minutes"));
+    if (Number.isInteger(onlineMinimumMinutes) && onlineMinimumMinutes >= 1 && onlineMinimumMinutes <= 1440) {
+      huntState.trainingOnlineBonusMinimumMinutes = onlineMinimumMinutes;
+    }
     const previousCityReturn = localStorage.getItem("fantasy-mod-training-city-return") !== "false";
     huntState.trainingCityBag = (localStorage.getItem("fantasy-mod-training-city-bag") ?? String(previousCityReturn)) === "true";
     huntState.trainingCityArrows = (localStorage.getItem("fantasy-mod-training-city-arrows") ?? String(previousCityReturn)) === "true";
@@ -890,13 +895,23 @@
     try { localStorage.setItem("fantasy-mod-training-online-bonus", String(huntState.trainingOnlineBonusEnabled)); } catch {}
     return { ok: true, enabled: huntState.trainingOnlineBonusEnabled };
   };
+  mod.setTrainingOnlineBonusMinimumMinutes = minutes => {
+    const value = Number(minutes);
+    if (!Number.isInteger(value) || value < 1 || value > 1440) {
+      return { ok: false, error: "O tempo mínimo deve ser um número inteiro entre 1 e 1440 minutos." };
+    }
+    huntState.trainingOnlineBonusMinimumMinutes = value;
+    nextOnlineTrainingAttemptAt = 0;
+    try { localStorage.setItem("fantasy-mod-training-online-minutes", String(value)); } catch {}
+    return { ok: true, minutes: value };
+  };
   function maybeActivateOnlineTraining() {
     if (!huntState.enabled || !huntState.training || !huntState.trainingOnlineBonusEnabled || myself.dead) return;
     const online = playerStats.online;
     if (!online || online.on !== false) return;
     const free = Number(online.free), paid = Number(online.paid ?? 0), stamina = Number(online.stamina);
     if (!Number.isFinite(free) || !Number.isFinite(paid) || !Number.isFinite(stamina)
-      || Math.min(free + paid, stamina) < 180) return;
+      || Math.min(free + paid, stamina) < huntState.trainingOnlineBonusMinimumMinutes * 60) return;
     if (!gameSocket || gameSocket.readyState !== NativeWebSocket.OPEN || Date.now() < nextOnlineTrainingAttemptAt) return;
     nextOnlineTrainingAttemptAt = Date.now() + 30000;
     try {
