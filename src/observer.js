@@ -3403,8 +3403,8 @@
       panel.dataset.fantasyModStatus = "true";
       hud.append(panel);
     }
-    if (panel.dataset.fantasyModStatusLayout !== "4") {
-      panel.dataset.fantasyModStatusLayout = "4";
+    if (panel.dataset.fantasyModStatusLayout !== "5") {
+      panel.dataset.fantasyModStatusLayout = "5";
       panel.removeAttribute("style");
       panel.innerHTML = `
         <style>
@@ -3446,6 +3446,7 @@
           [data-fantasy-mod-status] .fm-skill-fill { height: 100%; background: #d98469; }
           [data-fantasy-mod-status] .fm-skill[data-skill="distance"] .fm-skill-fill { background: #8ef0a8; }
           [data-fantasy-mod-status] .fm-skill[data-skill="magic"] .fm-skill-fill { background: #8cc8ff; }
+          [data-fantasy-mod-status] .fm-skill[data-skill="defense"] .fm-skill-fill { background: #c8a5f3; }
           [data-fantasy-mod-status] .fm-idle { margin-top: 5px; padding: 4px 1px 0; border-top: 1px solid #493b2d; }
           [data-fantasy-mod-status] .fm-idle .fm-value { color: #8cc8ff; }
         </style>
@@ -3457,6 +3458,7 @@
           <div class="fm-skill" data-skill="melee"><div class="fm-row"><span class="fm-label">Melee</span><span class="fm-value"></span></div><div class="fm-skill-track"><div class="fm-skill-fill"></div></div></div>
           <div class="fm-skill" data-skill="distance"><div class="fm-row"><span class="fm-label">Distance</span><span class="fm-value"></span></div><div class="fm-skill-track"><div class="fm-skill-fill"></div></div></div>
           <div class="fm-skill" data-skill="magic"><div class="fm-row"><span class="fm-label">Magic</span><span class="fm-value"></span></div><div class="fm-skill-track"><div class="fm-skill-fill"></div></div></div>
+          <div class="fm-skill" data-skill="defense"><div class="fm-row"><span class="fm-label">Defense</span><span class="fm-value"></span></div><div class="fm-skill-track"><div class="fm-skill-fill"></div></div></div>
         </div>
         <div class="fm-row fm-idle"><span class="fm-label">Aproximação</span><span class="fm-value fm-idle-value"></span></div>`;
     }
