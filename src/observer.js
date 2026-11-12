@@ -3403,8 +3403,8 @@
       panel.dataset.fantasyModStatus = "true";
       hud.append(panel);
     }
-    if (panel.dataset.fantasyModStatusLayout !== "5") {
-      panel.dataset.fantasyModStatusLayout = "5";
+    if (panel.dataset.fantasyModStatusLayout !== "6") {
+      panel.dataset.fantasyModStatusLayout = "6";
       panel.removeAttribute("style");
       panel.innerHTML = `
         <style>
@@ -3441,6 +3441,7 @@
           [data-fantasy-mod-status] .fm-skills { margin-top: 6px; padding-top: 5px; border-top: 1px solid #493b2d; }
           [data-fantasy-mod-status] .fm-skills-title { display: block; margin-bottom: 3px; }
           [data-fantasy-mod-status] .fm-skill + .fm-skill { margin-top: 4px; }
+          [data-fantasy-mod-status] .fm-skill .fm-label { color: #f2c14e; }
           [data-fantasy-mod-status] .fm-skill .fm-value { font-size: 10px; }
           [data-fantasy-mod-status] .fm-skill-track { height: 4px; margin-top: 2px; border: 1px solid #493b2d; background: rgba(16, 13, 10, .72); }
           [data-fantasy-mod-status] .fm-skill-fill { height: 100%; background: #d98469; }
