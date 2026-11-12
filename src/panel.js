@@ -440,6 +440,10 @@
       .page .menu-block > .pref,.page .menu-block > .setting-toggle { min-height:40px; margin:0; padding:8px 9px; background:var(--slot); font-size:11px; }
       .page .menu-block > .pref { flex-direction:row-reverse; cursor:pointer; }
       .page .menu-block > .pref:hover,.page .menu-block > .setting-toggle:hover { border-color:var(--ouro-escuro); }
+      .status-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+      .status-options .pref { min-width:0; min-height:38px; margin:0; padding:7px 8px; background:var(--slot); font-size:11px; cursor:pointer; }
+      .status-options .pref:hover { border-color:var(--ouro-escuro); }
+      @media (max-width:560px) { .status-options { grid-template-columns:1fr; } }
       .page .menu-block > .attack-range { display:grid; gap:3px; min-width:0; }
       .page .menu-block > .attack-range[hidden],.training-weapon-options[hidden] { display:none; }
       .training-weapon-options { display:grid; gap:7px; margin-top:9px; }
@@ -460,7 +464,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.55</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.56</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -473,6 +477,7 @@
           <button class="side-link" data-page="waypoints">Waypoints</button>
           <button class="side-link" data-page="clone">Clone</button>
           <button class="side-link" data-page="automation">Configuração</button>
+          <button class="side-link" data-page="status">Status</button>
           <button class="side-link" data-page="console">Console</button>
         </nav>
         <div class="page-content">
@@ -755,6 +760,24 @@
               </section>
             </div>
           </section>
+          <section class="page" data-section="status" hidden>
+            <h2>Status na tela</h2>
+            <section class="menu-block" aria-label="Visibilidade do painel de status">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">◈</span><span class="menu-heading-copy"><strong>Exibição</strong><small>Escolha o que aparece no painel durante o jogo</small></span></div>
+              <label class="pref"><input type="checkbox" data-status-item="panel"> Mostrar painel de status</label>
+              <div class="status-options">
+                <label class="pref"><input type="checkbox" data-status-item="position"> Posição</label>
+                <label class="pref"><input type="checkbox" data-status-item="destination"> Destino / waypoint</label>
+                <label class="pref"><input type="checkbox" data-status-item="gold"> Ouro</label>
+                <label class="pref"><input type="checkbox" data-status-item="loops"> Voltas</label>
+                <label class="pref"><input type="checkbox" data-status-item="melee"> Melee</label>
+                <label class="pref"><input type="checkbox" data-status-item="distance"> Distance</label>
+                <label class="pref"><input type="checkbox" data-status-item="magic"> Magic</label>
+                <label class="pref"><input type="checkbox" data-status-item="defense"> Defense</label>
+                <label class="pref"><input type="checkbox" data-status-item="idle"> Aproximação</label>
+              </div>
+            </section>
+          </section>
           <section class="page" data-section="console" hidden>
             <h2>Console</h2>
             <section class="menu-block" aria-label="Histórico do console">
@@ -934,6 +957,10 @@
   try { autoRefresh.checked = localStorage.getItem(preferenceKey) !== "false"; } catch { autoRefresh.checked = true; }
   const readPreference = (key, fallback) => { try { const value = localStorage.getItem(`fantasy-mod-${key}`); return value == null ? fallback : value; } catch { return fallback; } };
   const savePreference = (key, value) => { try { localStorage.setItem(`fantasy-mod-${key}`, String(value)); } catch {} };
+  for (const option of root.querySelectorAll("[data-status-item]")) {
+    option.checked = readPreference(`status-${option.dataset.statusItem}`, "true") === "true";
+    option.addEventListener("change", () => savePreference(`status-${option.dataset.statusItem}`, option.checked));
+  }
   autoHeal.checked = readPreference("auto-heal", "false") === "true";
   autoMana.checked = readPreference("auto-mana", "false") === "true";
   autoSwitchServer.checked = readPreference("auto-switch-server", "true") === "true";

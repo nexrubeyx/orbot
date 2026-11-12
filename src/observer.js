@@ -3393,6 +3393,10 @@
     const hud = document.querySelector(".hud");
     const playerCard = hud?.querySelector(".cartao");
     if (!hud || !playerCard) return;
+    const showStatusItem = name => {
+      try { return localStorage.getItem(`fantasy-mod-status-${name}`) !== "false"; }
+      catch { return true; }
+    };
     let panel = hud.querySelector("[data-fantasy-mod-status]");
     if (panel?.parentElement?.classList.contains("info")) {
       panel.remove();
@@ -3403,8 +3407,8 @@
       panel.dataset.fantasyModStatus = "true";
       hud.append(panel);
     }
-    if (panel.dataset.fantasyModStatusLayout !== "6") {
-      panel.dataset.fantasyModStatusLayout = "6";
+    if (panel.dataset.fantasyModStatusLayout !== "7") {
+      panel.dataset.fantasyModStatusLayout = "7";
       panel.removeAttribute("style");
       panel.innerHTML = `
         <style>
@@ -3417,6 +3421,7 @@
             text-shadow: 1px 1px #000; pointer-events: none;
           }
           [data-fantasy-mod-status] * { box-sizing: border-box; }
+          [data-fantasy-mod-status][hidden] { display: none !important; }
           [data-fantasy-mod-status] [hidden] { display: none !important; }
           [data-fantasy-mod-status] .fm-head,
           [data-fantasy-mod-status] .fm-row,
@@ -3463,6 +3468,8 @@
         </div>
         <div class="fm-row fm-idle"><span class="fm-label">Aproximação</span><span class="fm-value fm-idle-value"></span></div>`;
     }
+    panel.hidden = !showStatusItem("panel");
+    if (panel.hidden) return;
     const playerRect = playerCard.getBoundingClientRect();
     const timers = hud.querySelector(".temporizadores");
     const timersBottom = timers?.getClientRects().length ? timers.getBoundingClientRect().bottom : playerRect.bottom;
@@ -3480,6 +3487,8 @@
     const goldLine = panel.querySelector(".fm-gold");
     const loopsCard = panel.querySelector(".fm-loops");
     const loopsLine = panel.querySelector(".fm-loops-value");
+    const goldCard = goldLine.parentElement;
+    const metricsCard = panel.querySelector(".fm-metrics");
     const idleCard = panel.querySelector(".fm-idle");
     const idleLine = panel.querySelector(".fm-idle-value");
     const positionText = Number.isInteger(myself.x) && Number.isInteger(myself.y)
@@ -3490,8 +3499,10 @@
     const routeNameText = routeActive ? `Waypoint ${waypoint.index}/${waypoint.total}` : "Sem rota ativa";
     const routeTargetText = routeActive ? `(${waypoint.x}, ${waypoint.y}) · andar ${waypoint.floor}` : "Aguardando destino";
     if (positionLine.textContent !== positionText) positionLine.textContent = positionText;
+    positionLine.parentElement.hidden = !showStatusItem("position");
     if (routeName.textContent !== routeNameText) routeName.textContent = routeNameText;
     if (routeTarget.textContent !== routeTargetText) routeTarget.textContent = routeTargetText;
+    routeCard.hidden = !showStatusItem("destination");
     routeCard.dataset.active = String(routeActive);
     state.dataset.active = String(routeActive);
     const stateText = routeActive ? "EM ROTA" : "EM ESPERA";
@@ -3499,12 +3510,17 @@
     const goldText = myself.gold != null && Number.isFinite(Number(myself.gold))
       ? Number(myself.gold).toLocaleString("pt-BR") : "—";
     if (goldLine.textContent !== goldText) goldLine.textContent = goldText;
-    loopsCard.hidden = !huntState.waypointReverseEnabled;
-    panel.querySelector(".fm-metrics").style.gridTemplateColumns = loopsCard.hidden ? "1fr" : "";
+    goldCard.hidden = !showStatusItem("gold");
+    loopsCard.hidden = !showStatusItem("loops") || !huntState.waypointReverseEnabled;
+    metricsCard.hidden = goldCard.hidden && loopsCard.hidden;
+    metricsCard.style.gridTemplateColumns = goldCard.hidden || loopsCard.hidden ? "1fr" : "";
     const loopsText = `${waypointCompletedLoops}/${huntState.waypointReverseLoops}`;
     if (loopsLine.textContent !== loopsText) loopsLine.textContent = loopsText;
+    let visibleSkills = 0;
     for (const skill of panel.querySelectorAll(".fm-skill")) {
       const name = skill.dataset.skill;
+      skill.hidden = !showStatusItem(name);
+      if (!skill.hidden) visibleSkills++;
       const level = playerStats.skills?.[name];
       const progress = playerStats.skillProg?.[name];
       const levelText = level != null && Number.isFinite(Number(level)) ? `Lv ${Number(level)}` : "Lv —";
@@ -3518,8 +3534,9 @@
       const width = `${percent ?? 0}%`;
       if (fill.style.width !== width) fill.style.width = width;
     }
+    panel.querySelector(".fm-skills").hidden = visibleSkills === 0;
     const idleSeconds = huntState.trainingIdleRemainingSeconds;
-    idleCard.hidden = !huntState.enabled || !huntState.training || !Number.isFinite(idleSeconds);
+    idleCard.hidden = !showStatusItem("idle") || !huntState.enabled || !huntState.training || !Number.isFinite(idleSeconds);
     if (!idleCard.hidden) {
       const idleText = `${Math.floor(idleSeconds / 60)}:${String(idleSeconds % 60).padStart(2, "0")}`;
       if (idleLine.textContent !== idleText) idleLine.textContent = idleText;
