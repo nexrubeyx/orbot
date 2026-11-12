@@ -443,6 +443,10 @@
       .status-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
       .status-options .pref { min-width:0; min-height:38px; margin:0; padding:7px 8px; background:var(--slot); font-size:11px; cursor:pointer; }
       .status-options .pref:hover { border-color:var(--ouro-escuro); }
+      .status-transparency { display:grid; gap:6px; padding:8px 9px; border:1px solid var(--luz); background:var(--slot); }
+      .status-transparency-label { display:flex; justify-content:space-between; gap:8px; color:var(--ui); font-size:11px; }
+      .status-transparency-output { color:var(--ouro); font-weight:700; font-variant-numeric:tabular-nums; }
+      .panel .status-transparency input[type="range"] { width:100%; margin:0; padding:0; border:0; background:transparent; box-shadow:none; accent-color:var(--ouro); cursor:pointer; }
       @media (max-width:560px) { .status-options { grid-template-columns:1fr; } }
       .page .menu-block > .attack-range { display:grid; gap:3px; min-width:0; }
       .page .menu-block > .attack-range[hidden],.training-weapon-options[hidden] { display:none; }
@@ -464,7 +468,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.56</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.57</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -776,6 +780,7 @@
                 <label class="pref"><input type="checkbox" data-status-item="defense"> Defense</label>
                 <label class="pref"><input type="checkbox" data-status-item="idle"> Aproximação</label>
               </div>
+              <label class="status-transparency"><span class="status-transparency-label"><span>Transparência do fundo</span><output class="status-transparency-output">22%</output></span><input class="status-transparency-range" type="range" min="0" max="80" step="1" value="22"></label>
             </section>
           </section>
           <section class="page" data-section="console" hidden>
@@ -961,6 +966,15 @@
     option.checked = readPreference(`status-${option.dataset.statusItem}`, "true") === "true";
     option.addEventListener("change", () => savePreference(`status-${option.dataset.statusItem}`, option.checked));
   }
+  const statusTransparency = root.querySelector(".status-transparency-range");
+  const statusTransparencyOutput = root.querySelector(".status-transparency-output");
+  const savedTransparency = Number(readPreference("status-transparency", "22"));
+  statusTransparency.value = String(Number.isFinite(savedTransparency) ? Math.max(0, Math.min(80, savedTransparency)) : 22);
+  statusTransparencyOutput.value = `${statusTransparency.value}%`;
+  statusTransparency.addEventListener("input", () => {
+    statusTransparencyOutput.value = `${statusTransparency.value}%`;
+    savePreference("status-transparency", statusTransparency.value);
+  });
   autoHeal.checked = readPreference("auto-heal", "false") === "true";
   autoMana.checked = readPreference("auto-mana", "false") === "true";
   autoSwitchServer.checked = readPreference("auto-switch-server", "true") === "true";

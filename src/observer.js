@@ -3470,6 +3470,11 @@
     }
     panel.hidden = !showStatusItem("panel");
     if (panel.hidden) return;
+    let savedTransparency = 22;
+    try { savedTransparency = Number(localStorage.getItem("fantasy-mod-status-transparency") ?? 22); } catch {}
+    const transparency = Number.isFinite(savedTransparency) ? Math.max(0, Math.min(80, savedTransparency)) : 22;
+    const backgroundColor = `rgba(36, 30, 25, ${1 - transparency / 100})`;
+    if (panel.style.backgroundColor !== backgroundColor) panel.style.backgroundColor = backgroundColor;
     const playerRect = playerCard.getBoundingClientRect();
     const timers = hud.querySelector(".temporizadores");
     const timersBottom = timers?.getClientRects().length ? timers.getBoundingClientRect().bottom : playerRect.bottom;
