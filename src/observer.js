@@ -3403,17 +3403,17 @@
       panel.dataset.fantasyModStatus = "true";
       hud.append(panel);
     }
-    if (panel.dataset.fantasyModStatusLayout !== "3") {
-      panel.dataset.fantasyModStatusLayout = "3";
+    if (panel.dataset.fantasyModStatusLayout !== "4") {
+      panel.dataset.fantasyModStatusLayout = "4";
       panel.removeAttribute("style");
       panel.innerHTML = `
         <style>
           [data-fantasy-mod-status] {
             position: fixed; z-index: 2147483646; box-sizing: border-box;
-            padding: 9px; border: 2px solid #0d0a07; color: #efe4cc;
-            background: #241e19ed;
-            box-shadow: inset 1px 1px 0 #6d5739, inset -1px -1px 0 #100d0a, 0 5px 14px #0008;
-            font: 11px/1.3 "Pixelify Num", "Pixelify Sans", monospace;
+            padding: 6px 7px; border: 1px solid #0d0a07; color: #efe4cc;
+            background: rgba(36, 30, 25, .78);
+            box-shadow: inset 1px 1px 0 #6d5739, 0 4px 10px #0006;
+            font: 11px/1.2 "Pixelify Num", "Pixelify Sans", monospace;
             text-shadow: 1px 1px #000; pointer-events: none;
           }
           [data-fantasy-mod-status] * { box-sizing: border-box; }
@@ -3421,32 +3421,32 @@
           [data-fantasy-mod-status] .fm-head,
           [data-fantasy-mod-status] .fm-row,
           [data-fantasy-mod-status] .fm-route-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-          [data-fantasy-mod-status] .fm-head { padding-bottom: 7px; border-bottom: 1px solid #5a4832; }
+          [data-fantasy-mod-status] .fm-head { padding-bottom: 4px; border-bottom: 1px solid #5a4832; }
           [data-fantasy-mod-status] .fm-title { color: #f2c14e; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
           [data-fantasy-mod-status] .fm-state { display: flex; align-items: center; gap: 5px; color: #b8a888; font-size: 9px; white-space: nowrap; }
           [data-fantasy-mod-status] .fm-state::before { width: 6px; height: 6px; background: #8a7a62; content: ""; }
           [data-fantasy-mod-status] .fm-state[data-active="true"] { color: #8ef0a8; }
           [data-fantasy-mod-status] .fm-state[data-active="true"]::before { background: #8ef0a8; box-shadow: 0 0 6px #8ef0a888; }
-          [data-fantasy-mod-status] .fm-position { padding: 7px 1px; }
+          [data-fantasy-mod-status] .fm-position { padding: 5px 1px; }
           [data-fantasy-mod-status] .fm-label { color: #b8a888; font-size: 9px; letter-spacing: .05em; text-transform: uppercase; }
           [data-fantasy-mod-status] .fm-value { min-width: 0; color: #efe4cc; font-size: 11px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-          [data-fantasy-mod-status] .fm-route { padding: 7px 8px; border: 1px solid #59472f; background: #17130f; }
-          [data-fantasy-mod-status] .fm-route[data-active="true"] { border-color: #8b6b33; background: #302515; }
+          [data-fantasy-mod-status] .fm-route { padding: 5px 6px; border: 1px solid #59472f; background: rgba(23, 19, 15, .58); }
+          [data-fantasy-mod-status] .fm-route[data-active="true"] { border-color: #8b6b33; background: rgba(48, 37, 21, .72); }
           [data-fantasy-mod-status] .fm-route-name { color: #f2c14e; font-size: 11px; font-weight: 700; }
-          [data-fantasy-mod-status] .fm-route-target { margin-top: 3px; color: #efe4cc; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-          [data-fantasy-mod-status] .fm-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 7px; }
-          [data-fantasy-mod-status] .fm-metric { min-width: 0; padding: 5px 7px; border: 1px solid #493b2d; background: #1b1712; }
+          [data-fantasy-mod-status] .fm-route-target { margin-top: 2px; color: #efe4cc; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+          [data-fantasy-mod-status] .fm-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-top: 5px; }
+          [data-fantasy-mod-status] .fm-metric { min-width: 0; padding: 4px 6px; border: 1px solid #493b2d; background: rgba(27, 23, 18, .52); }
           [data-fantasy-mod-status] .fm-metric .fm-value { display: block; margin-top: 1px; text-align: left; font-size: 12px; }
           [data-fantasy-mod-status] .fm-gold { color: #f2c14e; }
-          [data-fantasy-mod-status] .fm-skills { margin-top: 8px; padding-top: 7px; border-top: 1px solid #493b2d; }
-          [data-fantasy-mod-status] .fm-skills-title { display: block; margin-bottom: 5px; }
-          [data-fantasy-mod-status] .fm-skill + .fm-skill { margin-top: 6px; }
+          [data-fantasy-mod-status] .fm-skills { margin-top: 6px; padding-top: 5px; border-top: 1px solid #493b2d; }
+          [data-fantasy-mod-status] .fm-skills-title { display: block; margin-bottom: 3px; }
+          [data-fantasy-mod-status] .fm-skill + .fm-skill { margin-top: 4px; }
           [data-fantasy-mod-status] .fm-skill .fm-value { font-size: 10px; }
-          [data-fantasy-mod-status] .fm-skill-track { height: 5px; margin-top: 3px; border: 1px solid #493b2d; background: #100d0a; }
+          [data-fantasy-mod-status] .fm-skill-track { height: 4px; margin-top: 2px; border: 1px solid #493b2d; background: rgba(16, 13, 10, .72); }
           [data-fantasy-mod-status] .fm-skill-fill { height: 100%; background: #d98469; }
           [data-fantasy-mod-status] .fm-skill[data-skill="distance"] .fm-skill-fill { background: #8ef0a8; }
           [data-fantasy-mod-status] .fm-skill[data-skill="magic"] .fm-skill-fill { background: #8cc8ff; }
-          [data-fantasy-mod-status] .fm-idle { margin-top: 7px; padding: 6px 1px 0; border-top: 1px solid #493b2d; }
+          [data-fantasy-mod-status] .fm-idle { margin-top: 5px; padding: 4px 1px 0; border-top: 1px solid #493b2d; }
           [data-fantasy-mod-status] .fm-idle .fm-value { color: #8cc8ff; }
         </style>
         <div class="fm-head"><strong class="fm-title">STATUS</strong><span class="fm-state" data-active="false">EM ESPERA</span></div>
@@ -3465,7 +3465,7 @@
     const timersBottom = timers?.getClientRects().length ? timers.getBoundingClientRect().bottom : playerRect.bottom;
     const left = `${playerRect.left}px`;
     const top = `${Math.max(playerRect.bottom, timersBottom) + 5}px`;
-    const width = `${playerRect.width}px`;
+    const width = `${Math.min(playerRect.width, 240)}px`;
     if (panel.style.left !== left) panel.style.left = left;
     if (panel.style.top !== top) panel.style.top = top;
     if (panel.style.width !== width) panel.style.width = width;
