@@ -3401,26 +3401,51 @@
     if (!panel) {
       panel = document.createElement("section");
       panel.dataset.fantasyModStatus = "true";
-      Object.assign(panel.style, {
-        position: "fixed", zIndex: "2147483646", boxSizing: "border-box",
-        display: "grid", gap: "4px", padding: "6px 8px", color: "#efe4cc",
-        background: "rgba(42, 35, 28, 0.82)", border: "2px solid #0d0a07",
-        boxShadow: "inset 2px 2px 0 #574735, inset -2px -2px 0 #17120d",
-        fontFamily: '"Pixelify Num", "Pixelify Sans", monospace',
-        fontSize: "12px", lineHeight: "1.2", textShadow: "1px 1px #000",
-        pointerEvents: "none"
-      });
-      const title = document.createElement("strong");
-      title.textContent = "STATUS";
-      title.style.color = "#f2c14e";
-      title.style.fontSize = "11px";
-      const position = document.createElement("span");
-      const waypoint = document.createElement("span");
-      const gold = document.createElement("span");
-      const loops = document.createElement("span");
-      const idleCountdown = document.createElement("span");
-      panel.append(title, position, waypoint, gold, loops, idleCountdown);
       hud.append(panel);
+    }
+    if (panel.dataset.fantasyModStatusLayout !== "2") {
+      panel.dataset.fantasyModStatusLayout = "2";
+      panel.removeAttribute("style");
+      panel.innerHTML = `
+        <style>
+          [data-fantasy-mod-status] {
+            position: fixed; z-index: 2147483646; box-sizing: border-box;
+            padding: 9px; border: 2px solid #0d0a07; color: #efe4cc;
+            background: #241e19ed;
+            box-shadow: inset 1px 1px 0 #6d5739, inset -1px -1px 0 #100d0a, 0 5px 14px #0008;
+            font: 11px/1.3 "Pixelify Num", "Pixelify Sans", monospace;
+            text-shadow: 1px 1px #000; pointer-events: none;
+          }
+          [data-fantasy-mod-status] * { box-sizing: border-box; }
+          [data-fantasy-mod-status] [hidden] { display: none !important; }
+          [data-fantasy-mod-status] .fm-head,
+          [data-fantasy-mod-status] .fm-row,
+          [data-fantasy-mod-status] .fm-route-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+          [data-fantasy-mod-status] .fm-head { padding-bottom: 7px; border-bottom: 1px solid #5a4832; }
+          [data-fantasy-mod-status] .fm-title { color: #f2c14e; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+          [data-fantasy-mod-status] .fm-state { display: flex; align-items: center; gap: 5px; color: #b8a888; font-size: 9px; white-space: nowrap; }
+          [data-fantasy-mod-status] .fm-state::before { width: 6px; height: 6px; background: #8a7a62; content: ""; }
+          [data-fantasy-mod-status] .fm-state[data-active="true"] { color: #8ef0a8; }
+          [data-fantasy-mod-status] .fm-state[data-active="true"]::before { background: #8ef0a8; box-shadow: 0 0 6px #8ef0a888; }
+          [data-fantasy-mod-status] .fm-position { padding: 7px 1px; }
+          [data-fantasy-mod-status] .fm-label { color: #b8a888; font-size: 9px; letter-spacing: .05em; text-transform: uppercase; }
+          [data-fantasy-mod-status] .fm-value { min-width: 0; color: #efe4cc; font-size: 11px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+          [data-fantasy-mod-status] .fm-route { padding: 7px 8px; border: 1px solid #59472f; background: #17130f; }
+          [data-fantasy-mod-status] .fm-route[data-active="true"] { border-color: #8b6b33; background: #302515; }
+          [data-fantasy-mod-status] .fm-route-name { color: #f2c14e; font-size: 11px; font-weight: 700; }
+          [data-fantasy-mod-status] .fm-route-target { margin-top: 3px; color: #efe4cc; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+          [data-fantasy-mod-status] .fm-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 7px; }
+          [data-fantasy-mod-status] .fm-metric { min-width: 0; padding: 5px 7px; border: 1px solid #493b2d; background: #1b1712; }
+          [data-fantasy-mod-status] .fm-metric .fm-value { display: block; margin-top: 1px; text-align: left; font-size: 12px; }
+          [data-fantasy-mod-status] .fm-gold { color: #f2c14e; }
+          [data-fantasy-mod-status] .fm-idle { margin-top: 7px; padding: 6px 1px 0; border-top: 1px solid #493b2d; }
+          [data-fantasy-mod-status] .fm-idle .fm-value { color: #8cc8ff; }
+        </style>
+        <div class="fm-head"><strong class="fm-title">STATUS</strong><span class="fm-state" data-active="false">EM ESPERA</span></div>
+        <div class="fm-row fm-position"><span class="fm-label">Posição</span><span class="fm-value fm-position-value"></span></div>
+        <div class="fm-route" data-active="false"><div class="fm-route-head"><span class="fm-label">Destino</span><span class="fm-route-name"></span></div><div class="fm-route-target"></div></div>
+        <div class="fm-metrics"><div class="fm-metric"><span class="fm-label">Ouro</span><span class="fm-value fm-gold"></span></div><div class="fm-metric fm-loops"><span class="fm-label">Voltas</span><span class="fm-value fm-loops-value"></span></div></div>
+        <div class="fm-row fm-idle"><span class="fm-label">Aproximação</span><span class="fm-value fm-idle-value"></span></div>`;
     }
     const playerRect = playerCard.getBoundingClientRect();
     const timers = hud.querySelector(".temporizadores");
@@ -3431,27 +3456,41 @@
     if (panel.style.left !== left) panel.style.left = left;
     if (panel.style.top !== top) panel.style.top = top;
     if (panel.style.width !== width) panel.style.width = width;
-    while (panel.children.length < 6) panel.append(document.createElement("span"));
-    const [, positionLine, waypointLine, goldLine, loopsLine, idleLine] = panel.children;
+    const positionLine = panel.querySelector(".fm-position-value");
+    const routeCard = panel.querySelector(".fm-route");
+    const routeName = panel.querySelector(".fm-route-name");
+    const routeTarget = panel.querySelector(".fm-route-target");
+    const state = panel.querySelector(".fm-state");
+    const goldLine = panel.querySelector(".fm-gold");
+    const loopsCard = panel.querySelector(".fm-loops");
+    const loopsLine = panel.querySelector(".fm-loops-value");
+    const idleCard = panel.querySelector(".fm-idle");
+    const idleLine = panel.querySelector(".fm-idle-value");
     const positionText = Number.isInteger(myself.x) && Number.isInteger(myself.y)
-      ? `Posição: (${myself.x}, ${myself.y}) · andar ${myself.floor ?? "?"}`
-      : "Posição: aguardando dados";
+      ? `(${myself.x}, ${myself.y}) · andar ${myself.floor ?? "?"}`
+      : "Aguardando dados";
     const waypoint = huntState.currentWaypoint;
-    const waypointText = waypoint?.active
-      ? `Indo para waypoint ${waypoint.index}/${waypoint.total}: (${waypoint.x}, ${waypoint.y}) · andar ${waypoint.floor}`
-      : "Waypoint: parado";
+    const routeActive = Boolean(waypoint?.active);
+    const routeNameText = routeActive ? `Waypoint ${waypoint.index}/${waypoint.total}` : "Sem rota ativa";
+    const routeTargetText = routeActive ? `(${waypoint.x}, ${waypoint.y}) · andar ${waypoint.floor}` : "Aguardando destino";
     if (positionLine.textContent !== positionText) positionLine.textContent = positionText;
-    if (waypointLine.textContent !== waypointText) waypointLine.textContent = waypointText;
+    if (routeName.textContent !== routeNameText) routeName.textContent = routeNameText;
+    if (routeTarget.textContent !== routeTargetText) routeTarget.textContent = routeTargetText;
+    routeCard.dataset.active = String(routeActive);
+    state.dataset.active = String(routeActive);
+    const stateText = routeActive ? "EM ROTA" : "EM ESPERA";
+    if (state.textContent !== stateText) state.textContent = stateText;
     const goldText = myself.gold != null && Number.isFinite(Number(myself.gold))
-      ? `Ouro: ${Number(myself.gold).toLocaleString("pt-BR")}` : "Ouro: aguardando dados";
+      ? Number(myself.gold).toLocaleString("pt-BR") : "—";
     if (goldLine.textContent !== goldText) goldLine.textContent = goldText;
-    loopsLine.hidden = !huntState.waypointReverseEnabled;
-    const loopsText = `Voltas: ${waypointCompletedLoops}/${huntState.waypointReverseLoops}`;
+    loopsCard.hidden = !huntState.waypointReverseEnabled;
+    panel.querySelector(".fm-metrics").style.gridTemplateColumns = loopsCard.hidden ? "1fr" : "";
+    const loopsText = `${waypointCompletedLoops}/${huntState.waypointReverseLoops}`;
     if (loopsLine.textContent !== loopsText) loopsLine.textContent = loopsText;
     const idleSeconds = huntState.trainingIdleRemainingSeconds;
-    idleLine.hidden = !huntState.enabled || !huntState.training || !Number.isFinite(idleSeconds);
-    if (!idleLine.hidden) {
-      const idleText = `Aproximação: ${Math.floor(idleSeconds / 60)}:${String(idleSeconds % 60).padStart(2, "0")}`;
+    idleCard.hidden = !huntState.enabled || !huntState.training || !Number.isFinite(idleSeconds);
+    if (!idleCard.hidden) {
+      const idleText = `${Math.floor(idleSeconds / 60)}:${String(idleSeconds % 60).padStart(2, "0")}`;
       if (idleLine.textContent !== idleText) idleLine.textContent = idleText;
     }
   }
