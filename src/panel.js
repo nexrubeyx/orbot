@@ -468,7 +468,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.57</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.58</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -542,6 +542,8 @@
             <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✦</span><span class="menu-heading-copy"><strong>Treino automático</strong><small>Alvos, intervalo e viagem à cidade</small></span></div>
             <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo.</p>
+            <label class="pref"><input class="training-online-bonus" type="checkbox"> Ativar bônus de treino online com 3 min ou mais</label>
+            <p class="hint training-online-bonus-status">Usa o tempo disponível (grátis e pago) quando o treino automático estiver ativo. Não compra tempo.</p>
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
             <div class="training-mobs">
               <strong>Escolher mobs próximos</strong>
@@ -904,6 +906,8 @@
   const trainingToggle = root.querySelector(".training-toggle");
   const autoLootGoldToggles = root.querySelectorAll(".auto-loot-gold");
   const trainingStatus = root.querySelector(".training-status");
+  const trainingOnlineBonus = root.querySelector(".training-online-bonus");
+  const trainingOnlineBonusStatus = root.querySelector(".training-online-bonus-status");
   const trainingClass = root.querySelector(".training-class");
   const trainingCombatClass = root.querySelector(".training-combat-class");
   const trainingCombatMode = root.querySelector(".training-combat-mode");
@@ -1738,6 +1742,13 @@
     trainingCombatClassRow.hidden = trainingCombatMode.value !== "class";
     trainingWeaponOptions.hidden = trainingCombatMode.value !== "weapon";
     trainingEliteEnabled.checked = !!hunt?.trainingEliteEnabled;
+    trainingOnlineBonus.checked = !!hunt?.trainingOnlineBonusEnabled;
+    const online = window.mod?.myself?.online;
+    const availableOnlineSeconds = Number(online?.free ?? 0) + Number(online?.paid ?? 0);
+    const onlineSeconds = Number.isFinite(availableOnlineSeconds) ? Math.max(0, availableOnlineSeconds) : 0;
+    trainingOnlineBonusStatus.textContent = online
+      ? `Bônus ${online.on ? "ativo" : "inativo"} · ${Math.floor(onlineSeconds / 60)}:${String(Math.floor(onlineSeconds % 60)).padStart(2, "0")} disponíveis (grátis + pago). Não compra tempo.`
+      : "Aguardando tempo do jogo. Usa tempo grátis e pago já disponível; não compra tempo.";
     trainingExhaustedEnabled.checked = !!hunt?.trainingExhaustedEnabled;
     trainingWaypoints.checked = !!hunt?.trainingWaypoints;
     trainingCityOptions.bag.checked = hunt?.trainingCityBag !== false;
@@ -2399,6 +2410,7 @@
     window.mod?.setTrainingEliteOptions?.(trainingEliteEnabled.checked);
   };
   trainingEliteEnabled.addEventListener("change", saveTrainingEliteOptions);
+  trainingOnlineBonus.addEventListener("change", () => window.mod?.setTrainingOnlineBonus?.(trainingOnlineBonus.checked));
   const saveTrainingExhaustedOptions = () => {
     window.mod?.setTrainingExhaustedOptions?.(trainingExhaustedEnabled.checked);
   };

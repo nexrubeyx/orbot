@@ -512,6 +512,8 @@
   huntState.trainingEliteEnabled = false;
   huntState.trainingExhaustedEnabled = false;
   huntState.trainingWaypoints = false;
+  huntState.trainingOnlineBonusEnabled = false;
+  let nextOnlineTrainingAttemptAt = 0;
   huntState.trainingRadius = 4;
   huntState.trainingIdleMinutes = 0;
   huntState.trainingIdleRemainingSeconds = null;
@@ -588,6 +590,7 @@
     huntState.trainingEliteEnabled = localStorage.getItem("fantasy-mod-training-elite-enabled") === "true";
     huntState.trainingExhaustedEnabled = localStorage.getItem("fantasy-mod-training-exhausted-enabled") === "true";
     huntState.trainingWaypoints = localStorage.getItem("fantasy-mod-training-waypoints") === "true";
+    huntState.trainingOnlineBonusEnabled = localStorage.getItem("fantasy-mod-training-online-bonus") === "true";
     const previousCityReturn = localStorage.getItem("fantasy-mod-training-city-return") !== "false";
     huntState.trainingCityBag = (localStorage.getItem("fantasy-mod-training-city-bag") ?? String(previousCityReturn)) === "true";
     huntState.trainingCityArrows = (localStorage.getItem("fantasy-mod-training-city-arrows") ?? String(previousCityReturn)) === "true";
@@ -881,6 +884,28 @@
     try { localStorage.setItem("fantasy-mod-city-tp-item-id", value); } catch {}
     return { ok: true, itemId: value };
   };
+  mod.setTrainingOnlineBonus = enabled => {
+    huntState.trainingOnlineBonusEnabled = !!enabled;
+    if (!enabled) nextOnlineTrainingAttemptAt = 0;
+    try { localStorage.setItem("fantasy-mod-training-online-bonus", String(huntState.trainingOnlineBonusEnabled)); } catch {}
+    return { ok: true, enabled: huntState.trainingOnlineBonusEnabled };
+  };
+  function maybeActivateOnlineTraining() {
+    if (!huntState.enabled || !huntState.training || !huntState.trainingOnlineBonusEnabled || myself.dead) return;
+    const online = playerStats.online;
+    if (!online || online.on !== false) return;
+    const free = Number(online.free), paid = Number(online.paid ?? 0), stamina = Number(online.stamina);
+    if (!Number.isFinite(free) || !Number.isFinite(paid) || !Number.isFinite(stamina)
+      || Math.min(free + paid, stamina) < 180) return;
+    if (!gameSocket || gameSocket.readyState !== NativeWebSocket.OPEN || Date.now() < nextOnlineTrainingAttemptAt) return;
+    nextOnlineTrainingAttemptAt = Date.now() + 30000;
+    try {
+      gameSocket.send(JSON.stringify({ t: "online", on: true }));
+      mod.log("info", `Treino online: ativação solicitada com ${Math.floor(free + paid)} s disponíveis.`);
+    } catch (error) {
+      mod.log("warn", `Treino online: falha ao ativar: ${error?.message ?? error}`);
+    }
+  }
   mod.setTrainingEliteOptions = enabled => {
     huntState.trainingEliteEnabled = !!enabled;
     try {
@@ -4084,6 +4109,7 @@
       specialReady: playerStats.specialReady ?? myself.specialReady ?? null,
       autoSpecial: playerStats.autoSpecial ?? myself.autoSpecial ?? false,
       xp: playerStats.xp ?? myself.xp ?? null,
+      online: playerStats.online ?? null,
       dead: playerStats.dead ?? myself.dead ?? false,
       target: Object.hasOwn(playerStats, "target") ? playerStats.target : myself.target ?? null,
       updatedAt: Date.now()
@@ -4095,6 +4121,7 @@
       myself.dead = true;
       playerStats.dead = true;
     }
+    maybeActivateOnlineTraining();
     if (myself.dead) beginDeathRecovery();
     if (returnTravelStarted && savedHuntPosition
       && myself.floor === savedHuntPosition.floor
