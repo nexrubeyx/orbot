@@ -3403,8 +3403,8 @@
       panel.dataset.fantasyModStatus = "true";
       hud.append(panel);
     }
-    if (panel.dataset.fantasyModStatusLayout !== "2") {
-      panel.dataset.fantasyModStatusLayout = "2";
+    if (panel.dataset.fantasyModStatusLayout !== "3") {
+      panel.dataset.fantasyModStatusLayout = "3";
       panel.removeAttribute("style");
       panel.innerHTML = `
         <style>
@@ -3438,6 +3438,14 @@
           [data-fantasy-mod-status] .fm-metric { min-width: 0; padding: 5px 7px; border: 1px solid #493b2d; background: #1b1712; }
           [data-fantasy-mod-status] .fm-metric .fm-value { display: block; margin-top: 1px; text-align: left; font-size: 12px; }
           [data-fantasy-mod-status] .fm-gold { color: #f2c14e; }
+          [data-fantasy-mod-status] .fm-skills { margin-top: 8px; padding-top: 7px; border-top: 1px solid #493b2d; }
+          [data-fantasy-mod-status] .fm-skills-title { display: block; margin-bottom: 5px; }
+          [data-fantasy-mod-status] .fm-skill + .fm-skill { margin-top: 6px; }
+          [data-fantasy-mod-status] .fm-skill .fm-value { font-size: 10px; }
+          [data-fantasy-mod-status] .fm-skill-track { height: 5px; margin-top: 3px; border: 1px solid #493b2d; background: #100d0a; }
+          [data-fantasy-mod-status] .fm-skill-fill { height: 100%; background: #d98469; }
+          [data-fantasy-mod-status] .fm-skill[data-skill="distance"] .fm-skill-fill { background: #8ef0a8; }
+          [data-fantasy-mod-status] .fm-skill[data-skill="magic"] .fm-skill-fill { background: #8cc8ff; }
           [data-fantasy-mod-status] .fm-idle { margin-top: 7px; padding: 6px 1px 0; border-top: 1px solid #493b2d; }
           [data-fantasy-mod-status] .fm-idle .fm-value { color: #8cc8ff; }
         </style>
@@ -3445,6 +3453,11 @@
         <div class="fm-row fm-position"><span class="fm-label">Posição</span><span class="fm-value fm-position-value"></span></div>
         <div class="fm-route" data-active="false"><div class="fm-route-head"><span class="fm-label">Destino</span><span class="fm-route-name"></span></div><div class="fm-route-target"></div></div>
         <div class="fm-metrics"><div class="fm-metric"><span class="fm-label">Ouro</span><span class="fm-value fm-gold"></span></div><div class="fm-metric fm-loops"><span class="fm-label">Voltas</span><span class="fm-value fm-loops-value"></span></div></div>
+        <div class="fm-skills"><span class="fm-label fm-skills-title">Skills</span>
+          <div class="fm-skill" data-skill="melee"><div class="fm-row"><span class="fm-label">Melee</span><span class="fm-value"></span></div><div class="fm-skill-track"><div class="fm-skill-fill"></div></div></div>
+          <div class="fm-skill" data-skill="distance"><div class="fm-row"><span class="fm-label">Distance</span><span class="fm-value"></span></div><div class="fm-skill-track"><div class="fm-skill-fill"></div></div></div>
+          <div class="fm-skill" data-skill="magic"><div class="fm-row"><span class="fm-label">Magic</span><span class="fm-value"></span></div><div class="fm-skill-track"><div class="fm-skill-fill"></div></div></div>
+        </div>
         <div class="fm-row fm-idle"><span class="fm-label">Aproximação</span><span class="fm-value fm-idle-value"></span></div>`;
     }
     const playerRect = playerCard.getBoundingClientRect();
@@ -3487,6 +3500,21 @@
     panel.querySelector(".fm-metrics").style.gridTemplateColumns = loopsCard.hidden ? "1fr" : "";
     const loopsText = `${waypointCompletedLoops}/${huntState.waypointReverseLoops}`;
     if (loopsLine.textContent !== loopsText) loopsLine.textContent = loopsText;
+    for (const skill of panel.querySelectorAll(".fm-skill")) {
+      const name = skill.dataset.skill;
+      const level = playerStats.skills?.[name];
+      const progress = playerStats.skillProg?.[name];
+      const levelText = level != null && Number.isFinite(Number(level)) ? `Lv ${Number(level)}` : "Lv —";
+      const percent = progress != null && Number.isFinite(Number(progress))
+        ? Math.max(0, Math.min(100, Number(progress) * 100)) : null;
+      const percentText = percent == null ? "—" : `${percent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+      const value = skill.querySelector(".fm-value");
+      const text = `${levelText} · ${percentText}`;
+      if (value.textContent !== text) value.textContent = text;
+      const fill = skill.querySelector(".fm-skill-fill");
+      const width = `${percent ?? 0}%`;
+      if (fill.style.width !== width) fill.style.width = width;
+    }
     const idleSeconds = huntState.trainingIdleRemainingSeconds;
     idleCard.hidden = !huntState.enabled || !huntState.training || !Number.isFinite(idleSeconds);
     if (!idleCard.hidden) {
