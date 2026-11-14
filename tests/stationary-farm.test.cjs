@@ -38,6 +38,60 @@ test('Farm Parado targets and casts while the pathfinder map is loading', () => 
   assert.match(result.status, /Atacando Rat/);
 });
 
+test('a player between the character and creature does not block an attack', () => {
+  for (const path of ['../src/observer.js', '../../client/android/app/src/main/assets/bot.js']) {
+    const script = readFileSync(require.resolve(path), 'utf8');
+    const lineOfSight = script.slice(script.indexOf('  function hasAttackLine('), script.indexOf('  function isEliteCreature('));
+    const canAttack = new Function(`
+      const myself = { id: 1, x: 10, y: 10, floor: 0 };
+      const target = { id: 3, x: 12, y: 10 };
+      const entities = new Map([
+        [2, { id: 2, k: 0, x: 11, y: 10, f: 0 }],
+        [3, { id: 3, k: 1, x: 12, y: 10, f: 0 }]
+      ]);
+      const currentWalls = [];
+      const gameWorld = { isWalkable: () => true };
+      ${lineOfSight}
+      const throughPlayer = hasAttackLine(myself.x, myself.y, target);
+      entities.set(2, { id: 2, k: 1, x: 11, y: 10, f: 0 });
+      const throughCreature = hasAttackLine(myself.x, myself.y, target);
+      entities.delete(2);
+      currentWalls.push([11, 10]);
+      const throughWall = hasAttackLine(myself.x, myself.y, target);
+      return { throughPlayer, throughCreature, throughWall };
+    `)();
+    assert.deepEqual(canAttack, { throughPlayer: true, throughCreature: false, throughWall: false }, path);
+  }
+});
+
+test('hunt keeps an in-range creature when a player blocks the walking route', () => {
+  for (const path of ['../src/observer.js', '../../client/android/app/src/main/assets/bot.js']) {
+    const script = readFileSync(require.resolve(path), 'utf8');
+    const pathDistance = script.slice(script.indexOf('  const creaturePathDistanceCache = new Map();'), script.indexOf('  function creaturesWithinPathRadius('));
+    const lineOfSight = script.slice(script.indexOf('  function hasAttackLine('), script.indexOf('  function isEliteCreature('));
+    const result = new Function(`
+      const myself = { id: 1, x: 10, y: 10, floor: 0, cls: 2 };
+      const playerStats = { cls: 2 };
+      const huntState = { training: false, attackRange: 4 };
+      const target = { id: 3, x: 12, y: 10 };
+      const entities = new Map([
+        [2, { id: 2, k: 0, x: 11, y: 10, f: 0 }],
+        [3, { id: 3, k: 1, x: 12, y: 10, f: 0 }]
+      ]);
+      const currentWalls = [];
+      const gameWorld = { isWalkable: () => true, findPath: () => null };
+      ${lineOfSight}
+      ${pathDistance}
+      const withPlayer = creaturePathDistance(target);
+      currentWalls.push([11, 10]);
+      const withWall = creaturePathDistance(target);
+      return { withPlayer, withWall };
+    `)();
+    assert.equal(result.withPlayer, 2, path);
+    assert.equal(result.withWall, Infinity, path);
+  }
+});
+
 test('an acknowledged target object does not cause repeated target packets', () => {
   const targeting = between('  function ensureHuntTarget(', '  function processStationaryFarm(');
   const result = new Function(`

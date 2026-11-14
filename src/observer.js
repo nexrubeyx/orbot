@@ -1547,6 +1547,10 @@
     if (!gameWorld || !Number.isInteger(myself.x) || !Number.isInteger(myself.y)
       || !Number.isInteger(creature?.x) || !Number.isInteger(creature?.y)) return Infinity;
     if (myself.x === creature.x && myself.y === creature.y) return 0;
+    const directDistance = Math.max(Math.abs(myself.x - creature.x), Math.abs(myself.y - creature.y));
+    const classReach = Number(playerStats.cls ?? playerStats.cl ?? myself.cls) === 0 ? 1 : 4;
+    const attackReach = huntState.training ? classReach : Math.min(classReach, Number(huntState.attackRange) || 1);
+    if (directDistance <= attackReach && hasAttackLine(myself.x, myself.y, creature)) return directDistance;
     const cacheKey = `${myself.floor}:${myself.x},${myself.y}:${creature.id}:${creature.x},${creature.y}`;
     if (creaturePathDistanceCache.has(cacheKey)) return creaturePathDistanceCache.get(cacheKey);
     const blocked = new Set(currentWalls.map(([x, y]) => `${x},${y}`));
@@ -2118,7 +2122,7 @@
     const blockers = new Set();
     for (const [id, entity] of entities) {
       if (String(id) === String(myself.id) || String(id) === String(target.id)
-        || entity.x == null || entity.y == null || entity.k === 3 || entity.tr
+        || entity.x == null || entity.y == null || entity.k === 0 || entity.k === 3 || entity.tr
         || (entity.f != null && entity.f !== myself.floor)) continue;
       blockers.add(`${entity.x},${entity.y}`);
     }
