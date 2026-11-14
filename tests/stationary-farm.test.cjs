@@ -19,7 +19,7 @@ test('Farm Parado targets and casts while the pathfinder map is loading', () => 
     const gameWorld = null;
     const playerStats = { cls: 2, autoSpecial: false, specialReady: 0, target: null };
     const classIds = { melee: 0, distance: 1, mage: 2 };
-    const stationaryFarm = { className: 'current', types: ['rat'], range: 4, useSkill: true };
+    const stationaryFarm = { className: 'current', range: 4, useSkill: true };
     const mod = {
       creaturesNearby: () => [{ id: 2, type: 'rat', name: 'Rat', x: 12, y: 10, distance: 2 }],
       targetCreature: id => { sent.push({ t: 'target', id }); return { ok: true }; },
@@ -50,6 +50,23 @@ test('an acknowledged target object does not cause repeated target packets', () 
   assert.equal(result, true);
 });
 
+test('Farm Parado starts without a configured creature list', () => {
+  const start = between('  mod.startStationaryFarm =', '  mod.stopStationaryFarm =');
+  const result = new Function(`
+    const myself = { dead: false };
+    const huntState = { enabled: false, lureEnabled: false, resumeAfterReturn: false };
+    const focusState = { enabled: false };
+    const stationaryFarm = { enabled: false };
+    const mod = { waypointRecording: { enabled: false } };
+    const cityTripInProgress = () => false;
+    const waypointTravel = null, initialHuntTravel = null;
+    let stationaryTargetId = null;
+    ${start}
+    return { outcome: mod.startStationaryFarm(), enabled: stationaryFarm.enabled };
+  `)();
+  assert.deepEqual(result, { outcome: { ok: true }, enabled: true });
+});
+
 test('Farm Parado waits for melee range before selecting a target or using a skill', () => {
   const farm = between('  function processStationaryFarm(', '  function processFocusTarget(');
   const result = new Function(`
@@ -59,7 +76,7 @@ test('Farm Parado waits for melee range before selecting a target or using a ski
     const myself = { x: 10, y: 10, floor: 0 };
     const playerStats = { cls: 0, target: null };
     const classIds = { melee: 0 };
-    const stationaryFarm = { className: 'current', types: ['rat'], range: 4, useSkill: true };
+    const stationaryFarm = { className: 'current', range: 4, useSkill: true };
     let distance = 2;
     const mod = {
       creaturesNearby: range => [{ id: 2, type: 'rat', name: 'Rat', distance }].filter(c => c.distance <= range),

@@ -468,7 +468,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.64</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.65</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -540,17 +540,12 @@
           <section class="page" data-section="stationary" hidden>
             <h2>Farm Parado</h2>
             <section class="hunt menu-block" aria-label="Configuração do Farm Parado">
-              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">⚔</span><span class="menu-heading-copy"><strong>Atacar sem andar</strong><small>Somente criaturas selecionadas e ao alcance</small></span></div>
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">⚔</span><span class="menu-heading-copy"><strong>Atacar sem andar</strong><small>Seleciona automaticamente mobs ao alcance</small></span></div>
               <button class="hunt-toggle stationary-toggle" type="button">Iniciar Farm Parado</button>
               <label class="attack-range">Classe<select class="stationary-class"><option value="current">Manter atual</option><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
-              <label class="attack-range">Alcance de ataque<select class="stationary-range"><option value="1">Corpo a corpo — 1 tile</option><option value="4">À distância — até 4 tiles</option></select></label>
+              <label class="attack-range">Alcance máximo<select class="stationary-range"><option value="1">1 tile</option><option value="4">Até 4 tiles (1 para Melee)</option></select></label>
               <label class="pref"><input class="stationary-skill" type="checkbox"> Usar habilidade especial</label>
-              <p class="hint">Ataca apenas os tipos marcados abaixo, sem andar e sem coletar loot.</p>
-              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">◎</span><span class="menu-heading-copy"><strong>Mobs perto de mim</strong><small>Selecione pelos mobs visíveis em até 10 tiles</small></span></div>
-              <div class="target-list stationary-nearby" aria-live="polite"></div>
-              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">◇</span><span class="menu-heading-copy"><strong>Todos os mobs</strong><small>Também é possível configurar alvos antecipadamente</small></span></div>
-              <input class="target-search stationary-search" type="search" placeholder="Filtrar criaturas…" aria-label="Filtrar criaturas do Farm Parado">
-              <div class="target-list stationary-list" aria-live="polite"></div>
+              <p class="hint">Ataca automaticamente mobs ao alcance, sem seguir nem coletar loot. As teclas do jogo continuam disponíveis.</p>
               <p class="hint stationary-status" role="status" aria-live="polite">Farm parado desligado</p>
             </section>
           </section>
@@ -926,9 +921,6 @@
   const stationaryClass = root.querySelector(".stationary-class");
   const stationaryRange = root.querySelector(".stationary-range");
   const stationarySkill = root.querySelector(".stationary-skill");
-  const stationarySearch = root.querySelector(".stationary-search");
-  const stationaryNearby = root.querySelector(".stationary-nearby");
-  const stationaryList = root.querySelector(".stationary-list");
   const stationaryStatus = root.querySelector(".stationary-status");
   const trainingToggle = root.querySelector(".training-toggle");
   const autoLootGoldToggles = root.querySelectorAll(".auto-loot-gold");
@@ -1093,7 +1085,6 @@
     try { localStorage.setItem("fantasy-mod-panel-page", name); } catch {}
     if (name === "console") showConsole();
     if (name === "training") renderTrainingMobs();
-    if (name === "stationary") { renderStationaryTargets(); renderStationaryNearby(); }
     if (name === "captcha") renderCaptchaHistory(true);
   };
   let initialPage = "creatures";
@@ -2308,119 +2299,6 @@
     }
   }
 
-  function setStationaryType(type, enabled) {
-    const next = new Set(window.mod?.stationaryFarm?.types ?? []);
-    if (enabled) next.add(String(type));
-    else next.delete(String(type));
-    const outcome = window.mod?.setStationaryFarmOptions?.({ types: [...next] });
-    if (!outcome?.ok) stationaryStatus.textContent = outcome?.error ?? "Não foi possível salvar os alvos.";
-    stationaryList.dataset.signature = "";
-    stationaryNearby.dataset.signature = "";
-    renderStationaryTargets();
-    renderStationaryNearby();
-  }
-
-  function renderStationaryNearby() {
-    const nearby = window.mod?.creaturesNearby?.(10) ?? [];
-    const selected = new Set(window.mod?.stationaryFarm?.types ?? []);
-    const grouped = new Map();
-    for (const creature of nearby) {
-      if (creature.type == null) continue;
-      const type = String(creature.type);
-      const existing = grouped.get(type);
-      if (existing) existing.count++;
-      else grouped.set(type, { type, name: creature.name, distance: creature.distance, count: 1 });
-    }
-    const entries = [...grouped.values()];
-    const signature = `${JSON.stringify(entries)}|${JSON.stringify([...selected])}`;
-    if (stationaryNearby.dataset.signature === signature) return;
-    stationaryNearby.dataset.signature = signature;
-    stationaryNearby.replaceChildren();
-    if (!entries.length) {
-      const empty = document.createElement("p");
-      empty.className = "empty-creatures";
-      empty.textContent = window.mod?.creatureSearchStatus === "Aguardando posição do personagem"
-        ? "Aguardando posição do personagem."
-        : "Nenhum mob visível em até 10 tiles.";
-      stationaryNearby.append(empty);
-      return;
-    }
-    const sprites = new Map((window.mod?.monsterCatalog ?? []).map(entry => [String(entry.type), entry.sprite]));
-    for (const creature of entries) {
-      const row = document.createElement("label");
-      row.className = "target-row";
-      const sprite = sprites.get(creature.type);
-      if (sprite) {
-        const image = document.createElement("img");
-        image.src = sprite;
-        image.alt = "";
-        row.append(image);
-      } else {
-        const icon = document.createElement("span");
-        icon.className = "target-placeholder";
-        icon.textContent = "IMG";
-        row.append(icon);
-      }
-      const details = document.createElement("span");
-      const name = document.createElement("span");
-      name.className = "target-name";
-      name.textContent = creature.name;
-      const info = document.createElement("small");
-      info.className = "target-type";
-      info.textContent = `${creature.distance} tile(s) · ${creature.count} perto de você`;
-      details.append(name, document.createElement("br"), info);
-      const toggle = document.createElement("input");
-      toggle.type = "checkbox";
-      toggle.checked = selected.has(creature.type);
-      toggle.setAttribute("aria-label", `Atacar ${creature.name} no Farm Parado`);
-      toggle.addEventListener("change", () => setStationaryType(creature.type, toggle.checked));
-      row.append(details, toggle);
-      stationaryNearby.append(row);
-    }
-  }
-
-  function renderStationaryTargets() {
-    const catalog = window.mod?.monsterCatalog ?? [];
-    const selected = new Set(window.mod?.stationaryFarm?.types ?? []);
-    const filter = stationarySearch.value.trim().toLocaleLowerCase();
-    const signature = `${JSON.stringify(catalog.map(creature => [creature.type, creature.name]))}|${JSON.stringify([...selected])}|${filter}`;
-    if (stationaryList.dataset.signature === signature) return;
-    stationaryList.dataset.signature = signature;
-    stationaryList.replaceChildren();
-    if (!catalog.length) {
-      const empty = document.createElement("p");
-      empty.className = "empty-creatures";
-      empty.textContent = "Aguardando os dados das criaturas do jogo…";
-      stationaryList.append(empty);
-      return;
-    }
-    for (const creature of catalog.filter(entry => `${entry.name} ${entry.type}`.toLocaleLowerCase().includes(filter))) {
-      const row = document.createElement("label");
-      row.className = "target-row";
-      if (creature.sprite) {
-        const image = document.createElement("img");
-        image.src = creature.sprite;
-        image.alt = "";
-        row.append(image);
-      } else {
-        const icon = document.createElement("span");
-        icon.className = "target-placeholder";
-        icon.textContent = "IMG";
-        row.append(icon);
-      }
-      const name = document.createElement("span");
-      name.className = "target-name";
-      name.textContent = creature.name;
-      const toggle = document.createElement("input");
-      toggle.type = "checkbox";
-      toggle.checked = selected.has(String(creature.type));
-      toggle.setAttribute("aria-label", `Atacar ${creature.name} no Farm Parado`);
-      toggle.addEventListener("change", () => setStationaryType(creature.type, toggle.checked));
-      row.append(name, toggle);
-      stationaryList.append(row);
-    }
-  }
-
   function showCreatures() {
     const radius = Math.max(1, Math.min(100, Number(creatureRadius.value) || 10));
     creatureRadius.value = String(radius);
@@ -2477,7 +2355,6 @@
 
   root.querySelector(".search").addEventListener("click", showCreatures);
   targetSearch.addEventListener("input", showTargets);
-  stationarySearch.addEventListener("input", renderStationaryTargets);
   stationaryClass.addEventListener("change", () => {
     const outcome = window.mod?.setStationaryFarmOptions?.({ className: stationaryClass.value });
     if (!outcome?.ok) stationaryStatus.textContent = outcome?.error ?? "Não foi possível salvar a classe.";
@@ -2657,7 +2534,6 @@
     if (!backdrop.hidden) renderCityTravel();
     if (!backdrop.hidden) renderCaptchaStatus();
     if (!backdrop.hidden && root.querySelector('[data-section="captcha"]')?.hidden === false) renderCaptchaHistory();
-    if (!backdrop.hidden && root.querySelector('[data-section="stationary"]')?.hidden === false) renderStationaryNearby();
     if (!backdrop.hidden) showResourceCounts();
     if (!backdrop.hidden) renderRefillItems();
     if (!backdrop.hidden) syncHuntUI();

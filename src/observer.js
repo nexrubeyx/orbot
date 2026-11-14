@@ -536,21 +536,15 @@
     focusState.followTarget = localStorage.getItem("fantasy-mod-focus-follow-target") !== "false";
   } catch {}
   focusState.status = "Focar desligado";
-  const stationaryFarm = mod.stationaryFarm = { enabled: false, types: [], range: 4, className: "current", useSkill: true, status: "Farm parado desligado" };
+  const stationaryFarm = mod.stationaryFarm = { enabled: false, range: 4, className: "current", useSkill: true, status: "Farm parado desligado" };
   let stationaryTargetId = null;
   try {
-    const savedTypes = JSON.parse(localStorage.getItem("fantasy-mod-stationary-types") ?? "[]");
-    if (Array.isArray(savedTypes)) stationaryFarm.types = [...new Set(savedTypes.map(String))];
     stationaryFarm.range = Number(localStorage.getItem("fantasy-mod-stationary-range")) === 1 ? 1 : 4;
     const savedClass = localStorage.getItem("fantasy-mod-stationary-class");
     stationaryFarm.className = ["current", "melee", "distance", "mage"].includes(savedClass) ? savedClass : "current";
     stationaryFarm.useSkill = localStorage.getItem("fantasy-mod-stationary-skill") !== "false";
   } catch {}
   mod.setStationaryFarmOptions = options => {
-    if (options.types !== undefined) {
-      if (!Array.isArray(options.types)) return { ok: false, error: "Lista de criaturas inválida." };
-      stationaryFarm.types = [...new Set(options.types.map(String))];
-    }
     if (options.range !== undefined) {
       if (![1, 4].includes(Number(options.range))) return { ok: false, error: "O alcance deve ser 1 ou 4 tiles." };
       stationaryFarm.range = Number(options.range);
@@ -561,7 +555,6 @@
     }
     if (options.useSkill !== undefined) stationaryFarm.useSkill = !!options.useSkill;
     try {
-      localStorage.setItem("fantasy-mod-stationary-types", JSON.stringify(stationaryFarm.types));
       localStorage.setItem("fantasy-mod-stationary-range", String(stationaryFarm.range));
       localStorage.setItem("fantasy-mod-stationary-class", stationaryFarm.className);
       localStorage.setItem("fantasy-mod-stationary-skill", String(stationaryFarm.useSkill));
@@ -570,7 +563,6 @@
   };
   mod.startStationaryFarm = () => {
     if (myself.dead) return { ok: false, error: "O personagem morreu." };
-    if (!stationaryFarm.types.length) return { ok: false, error: "Selecione pelo menos uma criatura no Farm Parado." };
     if (huntState.enabled || huntState.lureEnabled || huntState.resumeAfterReturn || focusState.enabled
       || cityTripInProgress() || waypointTravel || initialHuntTravel || mod.waypointRecording?.enabled) {
       return { ok: false, error: "Pare a caça, o treino, o Focar ou a viagem antes de iniciar o Farm Parado." };
@@ -1871,11 +1863,8 @@
     // active class's normal reach even if a wider search range was selected.
     const attackRange = Math.min(stationaryFarm.range,
       Number(playerStats.cls ?? playerStats.cl ?? myself.cls) === classIds.melee ? 1 : 4);
-    const selected = new Set(stationaryFarm.types);
     const candidates = mod.creaturesNearby(attackRange)
-      .filter(creature => selected.has(String(creature.type))
-        && !isAttackedByAnotherPlayer(creature)
-        && hasAttackLine(myself.x, myself.y, creature, true));
+      .filter(creature => hasAttackLine(myself.x, myself.y, creature, true));
     const serverTarget = playerStats.target && typeof playerStats.target === "object"
       ? playerStats.target.id : playerStats.target;
     const current = candidates.find(creature => String(creature.id) === String(serverTarget ?? stationaryTargetId));
