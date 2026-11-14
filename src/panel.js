@@ -468,12 +468,13 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.59</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.60</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
           <button class="side-link" data-page="targets">Alvos</button>
           <button class="side-link" data-page="hunt">Sistema de caça</button>
+          <button class="side-link" data-page="stationary">Farm Parado</button>
           <button class="side-link" data-page="training">Treino</button>
           <button class="side-link" data-page="captcha">Captcha</button>
           <button class="side-link" data-page="focus">Focar</button>
@@ -535,6 +536,19 @@
                 <p class="hunt-status lure-route-status">Lure desligado</p>
               </div>
             </div>
+          </section>
+          <section class="page" data-section="stationary" hidden>
+            <h2>Farm Parado</h2>
+            <section class="hunt menu-block" aria-label="Configuração do Farm Parado">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">⚔</span><span class="menu-heading-copy"><strong>Atacar sem andar</strong><small>Somente criaturas selecionadas e ao alcance</small></span></div>
+              <button class="hunt-toggle stationary-toggle" type="button">Iniciar Farm Parado</button>
+              <label class="attack-range">Alcance de ataque<select class="stationary-range"><option value="1">Corpo a corpo — 1 tile</option><option value="4">À distância — até 4 tiles</option></select></label>
+              <label class="pref"><input class="stationary-skill" type="checkbox"> Usar habilidade especial</label>
+              <p class="hint">Ataca apenas os tipos marcados abaixo, sem andar e sem coletar loot.</p>
+              <input class="target-search stationary-search" type="search" placeholder="Filtrar criaturas…" aria-label="Filtrar criaturas do Farm Parado">
+              <div class="target-list stationary-list" aria-live="polite"></div>
+              <p class="hint stationary-status" role="status" aria-live="polite">Farm parado desligado</p>
+            </section>
           </section>
           <section class="page" data-section="training" hidden>
             <h2>Treino</h2>
@@ -904,6 +918,12 @@
   const protectedSellCount = root.querySelector(".protected-sell-count");
   const protectedInventoryList = root.querySelector(".protected-inventory-list");
   const huntToggle = root.querySelector(".hunt-toggle");
+  const stationaryToggle = root.querySelector(".stationary-toggle");
+  const stationaryRange = root.querySelector(".stationary-range");
+  const stationarySkill = root.querySelector(".stationary-skill");
+  const stationarySearch = root.querySelector(".stationary-search");
+  const stationaryList = root.querySelector(".stationary-list");
+  const stationaryStatus = root.querySelector(".stationary-status");
   const trainingToggle = root.querySelector(".training-toggle");
   const autoLootGoldToggles = root.querySelectorAll(".auto-loot-gold");
   const trainingStatus = root.querySelector(".training-status");
@@ -1038,6 +1058,8 @@
   renderCityTravel();
   focusSkillToggle.checked = !!window.mod?.focus?.useSkill;
   focusFollowToggle.checked = window.mod?.focus?.followTarget !== false;
+  stationaryRange.value = String(window.mod?.stationaryFarm?.range ?? 4);
+  stationarySkill.checked = window.mod?.stationaryFarm?.useSkill !== false;
   focusStatus.textContent = window.mod?.focus?.status ?? "Focar desligado";
   const setRefillStatus = value => {
     const detail = String(value ?? "Pronto");
@@ -1064,6 +1086,7 @@
     try { localStorage.setItem("fantasy-mod-panel-page", name); } catch {}
     if (name === "console") showConsole();
     if (name === "training") renderTrainingMobs();
+    if (name === "stationary") renderStationaryTargets();
     if (name === "captcha") renderCaptchaHistory(true);
   };
   let initialPage = "creatures";
@@ -1717,6 +1740,12 @@
 
   function syncHuntUI() {
     const hunt = window.mod?.hunt;
+    const stationary = window.mod?.stationaryFarm;
+    stationaryToggle.textContent = stationary?.enabled ? "Parar Farm Parado" : "Iniciar Farm Parado";
+    stationaryToggle.dataset.active = String(!!stationary?.enabled);
+    stationaryStatus.textContent = stationary?.status ?? "Farm parado desligado";
+    if (root.activeElement !== stationaryRange) stationaryRange.value = String(stationary?.range ?? 4);
+    stationarySkill.checked = stationary?.useSkill !== false;
     const active = !!(hunt?.enabled || hunt?.resumeAfterReturn);
     const lureActive = !!hunt?.lureEnabled;
     waypointLureToggle.checked = lureActive;
@@ -2271,6 +2300,56 @@
     }
   }
 
+  function renderStationaryTargets() {
+    const catalog = window.mod?.monsterCatalog ?? [];
+    const selected = new Set(window.mod?.stationaryFarm?.types ?? []);
+    const filter = stationarySearch.value.trim().toLocaleLowerCase();
+    const signature = `${JSON.stringify(catalog.map(creature => [creature.type, creature.name]))}|${JSON.stringify([...selected])}|${filter}`;
+    if (stationaryList.dataset.signature === signature) return;
+    stationaryList.dataset.signature = signature;
+    stationaryList.replaceChildren();
+    if (!catalog.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty-creatures";
+      empty.textContent = "Aguardando os dados das criaturas do jogo…";
+      stationaryList.append(empty);
+      return;
+    }
+    for (const creature of catalog.filter(entry => `${entry.name} ${entry.type}`.toLocaleLowerCase().includes(filter))) {
+      const row = document.createElement("label");
+      row.className = "target-row";
+      if (creature.sprite) {
+        const image = document.createElement("img");
+        image.src = creature.sprite;
+        image.alt = "";
+        row.append(image);
+      } else {
+        const icon = document.createElement("span");
+        icon.className = "target-placeholder";
+        icon.textContent = "IMG";
+        row.append(icon);
+      }
+      const name = document.createElement("span");
+      name.className = "target-name";
+      name.textContent = creature.name;
+      const toggle = document.createElement("input");
+      toggle.type = "checkbox";
+      toggle.checked = selected.has(String(creature.type));
+      toggle.setAttribute("aria-label", `Atacar ${creature.name} no Farm Parado`);
+      toggle.addEventListener("change", () => {
+        const next = new Set(window.mod?.stationaryFarm?.types ?? []);
+        if (toggle.checked) next.add(String(creature.type));
+        else next.delete(String(creature.type));
+        const outcome = window.mod?.setStationaryFarmOptions?.({ types: [...next] });
+        if (!outcome?.ok) stationaryStatus.textContent = outcome?.error ?? "Não foi possível salvar os alvos.";
+        stationaryList.dataset.signature = "";
+        renderStationaryTargets();
+      });
+      row.append(name, toggle);
+      stationaryList.append(row);
+    }
+  }
+
   function showCreatures() {
     const radius = Math.max(1, Math.min(100, Number(creatureRadius.value) || 10));
     creatureRadius.value = String(radius);
@@ -2327,6 +2406,21 @@
 
   root.querySelector(".search").addEventListener("click", showCreatures);
   targetSearch.addEventListener("input", showTargets);
+  stationarySearch.addEventListener("input", renderStationaryTargets);
+  stationaryRange.addEventListener("change", () => {
+    const outcome = window.mod?.setStationaryFarmOptions?.({ range: Number(stationaryRange.value) });
+    if (!outcome?.ok) stationaryStatus.textContent = outcome?.error ?? "Não foi possível salvar o alcance.";
+  });
+  stationarySkill.addEventListener("change", () => {
+    const outcome = window.mod?.setStationaryFarmOptions?.({ useSkill: stationarySkill.checked });
+    if (!outcome?.ok) stationaryStatus.textContent = outcome?.error ?? "Não foi possível salvar a habilidade.";
+  });
+  stationaryToggle.addEventListener("click", () => {
+    const outcome = window.mod?.stationaryFarm?.enabled
+      ? window.mod?.stopStationaryFarm?.() : window.mod?.startStationaryFarm?.();
+    if (!outcome?.ok) stationaryStatus.textContent = outcome?.error ?? "Farm Parado indisponível.";
+    else syncHuntUI();
+  });
   root.querySelector(".targets-all").addEventListener("click", () => { window.mod?.setTargetsEnabled?.(true); targetList.dataset.signature = ""; showTargets(); });
   root.querySelector(".targets-none").addEventListener("click", () => { window.mod?.setTargetsEnabled?.(false); targetList.dataset.signature = ""; showTargets(); });
   waypointRecord.addEventListener("click", () => {

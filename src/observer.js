@@ -460,7 +460,7 @@
     const inModPanel = path.some(node => node?.id === "fantasy-mod-panel-host");
     const target = event.target;
     const isTextInput = target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? "");
-    const huntActive = !!(window.mod?.hunt?.enabled || window.mod?.hunt?.lureEnabled || window.mod?.hunt?.resumeAfterReturn);
+    const huntActive = !!(window.mod?.hunt?.enabled || window.mod?.hunt?.lureEnabled || window.mod?.hunt?.resumeAfterReturn || window.mod?.stationaryFarm?.enabled);
     if (inModPanel) {
       // Keep browser defaults (typing, arrows, checkbox toggles), but keep the
       // game listeners from seeing keys pressed while operating the mod panel.
@@ -483,7 +483,8 @@
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      window.mod.stopHunt?.();
+      if (window.mod?.stationaryFarm?.enabled) window.mod.stopStationaryFarm?.();
+      else window.mod.stopHunt?.();
       return;
     }
     event.preventDefault();
@@ -535,6 +536,50 @@
     focusState.followTarget = localStorage.getItem("fantasy-mod-focus-follow-target") !== "false";
   } catch {}
   focusState.status = "Focar desligado";
+  const stationaryFarm = mod.stationaryFarm = { enabled: false, types: [], range: 4, useSkill: true, status: "Farm parado desligado" };
+  let stationaryTargetId = null;
+  try {
+    const savedTypes = JSON.parse(localStorage.getItem("fantasy-mod-stationary-types") ?? "[]");
+    if (Array.isArray(savedTypes)) stationaryFarm.types = [...new Set(savedTypes.map(String))];
+    stationaryFarm.range = Number(localStorage.getItem("fantasy-mod-stationary-range")) === 1 ? 1 : 4;
+    stationaryFarm.useSkill = localStorage.getItem("fantasy-mod-stationary-skill") !== "false";
+  } catch {}
+  mod.setStationaryFarmOptions = options => {
+    if (options.types !== undefined) {
+      if (!Array.isArray(options.types)) return { ok: false, error: "Lista de criaturas inválida." };
+      stationaryFarm.types = [...new Set(options.types.map(String))];
+    }
+    if (options.range !== undefined) {
+      if (![1, 4].includes(Number(options.range))) return { ok: false, error: "O alcance deve ser 1 ou 4 tiles." };
+      stationaryFarm.range = Number(options.range);
+    }
+    if (options.useSkill !== undefined) stationaryFarm.useSkill = !!options.useSkill;
+    try {
+      localStorage.setItem("fantasy-mod-stationary-types", JSON.stringify(stationaryFarm.types));
+      localStorage.setItem("fantasy-mod-stationary-range", String(stationaryFarm.range));
+      localStorage.setItem("fantasy-mod-stationary-skill", String(stationaryFarm.useSkill));
+    } catch {}
+    return { ok: true };
+  };
+  mod.startStationaryFarm = () => {
+    if (myself.dead) return { ok: false, error: "O personagem morreu." };
+    if (!stationaryFarm.types.length) return { ok: false, error: "Selecione pelo menos uma criatura no Farm Parado." };
+    if (huntState.enabled || huntState.lureEnabled || huntState.resumeAfterReturn || focusState.enabled
+      || cityTripInProgress() || waypointTravel || initialHuntTravel || mod.waypointRecording?.enabled) {
+      return { ok: false, error: "Pare a caça, o treino, o Focar ou a viagem antes de iniciar o Farm Parado." };
+    }
+    stationaryTargetId = null;
+    stationaryFarm.enabled = true;
+    stationaryFarm.status = "Procurando criaturas no alcance";
+    return { ok: true };
+  };
+  mod.stopStationaryFarm = () => {
+    stationaryFarm.enabled = false;
+    stationaryFarm.status = "Farm parado desligado";
+    stationaryTargetId = null;
+    if (gameSocket?.readyState === WebSocket.OPEN) gameSocket.send(JSON.stringify({ t: "untarget" }));
+    return { ok: true };
+  };
   huntState.attackAny ??= false;
   huntState.autoSellInProgress = false;
   window.__fantasyAutoSellInProgress = false;
@@ -994,6 +1039,7 @@
     return { ok: true, option, enabled: focusState[option] };
   };
   mod.setFocusEnabled = enabled => {
+    if (enabled && stationaryFarm.enabled) return { ok: false, error: "Pare o Farm Parado antes de ativar Focar." };
     if (enabled && huntState.training && (huntState.enabled || resumeHuntAfterReturn)) return { ok: false, error: "Pare o treino antes de ativar Focar." };
     const wasEnabled = focusState.enabled;
     focusState.enabled = !!enabled;
@@ -1547,6 +1593,7 @@
   };
 
   mod.startHunt = (names = huntState.names, radius = huntState.radius) => {
+    if (stationaryFarm.enabled) return { ok: false, error: "Pare o Farm Parado antes de iniciar a caça." };
     if (myself.dead) return { ok: false, error: "O personagem morreu; a caça não pode ser iniciada." };
     const list = (Array.isArray(names) ? names : String(names).split(/[\n,;]+/))
       .map(name => String(name).trim()).filter(Boolean);
@@ -1567,6 +1614,7 @@
     return { ok: true, names: huntState.names, radius: huntState.radius };
   };
   mod.startHuntTargets = (types = Object.keys(mod.targets).filter(type => mod.targets[type]), radius = huntState.radius, useLure = false, training = false) => {
+    if (stationaryFarm.enabled) return { ok: false, error: "Pare o Farm Parado antes de iniciar a caça ou o treino." };
     if (myself.dead) return { ok: false, error: "O personagem morreu; a caça não pode ser iniciada." };
     const list = training
       ? [...new Set([...huntState.trainingMobTypes, ...huntState.trainingCombatMobTypes])]
@@ -1795,6 +1843,41 @@
     }
     huntState.status = outcome.error;
     return false;
+  }
+  function processStationaryFarm() {
+    if (!Number.isInteger(myself.x) || !Number.isInteger(myself.y) || !Number.isInteger(myself.floor)) {
+      stationaryFarm.status = "Aguardando posição do personagem";
+      return;
+    }
+    const selected = new Set(stationaryFarm.types);
+    const candidates = mod.creaturesNearby(stationaryFarm.range)
+      .filter(creature => selected.has(String(creature.type))
+        && !isAttackedByAnotherPlayer(creature)
+        && hasAttackLine(myself.x, myself.y, creature));
+    const serverTarget = playerStats.target && typeof playerStats.target === "object"
+      ? playerStats.target.id : playerStats.target;
+    const current = candidates.find(creature => String(creature.id) === String(serverTarget ?? stationaryTargetId));
+    const target = current ?? candidates[0];
+    if (!target) {
+      stationaryFarm.status = `Aguardando alvos em até ${stationaryFarm.range} tile(s)`;
+      if (stationaryTargetId != null && gameSocket?.readyState === WebSocket.OPEN) {
+        gameSocket.send(JSON.stringify({ t: "untarget" }));
+        stationaryTargetId = null;
+      }
+      return;
+    }
+    if (!ensureHuntTarget(target)) {
+      stationaryFarm.status = "Aguardando conexão para atacar";
+      return;
+    }
+    stationaryTargetId = target.id;
+    stationaryFarm.status = `Atacando ${target.name} · ${target.distance} tile(s)`;
+    if (stationaryFarm.useSkill) {
+      const outcome = mod.useHuntSpecial();
+      if (!outcome.ok && !/cooldown/i.test(outcome.error ?? "")) {
+        stationaryFarm.status += ` · ${outcome.error}`;
+      }
+    }
   }
   function processFocusTarget() {
     const selected = playerStats.target;
@@ -3732,7 +3815,15 @@
   setInterval(() => {
     huntState.trainingIdleRemainingSeconds = null;
     if (confirmation.state.active) {
-      huntState.status = confirmation.state.status;
+      if (stationaryFarm.enabled) stationaryFarm.status = confirmation.state.status;
+      else huntState.status = confirmation.state.status;
+      return;
+    }
+    if (stationaryFarm.enabled) {
+      if (myself.dead) {
+        mod.stopStationaryFarm();
+        stationaryFarm.status = "Farm parado interrompido: personagem morreu";
+      } else processStationaryFarm();
       return;
     }
     logHuntProgress();
