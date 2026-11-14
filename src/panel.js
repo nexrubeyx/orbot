@@ -468,7 +468,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.66</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.67</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -576,6 +576,10 @@
               <p class="hint">Um tempo é sorteado entre os dois valores.</p>
             </div>
             <label class="attack-range">Classe do treino<select class="training-class"><option value="mage">Mage — 4 tiles</option><option value="melee">Melee — 1 tile</option><option value="distance">Distance — 4 tiles</option></select></label>
+            <label class="pref"><input class="training-use-skill" type="checkbox"> Usar habilidade especial durante o treino</label>
+            <label class="pref"><input class="training-switch-cooldown" type="checkbox"> Trocar de classe durante o cooldown da habilidade</label>
+            <label class="attack-range training-cooldown-class-row">Classe durante o cooldown<select class="training-cooldown-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
+            <p class="hint">Ao terminar o cooldown, volta à classe do treino para usar a habilidade novamente. O Mage mira no mob selecionado.</p>
             <label class="attack-range">Como combater mobs, exaustos e elite<select class="training-combat-mode"><option value="class">Trocar de classe</option><option value="weapon">Trocar de arma</option></select></label>
             <label class="attack-range training-combat-class-row">Classe para matar<select class="training-combat-class"><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
             <div class="training-weapon-options" hidden>
@@ -584,7 +588,7 @@
               <p class="hint">Escolha armas equipadas ou na mochila. A troca usa a classe do treino e restaura a arma padrão após o combate.</p>
             </div>
             <label class="pref"><input class="training-elite-enabled" type="checkbox"> Matar elite quando atacar</label>
-            <p class="hint">Prioriza o elite e usa a habilidade especial. Para Mage, ative o especial automático no jogo.</p>
+            <p class="hint">Prioriza o elite e usa a habilidade especial.</p>
             <label class="pref"><input class="training-exhausted-enabled" type="checkbox"> Matar monstros exaustos</label>
             <p class="hint">Usa a mesma classe ou arma de combate e volta ao padrão após o combate, sem habilidade especial.</p>
             <label class="pref"><input class="training-waypoints" type="checkbox"> Percorrer waypoints quando não houver alvos próximos</label>
@@ -929,6 +933,10 @@
   const trainingOnlineMinutes = root.querySelector(".training-online-minutes");
   const trainingOnlineBonusStatus = root.querySelector(".training-online-bonus-status");
   const trainingClass = root.querySelector(".training-class");
+  const trainingUseSkill = root.querySelector(".training-use-skill");
+  const trainingSwitchCooldown = root.querySelector(".training-switch-cooldown");
+  const trainingCooldownClass = root.querySelector(".training-cooldown-class");
+  const trainingCooldownClassRow = root.querySelector(".training-cooldown-class-row");
   const trainingCombatClass = root.querySelector(".training-combat-class");
   const trainingCombatMode = root.querySelector(".training-combat-mode");
   const trainingCombatClassRow = root.querySelector(".training-combat-class-row");
@@ -1766,6 +1774,10 @@
     if (root.activeElement !== trainingTargetDelayMin) trainingTargetDelayMin.value = String(hunt?.trainingTargetDelayMin ?? 0);
     if (root.activeElement !== trainingTargetDelayMax) trainingTargetDelayMax.value = String(hunt?.trainingTargetDelayMax ?? 0);
     trainingClass.value = hunt?.trainingClass ?? "melee";
+    trainingUseSkill.checked = !!hunt?.trainingUseSkill;
+    trainingSwitchCooldown.checked = !!hunt?.trainingSwitchDuringCooldown;
+    trainingCooldownClass.value = hunt?.trainingCooldownClass ?? "distance";
+    trainingCooldownClassRow.hidden = !trainingUseSkill.checked || !trainingSwitchCooldown.checked;
     trainingCombatClass.value = hunt?.trainingCombatClass ?? "melee";
     trainingCombatMode.value = hunt?.trainingCombatMode ?? "class";
     renderTrainingWeaponChoices(hunt);
@@ -2440,6 +2452,18 @@
     }
   });
   trainingClass.addEventListener("change", saveTrainingOptions);
+  const saveTrainingSkillOptions = () => {
+    const outcome = window.mod?.setTrainingSkillOptions?.({
+      useSkill: trainingUseSkill.checked,
+      switchDuringCooldown: trainingSwitchCooldown.checked,
+      cooldownClass: trainingCooldownClass.value
+    });
+    if (!outcome?.ok) trainingStatus.textContent = outcome?.error ?? "Não foi possível salvar a habilidade do treino.";
+    trainingCooldownClassRow.hidden = !trainingUseSkill.checked || !trainingSwitchCooldown.checked;
+  };
+  trainingUseSkill.addEventListener("change", saveTrainingSkillOptions);
+  trainingSwitchCooldown.addEventListener("change", saveTrainingSkillOptions);
+  trainingCooldownClass.addEventListener("change", saveTrainingSkillOptions);
   trainingCombatClass.addEventListener("change", () => {
     const outcome = window.mod?.setTrainingCombatClass?.(trainingCombatClass.value);
     if (!outcome?.ok) {

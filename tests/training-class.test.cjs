@@ -9,8 +9,10 @@ function harness(random = .5) {
   return new Function('random', `
     let now = 0;
     let trainingClassSwitch = null;
-    const playerStats = { cls: 2 };
+    let trainingSkillPendingUntil = 0;
+    const playerStats = { cls: 2, specialReady: 0 };
     const myself = {};
+    const huntState = { trainingClass: 'mage', trainingCooldownClass: 'distance', trainingUseSkill: true, trainingSwitchDuringCooldown: true };
     const classIds = { melee: 0, distance: 1, mage: 2 };
     const sent = [];
     const Date = { now: () => now };
@@ -19,9 +21,14 @@ function harness(random = .5) {
     ${helper}
     return {
       ensureTrainingClass,
+      desiredTrainingClass,
       sent,
       setTime: value => { now = value; },
-      setClass: value => { playerStats.cls = value; }
+      setClass: value => { playerStats.cls = value; },
+      setCooldown: value => { playerStats.specialReady = value; },
+      setSkillPendingUntil: value => { trainingSkillPendingUntil = value; },
+      setSkillEnabled: value => { huntState.trainingUseSkill = value; },
+      setSwitchEnabled: value => { huntState.trainingSwitchDuringCooldown = value; }
     };
   `)(random);
 }
@@ -45,6 +52,37 @@ test('waits 1 to 2 seconds for each class change and returns to the configured t
     assert.equal(h.ensureTrainingClass('mage'), false);
     assert.deepEqual(h.sent.at(-1), { at: delay + 100 + delay, desired: 2 });
   }
+});
+
+test('uses the cooldown class while the skill recharges and returns for the next cast', () => {
+  const h = harness(0);
+  assert.equal(h.desiredTrainingClass(), 'mage');
+  h.setSkillPendingUntil(1000);
+  assert.equal(h.desiredTrainingClass(), 'distance');
+  h.setCooldown(5);
+  h.setTime(1000);
+  assert.equal(h.desiredTrainingClass(), 'distance');
+  h.ensureTrainingClass(h.desiredTrainingClass());
+  h.setTime(2000);
+  h.ensureTrainingClass(h.desiredTrainingClass());
+  assert.deepEqual(h.sent, [{ at: 2000, desired: 1 }]);
+  h.setClass(1);
+  h.setCooldown(0);
+  assert.equal(h.desiredTrainingClass(), 'mage');
+  h.ensureTrainingClass(h.desiredTrainingClass());
+  h.setTime(3000);
+  h.ensureTrainingClass(h.desiredTrainingClass());
+  assert.deepEqual(h.sent.at(-1), { at: 3000, desired: 2 });
+});
+
+test('leaves the training class unchanged when skill or cooldown switch is disabled', () => {
+  const h = harness();
+  h.setCooldown(5);
+  h.setSkillEnabled(false);
+  assert.equal(h.desiredTrainingClass(), 'mage');
+  h.setSkillEnabled(true);
+  h.setSwitchEnabled(false);
+  assert.equal(h.desiredTrainingClass(), 'mage');
 });
 
 test('cancels a pending change when the desired class changes', () => {

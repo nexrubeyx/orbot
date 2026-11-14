@@ -504,6 +504,9 @@
   huntState.lureEnabled = false;
   huntState.training = false;
   huntState.trainingClass = "melee";
+  huntState.trainingUseSkill = false;
+  huntState.trainingSwitchDuringCooldown = false;
+  huntState.trainingCooldownClass = "distance";
   huntState.trainingMobTypes = [];
   huntState.trainingCombatMobTypes = [];
   huntState.trainingCombatClass = "melee";
@@ -622,6 +625,10 @@
     if (Number.isInteger(reverseLoops) && reverseLoops >= 1 && reverseLoops <= 1000) huntState.waypointReverseLoops = reverseLoops;
     const trainingClass = localStorage.getItem("fantasy-mod-training-class");
     if (["mage", "melee", "distance"].includes(trainingClass)) huntState.trainingClass = trainingClass;
+    huntState.trainingUseSkill = localStorage.getItem("fantasy-mod-training-use-skill") === "true";
+    huntState.trainingSwitchDuringCooldown = localStorage.getItem("fantasy-mod-training-switch-cooldown") === "true";
+    const cooldownClass = localStorage.getItem("fantasy-mod-training-cooldown-class");
+    if (["mage", "melee", "distance"].includes(cooldownClass)) huntState.trainingCooldownClass = cooldownClass;
     huntState.farmClass = huntState.trainingClass;
     const trainingMobTypes = JSON.parse(localStorage.getItem("fantasy-mod-training-mob-types") ?? "null");
     if (Array.isArray(trainingMobTypes)) huntState.trainingMobTypes = trainingMobTypes.map(String);
@@ -848,6 +855,20 @@
     try {
       localStorage.setItem("fantasy-mod-training-class", trainingClass);
       localStorage.setItem("fantasy-mod-training-waypoints", String(huntState.trainingWaypoints));
+    } catch {}
+    return { ok: true };
+  };
+  mod.setTrainingSkillOptions = (options = {}) => {
+    if (options.cooldownClass !== undefined && !["mage", "melee", "distance"].includes(options.cooldownClass)) {
+      return { ok: false, error: "Classe durante o cooldown inválida." };
+    }
+    if (options.useSkill !== undefined) huntState.trainingUseSkill = !!options.useSkill;
+    if (options.switchDuringCooldown !== undefined) huntState.trainingSwitchDuringCooldown = !!options.switchDuringCooldown;
+    if (options.cooldownClass !== undefined) huntState.trainingCooldownClass = options.cooldownClass;
+    try {
+      localStorage.setItem("fantasy-mod-training-use-skill", String(huntState.trainingUseSkill));
+      localStorage.setItem("fantasy-mod-training-switch-cooldown", String(huntState.trainingSwitchDuringCooldown));
+      localStorage.setItem("fantasy-mod-training-cooldown-class", huntState.trainingCooldownClass);
     } catch {}
     return { ok: true };
   };
@@ -1639,6 +1660,7 @@
     if (huntState.training) {
       trainingClassSwitch = null;
       trainingWeaponSwitch = null;
+      trainingSkillPendingUntil = 0;
       trainingIdleWatch = null;
       trainingIdleMove = null;
       huntTargetId = null;
@@ -1693,6 +1715,7 @@
   const classIds = { melee: 0, distance: 1, mage: 2 };
   let trainingClassSwitch = null;
   let trainingWeaponSwitch = null;
+  let trainingSkillPendingUntil = 0;
   function ensureTrainingWeapon(itemId) {
     if (!itemId || !mod.inventory.known) {
       trainingWeaponSwitch = null;
@@ -1743,6 +1766,13 @@
       trainingClassSwitch.nextAt = now + 1200;
     }
     return false;
+  }
+  function desiredTrainingClass() {
+    if (!huntState.trainingUseSkill || !huntState.trainingSwitchDuringCooldown
+      || huntState.trainingCooldownClass === huntState.trainingClass) return huntState.trainingClass;
+    const remaining = Number(playerStats.specialReady ?? myself.specialReady);
+    return (Number.isFinite(remaining) && remaining > 0 || Date.now() < trainingSkillPendingUntil)
+      ? huntState.trainingCooldownClass : huntState.trainingClass;
   }
   function finishTrainingElite() {
     trainingElite = null;
@@ -4032,18 +4062,20 @@
         return;
       }
     } else if (trainingElite) finishTrainingElite();
-    if (huntState.training && !trainingElite && !ensureTrainingClass(huntState.trainingClass)) {
+    if (huntState.training && !trainingElite && !ensureTrainingClass(desiredTrainingClass())) {
       huntState.status = "Treino: ajustando classe do treino";
       return;
     }
     if (huntState.training && huntState.trainingCombatMode === "weapon") {
       const desiredWeapon = trainingElite ? huntState.trainingCombatWeaponId : huntState.trainingWeaponId;
-      if (!desiredWeapon || !ensureTrainingWeapon(desiredWeapon)) {
+      const usingCooldownClass = !trainingElite && desiredTrainingClass() !== huntState.trainingClass;
+      if (!usingCooldownClass && (!desiredWeapon || !ensureTrainingWeapon(desiredWeapon))) {
         huntState.status = desiredWeapon ? `Treino: equipando ou aguardando arma ${desiredWeapon}` : "Treino: escolha as armas de treino e combate";
         return;
       }
     }
-    const activeClass = trainingElite && huntState.trainingCombatMode === "class" ? huntState.trainingCombatClass : huntState.trainingClass;
+    const activeClass = trainingElite && huntState.trainingCombatMode === "class" ? huntState.trainingCombatClass
+      : huntState.training ? desiredTrainingClass() : huntState.trainingClass;
     const attackRange = huntState.training ? (activeClass === "melee" ? 1 : 4) : huntState.attackRange;
     let target = huntTargetId == null
       ? null
@@ -4124,8 +4156,11 @@
     if (target.distance <= attackRange && hasAttackLine(myself.x, myself.y, target)) {
       huntState.status = `${trainingElite?.kind === "exhausted" ? "Exausto: atacando"
         : trainingElite?.kind === "selected" ? "Combate: atacando" : trainingElite ? "Elite: atacando" : "Atacando"} ${target.name}`;
-      if (trainingElite?.kind === "elite" && Number(playerStats.cls ?? playerStats.cl) === classIds[activeClass]) {
-        const outcome = mod.useHuntSpecial();
+      if ((trainingElite?.kind === "elite" || huntState.training && huntState.trainingUseSkill && !trainingElite
+        && activeClass === huntState.trainingClass)
+        && Number(playerStats.cls ?? playerStats.cl) === classIds[activeClass]) {
+        const outcome = mod.useHuntSpecial(target);
+        if (outcome.ok && huntState.training && !trainingElite) trainingSkillPendingUntil = Date.now() + 1000;
         if (!outcome.ok && !/cooldown/i.test(outcome.error ?? "")) huntState.status += ` · ${outcome.error}`;
       }
       return;
