@@ -468,7 +468,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.61</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.62</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -542,6 +542,7 @@
             <section class="hunt menu-block" aria-label="Configuração do Farm Parado">
               <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">⚔</span><span class="menu-heading-copy"><strong>Atacar sem andar</strong><small>Somente criaturas selecionadas e ao alcance</small></span></div>
               <button class="hunt-toggle stationary-toggle" type="button">Iniciar Farm Parado</button>
+              <label class="attack-range">Classe<select class="stationary-class"><option value="current">Manter atual</option><option value="melee">Melee</option><option value="distance">Distance</option><option value="mage">Mage</option></select></label>
               <label class="attack-range">Alcance de ataque<select class="stationary-range"><option value="1">Corpo a corpo — 1 tile</option><option value="4">À distância — até 4 tiles</option></select></label>
               <label class="pref"><input class="stationary-skill" type="checkbox"> Usar habilidade especial</label>
               <p class="hint">Ataca apenas os tipos marcados abaixo, sem andar e sem coletar loot.</p>
@@ -922,6 +923,7 @@
   const protectedInventoryList = root.querySelector(".protected-inventory-list");
   const huntToggle = root.querySelector(".hunt-toggle");
   const stationaryToggle = root.querySelector(".stationary-toggle");
+  const stationaryClass = root.querySelector(".stationary-class");
   const stationaryRange = root.querySelector(".stationary-range");
   const stationarySkill = root.querySelector(".stationary-skill");
   const stationarySearch = root.querySelector(".stationary-search");
@@ -1063,6 +1065,7 @@
   focusSkillToggle.checked = !!window.mod?.focus?.useSkill;
   focusFollowToggle.checked = window.mod?.focus?.followTarget !== false;
   stationaryRange.value = String(window.mod?.stationaryFarm?.range ?? 4);
+  stationaryClass.value = window.mod?.stationaryFarm?.className ?? "current";
   stationarySkill.checked = window.mod?.stationaryFarm?.useSkill !== false;
   focusStatus.textContent = window.mod?.focus?.status ?? "Focar desligado";
   const setRefillStatus = value => {
@@ -1748,6 +1751,7 @@
     stationaryToggle.textContent = stationary?.enabled ? "Parar Farm Parado" : "Iniciar Farm Parado";
     stationaryToggle.dataset.active = String(!!stationary?.enabled);
     stationaryStatus.textContent = stationary?.status ?? "Farm parado desligado";
+    if (root.activeElement !== stationaryClass) stationaryClass.value = stationary?.className ?? "current";
     if (root.activeElement !== stationaryRange) stationaryRange.value = String(stationary?.range ?? 4);
     stationarySkill.checked = stationary?.useSkill !== false;
     const active = !!(hunt?.enabled || hunt?.resumeAfterReturn);
@@ -2474,6 +2478,10 @@
   root.querySelector(".search").addEventListener("click", showCreatures);
   targetSearch.addEventListener("input", showTargets);
   stationarySearch.addEventListener("input", renderStationaryTargets);
+  stationaryClass.addEventListener("change", () => {
+    const outcome = window.mod?.setStationaryFarmOptions?.({ className: stationaryClass.value });
+    if (!outcome?.ok) stationaryStatus.textContent = outcome?.error ?? "Não foi possível salvar a classe.";
+  });
   stationaryRange.addEventListener("change", () => {
     const outcome = window.mod?.setStationaryFarmOptions?.({ range: Number(stationaryRange.value) });
     if (!outcome?.ok) stationaryStatus.textContent = outcome?.error ?? "Não foi possível salvar o alcance.";

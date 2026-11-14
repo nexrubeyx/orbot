@@ -536,12 +536,14 @@
     focusState.followTarget = localStorage.getItem("fantasy-mod-focus-follow-target") !== "false";
   } catch {}
   focusState.status = "Focar desligado";
-  const stationaryFarm = mod.stationaryFarm = { enabled: false, types: [], range: 4, useSkill: true, status: "Farm parado desligado" };
+  const stationaryFarm = mod.stationaryFarm = { enabled: false, types: [], range: 4, className: "current", useSkill: true, status: "Farm parado desligado" };
   let stationaryTargetId = null;
   try {
     const savedTypes = JSON.parse(localStorage.getItem("fantasy-mod-stationary-types") ?? "[]");
     if (Array.isArray(savedTypes)) stationaryFarm.types = [...new Set(savedTypes.map(String))];
     stationaryFarm.range = Number(localStorage.getItem("fantasy-mod-stationary-range")) === 1 ? 1 : 4;
+    const savedClass = localStorage.getItem("fantasy-mod-stationary-class");
+    stationaryFarm.className = ["current", "melee", "distance", "mage"].includes(savedClass) ? savedClass : "current";
     stationaryFarm.useSkill = localStorage.getItem("fantasy-mod-stationary-skill") !== "false";
   } catch {}
   mod.setStationaryFarmOptions = options => {
@@ -553,10 +555,15 @@
       if (![1, 4].includes(Number(options.range))) return { ok: false, error: "O alcance deve ser 1 ou 4 tiles." };
       stationaryFarm.range = Number(options.range);
     }
+    if (options.className !== undefined) {
+      if (!["current", "melee", "distance", "mage"].includes(options.className)) return { ok: false, error: "Classe do Farm Parado inválida." };
+      stationaryFarm.className = options.className;
+    }
     if (options.useSkill !== undefined) stationaryFarm.useSkill = !!options.useSkill;
     try {
       localStorage.setItem("fantasy-mod-stationary-types", JSON.stringify(stationaryFarm.types));
       localStorage.setItem("fantasy-mod-stationary-range", String(stationaryFarm.range));
+      localStorage.setItem("fantasy-mod-stationary-class", stationaryFarm.className);
       localStorage.setItem("fantasy-mod-stationary-skill", String(stationaryFarm.useSkill));
     } catch {}
     return { ok: true };
@@ -1054,15 +1061,20 @@
     }
     return { ok: true, enabled: focusState.enabled };
   };
-  mod.useHuntSpecial = () => {
+  mod.useHuntSpecial = target => {
     if (!gameSocket || gameSocket.readyState !== WebSocket.OPEN) return { ok: false, error: "WebSocket do jogo não está conectado." };
     const cls = playerStats.cls ?? playerStats.cl;
-    // For Mage, the game toggles aim mode when autoSpecial is off.
-    if (Number(cls) === 2 && playerStats.autoSpecial !== true) return { ok: false, error: "Ative o especial automático do personagem para usar essa habilidade." };
+    // Manual Mage casts need a ground position, as sent by the game's aim mode.
+    if (Number(cls) === 2 && playerStats.autoSpecial !== true
+      && (!Number.isInteger(target?.x) || !Number.isInteger(target?.y))) {
+      return { ok: false, error: "Selecione um alvo com posição para usar a habilidade do mage." };
+    }
     const cooldown = Number(playerStats.specialReady);
     if (Number.isFinite(cooldown) && cooldown > 0) return { ok: false, error: "Habilidade especial em cooldown." };
     if (Date.now() < specialReadyAt) return { ok: false, error: "Aguardando cooldown da habilidade." };
-    gameSocket.send(JSON.stringify({ t: "special" }));
+    const packet = Number(cls) === 2 && playerStats.autoSpecial !== true
+      ? { t: "special", x: target.x, y: target.y } : { t: "special" };
+    gameSocket.send(JSON.stringify(packet));
     // This is only a duplicate-send guard; the server's specialReady value
     // above remains the authoritative cooldown for repeated casts.
     specialReadyAt = Date.now() + 300;
@@ -1845,6 +1857,10 @@
     return false;
   }
   function processStationaryFarm() {
+    if (stationaryFarm.className !== "current" && !ensureTrainingClass(stationaryFarm.className)) {
+      stationaryFarm.status = "Trocando para a classe do Farm Parado";
+      return;
+    }
     if (!Number.isInteger(myself.x) || !Number.isInteger(myself.y) || !Number.isInteger(myself.floor)) {
       stationaryFarm.status = "Aguardando posição do personagem";
       return;
@@ -1873,7 +1889,7 @@
     stationaryTargetId = target.id;
     stationaryFarm.status = `Atacando ${target.name} · ${target.distance} tile(s)`;
     if (stationaryFarm.useSkill) {
-      const outcome = mod.useHuntSpecial();
+      const outcome = mod.useHuntSpecial(target);
       if (!outcome.ok && !/cooldown/i.test(outcome.error ?? "")) {
         stationaryFarm.status += ` · ${outcome.error}`;
       }
