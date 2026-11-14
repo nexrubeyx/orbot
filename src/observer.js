@@ -437,7 +437,8 @@
     try { Object.defineProperty(console, "__fantasyModWrapped", { value: true }); } catch {}
   }
   // Suppress game shortcuts only while hunting/luring, while preserving text
-  // entry and the standalone X shortcut for Focar.
+  // entry and the standalone X shortcut for Focar. Farm Parado leaves game
+  // controls available so the player can move and use skills manually.
   const gameShortcutCodes = new Set([
     "KeyW", "ArrowUp", "Numpad8", "KeyS", "ArrowDown", "Numpad2",
     "KeyA", "ArrowLeft", "Numpad4", "KeyD", "ArrowRight", "Numpad6",
@@ -460,7 +461,7 @@
     const inModPanel = path.some(node => node?.id === "fantasy-mod-panel-host");
     const target = event.target;
     const isTextInput = target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? "");
-    const huntActive = !!(window.mod?.hunt?.enabled || window.mod?.hunt?.lureEnabled || window.mod?.hunt?.resumeAfterReturn || window.mod?.stationaryFarm?.enabled);
+    const huntActive = !!(window.mod?.hunt?.enabled || window.mod?.hunt?.lureEnabled || window.mod?.hunt?.resumeAfterReturn);
     if (inModPanel) {
       // Keep browser defaults (typing, arrows, checkbox toggles), but keep the
       // game listeners from seeing keys pressed while operating the mod panel.
@@ -471,7 +472,7 @@
       return;
     }
     if (isTextInput) return;
-    if (event.code === "KeyX" && event.type === "keydown" && !event.repeat) {
+    if (event.code === "KeyX" && event.type === "keydown" && !event.repeat && !window.mod?.stationaryFarm?.enabled) {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -483,8 +484,7 @@
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      if (window.mod?.stationaryFarm?.enabled) window.mod.stopStationaryFarm?.();
-      else window.mod.stopHunt?.();
+      window.mod.stopHunt?.();
       return;
     }
     event.preventDefault();
@@ -1839,8 +1839,10 @@
     const id = String(creature.id);
     const now = Date.now();
     const serverReportsTarget = Object.hasOwn(playerStats, "target");
-    if (serverReportsTarget && playerStats.target != null
-      && String(playerStats.target) === id) {
+    const reportedTarget = playerStats.target && typeof playerStats.target === "object"
+      ? playerStats.target.id : playerStats.target;
+    if (serverReportsTarget && reportedTarget != null
+      && String(reportedTarget) === id) {
       huntTargetSent = creature.id;
       huntTargetSentAt = now;
       return true;
@@ -1869,7 +1871,7 @@
     const candidates = mod.creaturesNearby(stationaryFarm.range)
       .filter(creature => selected.has(String(creature.type))
         && !isAttackedByAnotherPlayer(creature)
-        && hasAttackLine(myself.x, myself.y, creature));
+        && hasAttackLine(myself.x, myself.y, creature, true));
     const serverTarget = playerStats.target && typeof playerStats.target === "object"
       ? playerStats.target.id : playerStats.target;
     const current = candidates.find(creature => String(creature.id) === String(serverTarget ?? stationaryTargetId));
@@ -2116,8 +2118,8 @@
   const isGoldDrop = entity => entity?.it === 4
     || /\b(ouro|gold|bronze|moeda|coin|coins)\b/.test(normalizeName(entity?.n));
   const isOwnLoot = entity => entity?.mine === true || entity?.mine === 1;
-  function hasAttackLine(x0, y0, target) {
-    if (!gameWorld || !Number.isInteger(x0) || !Number.isInteger(y0)
+  function hasAttackLine(x0, y0, target, allowMissingMap = false) {
+    if ((!gameWorld && !allowMissingMap) || !Number.isInteger(x0) || !Number.isInteger(y0)
       || !Number.isInteger(target?.x) || !Number.isInteger(target?.y)) return false;
     const walls = new Set(currentWalls.map(([x, y]) => `${x},${y}`));
     const blockers = new Set();
@@ -2137,7 +2139,7 @@
       if (twice < dx) { error += dx; y += sy; }
       if (x === target.x && y === target.y) break;
       const key = `${x},${y}`;
-      if (!gameWorld.isWalkable(myself.floor, x, y) || walls.has(key) || blockers.has(key)) return false;
+      if ((gameWorld && !gameWorld.isWalkable(myself.floor, x, y)) || walls.has(key) || blockers.has(key)) return false;
     }
     return true;
   }
