@@ -468,7 +468,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.67</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.68</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -530,6 +530,8 @@
               </div>
               <label class="attack-range">Tipo de ataque<select class="attack-range-select"><option value="1">Cavaleiro — corpo a corpo (1 tile)</option><option value="4">Mage/Pala — à distância (até 4 tiles)</option></select></label>
               <label class="pref"><input class="lure-special-toggle" type="checkbox"> Usar habilidade especial ao atacar</label>
+              <label class="pref"><input class="special-minimum-toggle" type="checkbox"> Exigir mínimo de criaturas para usar a habilidade</label>
+              <label class="attack-range special-minimum-row">Quantidade mínima de criaturas<input class="special-minimum-count" type="number" min="1" max="50" step="1" value="2"></label>
               <div class="lure-status-card" data-active="false" role="status" aria-live="polite">
                 <div class="lure-status-head"><span class="lure-status-dot"></span><span class="lure-status-title">Lure desligado</span><span class="lure-count-display">0/5</span></div>
                 <div class="lure-progress-track"><div class="lure-progress-fill"></div></div>
@@ -894,6 +896,9 @@
   const lureStepInput = root.querySelector(".lure-step-input");
   const attackRangeSelect = root.querySelector(".attack-range-select");
   const lureSpecialToggle = root.querySelector(".lure-special-toggle");
+  const specialMinimumToggle = root.querySelector(".special-minimum-toggle");
+  const specialMinimumRow = root.querySelector(".special-minimum-row");
+  const specialMinimumCount = root.querySelector(".special-minimum-count");
   const waypointResult = root.querySelector(".waypoint-result");
   const waypointRecord = root.querySelector(".waypoint-record");
   const huntAttackAny = root.querySelector(".hunt-attack-any");
@@ -1084,6 +1089,9 @@
   lureStepInput.value = String(window.mod?.hunt?.lureStepTiles ?? 3);
   attackRangeSelect.value = String(window.mod?.hunt?.attackRange ?? 1);
   lureSpecialToggle.checked = !!window.mod?.hunt?.useSpecial;
+  specialMinimumToggle.checked = window.mod?.hunt?.specialMinimumEnabled !== false;
+  specialMinimumCount.value = String(window.mod?.hunt?.specialMinimumCount ?? 2);
+  specialMinimumRow.hidden = !lureSpecialToggle.checked || !specialMinimumToggle.checked;
   let captchaHistoryRevision = -1;
   let captchaHistoryLoading = false;
   const setPage = name => {
@@ -1608,7 +1616,21 @@
       lureSpecialToggle.checked = !!window.mod?.hunt?.useSpecial;
       huntStatus.textContent = outcome?.error ?? "API de habilidade indisponível.";
     }
+    specialMinimumRow.hidden = !lureSpecialToggle.checked || !specialMinimumToggle.checked;
   });
+  const saveSpecialMinimum = () => {
+    const outcome = window.mod?.setSpecialMinimum?.(specialMinimumToggle.checked, specialMinimumCount.value);
+    if (!outcome?.ok) {
+      specialMinimumToggle.checked = window.mod?.hunt?.specialMinimumEnabled !== false;
+      specialMinimumCount.value = String(window.mod?.hunt?.specialMinimumCount ?? 2);
+      huntStatus.textContent = outcome?.error ?? "API de quantidade mínima indisponível.";
+    } else {
+      specialMinimumCount.value = String(outcome.count);
+    }
+    specialMinimumRow.hidden = !lureSpecialToggle.checked || !specialMinimumToggle.checked;
+  };
+  specialMinimumToggle.addEventListener("change", saveSpecialMinimum);
+  specialMinimumCount.addEventListener("change", saveSpecialMinimum);
 
   let trainingWeaponChoicesSignature = "";
   function renderTrainingWeaponChoices(hunt) {
@@ -1765,6 +1787,10 @@
     waypointRecord.dataset.active = String(!!recording?.enabled);
     if (recording?.enabled || recording?.status?.startsWith("Gravação interrompida")) waypointResult.textContent = recording.status;
     huntAttackAny.checked = !!hunt?.attackAny;
+    lureSpecialToggle.checked = !!hunt?.useSpecial;
+    specialMinimumToggle.checked = hunt?.specialMinimumEnabled !== false;
+    if (root.activeElement !== specialMinimumCount) specialMinimumCount.value = String(hunt?.specialMinimumCount ?? 2);
+    specialMinimumRow.hidden = !lureSpecialToggle.checked || !specialMinimumToggle.checked;
     const trainingActive = active && !!hunt?.training;
     huntToggle.textContent = active && !trainingActive ? "Parar caça" : lureActive ? "Parar lure" : "Iniciar caça";
     huntToggle.dataset.active = String((active && !trainingActive) || lureActive);

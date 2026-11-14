@@ -676,6 +676,10 @@
     localStorage.removeItem("fantasy-mod-lure-waypoint-pause");
     huntState.attackRange = Number(localStorage.getItem("fantasy-mod-attack-range")) === 4 ? 4 : 1;
     huntState.useSpecial = localStorage.getItem("fantasy-mod-lure-special") === "true";
+    huntState.specialMinimumEnabled = localStorage.getItem("fantasy-mod-special-minimum-enabled") !== "false";
+    const specialMinimumCount = Number(localStorage.getItem("fantasy-mod-special-minimum-count"));
+    huntState.specialMinimumCount = Number.isInteger(specialMinimumCount) && specialMinimumCount >= 1 && specialMinimumCount <= 50
+      ? specialMinimumCount : 2;
   } catch {}
   const saveWaypoints = () => {
     try { localStorage.setItem("fantasy-mod-waypoints", JSON.stringify(mod.waypoints)); } catch {}
@@ -1050,6 +1054,19 @@
     huntState.useSpecial = !!enabled;
     try { localStorage.setItem("fantasy-mod-lure-special", String(huntState.useSpecial)); } catch {}
     return { ok: true, enabled: huntState.useSpecial };
+  };
+  mod.setSpecialMinimum = (enabled, count) => {
+    const value = Number(count);
+    if (!Number.isInteger(value) || value < 1 || value > 50) {
+      return { ok: false, error: "Informe uma quantidade mínima entre 1 e 50 criaturas." };
+    }
+    huntState.specialMinimumEnabled = !!enabled;
+    huntState.specialMinimumCount = value;
+    try {
+      localStorage.setItem("fantasy-mod-special-minimum-enabled", String(huntState.specialMinimumEnabled));
+      localStorage.setItem("fantasy-mod-special-minimum-count", String(value));
+    } catch {}
+    return { ok: true, enabled: huntState.specialMinimumEnabled, count: value };
   };
   mod.setFocusOption = (option, enabled) => {
     if (option !== "useSkill" && option !== "followTarget") return { ok: false, error: "Opção de Focar inválida." };
@@ -2183,12 +2200,14 @@
     });
   }
   let lastSpecialBlocked = { error: "", at: 0 };
-  function useSpecialForNearbyMobs(target, attackRange, force = false) {
+  function useSpecialForNearbyMobs(target, attackRange) {
     if (!huntState.useSpecial || !target || target.distance > attackRange
       || !hasAttackLine(myself.x, myself.y, target)) return null;
-    const nearbyMobs = mod.creaturesNearby(attackRange)
-      .filter(creature => !isAttackedByAnotherPlayer(creature));
-    if (!force && nearbyMobs.length < 2 && !isEliteCreature(target)) return null;
+    if (huntState.specialMinimumEnabled) {
+      const nearbyMobs = mod.creaturesNearby(attackRange)
+        .filter(creature => !isAttackedByAnotherPlayer(creature));
+      if (nearbyMobs.length < huntState.specialMinimumCount) return null;
+    }
     const outcome = mod.useHuntSpecial();
     if (!outcome.ok && !/cooldown/i.test(outcome.error ?? "")
       && (outcome.error !== lastSpecialBlocked.error || Date.now() - lastSpecialBlocked.at > 10000)) {
@@ -4010,7 +4029,7 @@
         lureTargetReady = ensureHuntTarget(lureTarget);
       }
       const lureCanAttack = lureTarget && canAttackFromHere(lureTarget);
-      if (lureCanAttack && lureTargetReady) useSpecialForNearbyMobs(lureTarget, huntState.attackRange, pulledCount >= lureCount);
+      if (lureCanAttack && lureTargetReady) useSpecialForNearbyMobs(lureTarget, huntState.attackRange);
       if (processAutoLoot(lureTarget)) return;
       const lureProgress = pulledCount >= lureCount
         ? `Lure ${pulledCount}/${lureCount}: puxando e atacando`
