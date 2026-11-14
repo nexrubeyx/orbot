@@ -1867,8 +1867,12 @@
       stationaryFarm.status = "Aguardando posição do personagem";
       return;
     }
+    // A target packet starts the game's basic attack. Keep targets within the
+    // active class's normal reach even if a wider search range was selected.
+    const attackRange = Math.min(stationaryFarm.range,
+      Number(playerStats.cls ?? playerStats.cl ?? myself.cls) === classIds.melee ? 1 : 4);
     const selected = new Set(stationaryFarm.types);
-    const candidates = mod.creaturesNearby(stationaryFarm.range)
+    const candidates = mod.creaturesNearby(attackRange)
       .filter(creature => selected.has(String(creature.type))
         && !isAttackedByAnotherPlayer(creature)
         && hasAttackLine(myself.x, myself.y, creature, true));
@@ -1877,7 +1881,7 @@
     const current = candidates.find(creature => String(creature.id) === String(serverTarget ?? stationaryTargetId));
     const target = current ?? candidates[0];
     if (!target) {
-      stationaryFarm.status = `Aguardando alvos em até ${stationaryFarm.range} tile(s)`;
+      stationaryFarm.status = `Aguardando alvos em até ${attackRange} tile(s)`;
       if (stationaryTargetId != null && gameSocket?.readyState === WebSocket.OPEN) {
         gameSocket.send(JSON.stringify({ t: "untarget" }));
         stationaryTargetId = null;

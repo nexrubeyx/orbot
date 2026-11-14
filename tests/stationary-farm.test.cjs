@@ -18,6 +18,7 @@ test('Farm Parado targets and casts while the pathfinder map is loading', () => 
     const currentWalls = [];
     const gameWorld = null;
     const playerStats = { cls: 2, autoSpecial: false, specialReady: 0, target: null };
+    const classIds = { melee: 0, distance: 1, mage: 2 };
     const stationaryFarm = { className: 'current', types: ['rat'], range: 4, useSkill: true };
     const mod = {
       creaturesNearby: () => [{ id: 2, type: 'rat', name: 'Rat', x: 12, y: 10, distance: 2 }],
@@ -47,6 +48,38 @@ test('an acknowledged target object does not cause repeated target packets', () 
     return ensureHuntTarget({ id: 2 });
   `)();
   assert.equal(result, true);
+});
+
+test('Farm Parado waits for melee range before selecting a target or using a skill', () => {
+  const farm = between('  function processStationaryFarm(', '  function processFocusTarget(');
+  const result = new Function(`
+    const WebSocket = { OPEN: 1 };
+    const sent = [];
+    const gameSocket = { readyState: 1, send: data => sent.push(JSON.parse(data)) };
+    const myself = { x: 10, y: 10, floor: 0 };
+    const playerStats = { cls: 0, target: null };
+    const classIds = { melee: 0 };
+    const stationaryFarm = { className: 'current', types: ['rat'], range: 4, useSkill: true };
+    let distance = 2;
+    const mod = {
+      creaturesNearby: range => [{ id: 2, type: 'rat', name: 'Rat', distance }].filter(c => c.distance <= range),
+      useHuntSpecial: () => { sent.push({ t: 'special' }); return { ok: true }; }
+    };
+    const ensureTrainingClass = () => true;
+    const isAttackedByAnotherPlayer = () => false;
+    const hasAttackLine = () => true;
+    const ensureHuntTarget = target => { sent.push({ t: 'target', id: target.id }); return true; };
+    let stationaryTargetId = null;
+    ${farm}
+    processStationaryFarm();
+    const waitingStatus = stationaryFarm.status;
+    distance = 1;
+    processStationaryFarm();
+    return { sent, waitingStatus, attackingStatus: stationaryFarm.status };
+  `)();
+  assert.deepEqual(result.sent, [{ t: 'target', id: 2 }, { t: 'special' }]);
+  assert.match(result.waitingStatus, /até 1 tile/);
+  assert.match(result.attackingStatus, /Atacando Rat/);
 });
 
 test('Farm Parado leaves game shortcuts available', () => {
