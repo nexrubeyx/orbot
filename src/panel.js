@@ -474,7 +474,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.74</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.75</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -823,9 +823,11 @@
           <section class="page" data-section="name-display" hidden>
             <h2>Visual do personagem</h2>
             <section class="menu-block" aria-label="Dados exibidos localmente">
-              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✎</span><span class="menu-heading-copy"><strong>Dados visuais</strong><small>Nome, nível, XP e vida na sua tela</small></span></div>
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✎</span><span class="menu-heading-copy"><strong>Dados visuais</strong><small>Nome, guilda, nível, XP e vida na sua tela</small></span></div>
               <label class="name-display-field">Exibição do nome<select class="name-display-mode"><option value="original">Nome original</option><option value="custom">Nome personalizado</option><option value="hidden">Ocultar nome</option></select></label>
               <label class="name-display-field">Nome personalizado<input class="name-display-input" type="text" maxlength="50" autocomplete="off" spellcheck="false" placeholder="Digite o nome que deseja mostrar"></label>
+              <label class="name-display-field">Guilda acima do personagem<select class="guild-display-mode"><option value="original">Guilda original</option><option value="custom">Guilda personalizada</option><option value="hidden">Ocultar guilda</option></select></label>
+              <label class="name-display-field">Nome da guilda visual<input class="guild-display-input" type="text" maxlength="30" autocomplete="off" spellcheck="false" placeholder="Digite sem colchetes, por exemplo VTK"></label>
               <div class="name-visual-option"><label><input class="name-level-enabled" type="checkbox"> Alterar nível</label><input class="name-level-value" type="number" min="1" max="99999" step="1" value="1" aria-label="Nível visual"></div>
               <div class="name-visual-option"><label><input class="name-xp-enabled" type="checkbox"> Alterar XP (%)</label><input class="name-xp-value" type="number" min="0" max="100" step="1" value="100" aria-label="Porcentagem visual de XP"></div>
               <div class="name-visual-option"><label><input class="name-hp-enabled" type="checkbox"> Alterar vida (%)</label><input class="name-hp-value" type="number" min="0" max="100" step="1" value="100" aria-label="Porcentagem visual de vida"></div>
@@ -1012,6 +1014,8 @@
   const consoleExport = root.querySelector(".console-export");
   const nameDisplayMode = root.querySelector(".name-display-mode");
   const nameDisplayInput = root.querySelector(".name-display-input");
+  const guildDisplayMode = root.querySelector(".guild-display-mode");
+  const guildDisplayInput = root.querySelector(".guild-display-input");
   const nameDisplayApply = root.querySelector(".name-display-apply");
   const nameDisplayStatus = root.querySelector(".name-display-status");
   const nameLevelEnabled = root.querySelector(".name-level-enabled");
@@ -1034,6 +1038,10 @@
   if (!["original", "custom", "hidden"].includes(displayedNameMode)) displayedNameMode = "original";
   let customDisplayName = readPreference("name-custom", "").slice(0, 50);
   if (displayedNameMode === "custom" && !customDisplayName) displayedNameMode = "original";
+  let displayedGuildMode = readPreference("guild-mode", "original");
+  if (!["original", "custom", "hidden"].includes(displayedGuildMode)) displayedGuildMode = "original";
+  let customGuildName = readPreference("guild-custom", "").slice(0, 30);
+  if (displayedGuildMode === "custom" && !customGuildName) displayedGuildMode = "original";
   const storedNumber = (key, fallback, min, max) => {
     const value = Number(readPreference(key, fallback));
     return Number.isInteger(value) && value >= min && value <= max ? value : fallback;
@@ -1041,6 +1049,8 @@
   const visual = {
     mode: displayedNameMode,
     name: customDisplayName,
+    guildMode: displayedGuildMode,
+    guildName: customGuildName,
     levelEnabled: readPreference("name-level-enabled", "false") === "true",
     level: storedNumber("name-level", 1, 1, 99999),
     xpEnabled: readPreference("name-xp-enabled", "false") === "true",
@@ -1050,6 +1060,8 @@
   };
   nameDisplayMode.value = displayedNameMode;
   nameDisplayInput.value = customDisplayName;
+  guildDisplayMode.value = displayedGuildMode;
+  guildDisplayInput.value = customGuildName;
   nameLevelEnabled.checked = visual.levelEnabled;
   nameLevelValue.value = String(visual.level);
   nameXpEnabled.checked = visual.xpEnabled;
@@ -1066,10 +1078,12 @@
     if (!plainLabel.startsWith(plainRealName)) return null;
     const suffix = plainLabel.slice(plainRealName.length);
     if (suffix && !/^ Lv\.\d+$/.test(suffix)) return null;
-    if (visual.mode === "hidden") return visual.levelEnabled ? `Lv.${visual.level}` : suffix.trim();
-    const name = visual.mode === "custom" ? visual.name : plainRealName;
-    const level = visual.levelEnabled ? ` Lv.${visual.level}` : suffix;
-    const result = `${tag}${name}${level}`;
+    const shownGuild = visual.guildMode === "hidden" ? ""
+      : visual.guildMode === "custom" ? `[${visual.guildName}] ` : tag;
+    const name = visual.mode === "hidden" ? ""
+      : visual.mode === "custom" ? visual.name : plainRealName;
+    const level = visual.levelEnabled ? `Lv.${visual.level}` : suffix.trim();
+    const result = [shownGuild.trim(), name, level].filter(Boolean).join(" ");
     return result === value ? null : result;
   };
   let visualHooksState = "loading";
@@ -1121,8 +1135,14 @@
   nameDisplayApply.addEventListener("click", () => {
     const mode = nameDisplayMode.value;
     const value = nameDisplayInput.value.trim();
+    const guildMode = guildDisplayMode.value;
+    const guildValue = guildDisplayInput.value.trim().replace(/^\[|\]$/g, "").trim();
     if (mode === "custom" && !value) {
       nameDisplayStatus.textContent = "Digite um nome para usar o modo personalizado.";
+      return;
+    }
+    if (guildMode === "custom" && (!guildValue || /[\[\]\r\n]/.test(guildValue))) {
+      nameDisplayStatus.textContent = "Digite um nome de guilda sem colchetes.";
       return;
     }
     const level = Number(nameLevelValue.value);
@@ -1136,6 +1156,9 @@
     }
     visual.mode = mode;
     visual.name = value;
+    visual.guildMode = guildMode;
+    visual.guildName = guildValue;
+    guildDisplayInput.value = guildValue;
     visual.levelEnabled = nameLevelEnabled.checked;
     visual.xpEnabled = nameXpEnabled.checked;
     visual.hpEnabled = nameHpEnabled.checked;
@@ -1144,6 +1167,8 @@
     if (visual.hpEnabled) visual.hp = hp;
     savePreference("name-mode", mode);
     savePreference("name-custom", value);
+    savePreference("guild-mode", guildMode);
+    savePreference("guild-custom", guildValue);
     savePreference("name-level-enabled", visual.levelEnabled);
     savePreference("name-level", visual.level);
     savePreference("name-xp-enabled", visual.xpEnabled);

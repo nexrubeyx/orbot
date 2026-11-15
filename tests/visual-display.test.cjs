@@ -24,8 +24,16 @@ test('changes the own world label while preserving the guild tag', () => {
 });
 
 test('hides the label and allows changing only the displayed level', () => {
-  assert.equal(transform({ mode: 'hidden', levelEnabled: false }, '[VTK] Drow Lv.222'), 'Lv.222');
-  assert.equal(transform({ mode: 'hidden', levelEnabled: true, level: 500 }, '[VTK] Drow Lv.222'), 'Lv.500');
+  assert.equal(transform({ mode: 'hidden', levelEnabled: false }, '[VTK] Drow Lv.222'), '[VTK] Lv.222');
+  assert.equal(transform({ mode: 'hidden', levelEnabled: true, level: 500 }, '[VTK] Drow Lv.222'), '[VTK] Lv.500');
   assert.equal(transform({ mode: 'original', levelEnabled: true, level: 123 }, '[VTK] Drow Lv.222'), '[VTK] Drow Lv.123');
   assert.equal(transform({ mode: 'original', levelEnabled: false }, '[VTK] Drow Lv.222'), null);
+});
+
+test('replaces or hides the guild tag above the own character', () => {
+  assert.equal(transform({ mode: 'original', guildMode: 'custom', guildName: 'NOVA', levelEnabled: false }, '[VTK] Drow Lv.222'), '[NOVA] Drow Lv.222');
+  assert.equal(transform({ mode: 'original', guildMode: 'custom', guildName: 'NOVA', levelEnabled: false }, 'Drow Lv.222'), '[NOVA] Drow Lv.222');
+  assert.equal(transform({ mode: 'custom', name: 'Herói', guildMode: 'custom', guildName: 'NOVA', levelEnabled: true, level: 500 }, '[VTK] Drow Lv.222'), '[NOVA] Herói Lv.500');
+  assert.equal(transform({ mode: 'original', guildMode: 'hidden', levelEnabled: false }, '[VTK] Drow Lv.222'), 'Drow Lv.222');
+  assert.equal(transform({ mode: 'hidden', guildMode: 'hidden', levelEnabled: false }, '[VTK] Drow Lv.222'), 'Lv.222');
 });
