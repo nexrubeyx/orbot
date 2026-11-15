@@ -478,7 +478,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.76</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.77</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -831,6 +831,7 @@
               <label class="pref"><input class="visual-master-toggle" type="checkbox"> Ativar sistema visual</label>
               <label class="name-display-field">Exibição do nome<select class="name-display-mode"><option value="original">Nome original</option><option value="custom">Nome personalizado</option><option value="hidden">Ocultar nome</option></select></label>
               <label class="name-display-field">Nome personalizado<input class="name-display-input" type="text" maxlength="50" autocomplete="off" spellcheck="false" placeholder="Digite o nome que deseja mostrar"></label>
+              <label class="pref"><input class="vip-name-color-toggle" type="checkbox"> Nome dourado acima do personagem (estilo VIP)</label>
               <label class="name-display-field">Guilda acima do personagem<select class="guild-display-mode"><option value="original">Guilda original</option><option value="custom">Guilda personalizada</option><option value="hidden">Ocultar guilda</option></select></label>
               <label class="name-display-field">Nome da guilda visual<input class="guild-display-input" type="text" maxlength="30" autocomplete="off" spellcheck="false" placeholder="Digite sem colchetes, por exemplo VTK"></label>
               <div class="name-visual-option"><label><input class="name-level-enabled" type="checkbox"> Alterar nível</label><input class="name-level-value" type="number" min="1" max="99999" step="1" value="1" aria-label="Nível visual"></div>
@@ -1023,6 +1024,7 @@
   const consoleClear = root.querySelector(".console-clear");
   const consoleExport = root.querySelector(".console-export");
   const visualMasterToggle = root.querySelector(".visual-master-toggle");
+  const vipNameColorToggle = root.querySelector(".vip-name-color-toggle");
   const nameDisplayMode = root.querySelector(".name-display-mode");
   const nameDisplayInput = root.querySelector(".name-display-input");
   const guildDisplayMode = root.querySelector(".guild-display-mode");
@@ -1069,6 +1071,7 @@
   };
   const visual = {
     enabled: readPreference("visual-enabled", "true") !== "false",
+    vipNameColor: readPreference("vip-name-color", "false") === "true",
     mode: displayedNameMode,
     name: customDisplayName,
     guildMode: displayedGuildMode,
@@ -1089,6 +1092,7 @@
   visual.hpCurrent = Math.min(visual.hpCurrent, visual.hpMax);
   visual.mpCurrent = Math.min(visual.mpCurrent, visual.mpMax);
   visualMasterToggle.checked = visual.enabled;
+  vipNameColorToggle.checked = visual.vipNameColor;
   nameDisplayMode.value = displayedNameMode;
   nameDisplayInput.value = customDisplayName;
   guildDisplayMode.value = displayedGuildMode;
@@ -1115,8 +1119,7 @@
   nameMpMode.addEventListener("change", syncResourceFields);
   syncResourceFields();
 
-  const worldLabel = value => {
-    if (visual.enabled === false) return null;
+  const ownWorldLabel = value => {
     const realName = window.mod?.myself?.nick;
     if (!realName || typeof value !== "string") return null;
     const tag = /^\[[^\]]{1,24}\]\s*/.exec(value)?.[0] ?? "";
@@ -1125,6 +1128,13 @@
     if (!plainLabel.startsWith(plainRealName)) return null;
     const suffix = plainLabel.slice(plainRealName.length);
     if (suffix && !/^ Lv\.\d+$/.test(suffix)) return null;
+    return { tag, plainRealName, suffix };
+  };
+  const worldLabel = value => {
+    if (visual.enabled === false) return null;
+    const ownLabel = ownWorldLabel(value);
+    if (!ownLabel) return null;
+    const { tag, plainRealName, suffix } = ownLabel;
     const shownGuild = visual.guildMode === "hidden" ? ""
       : visual.guildMode === "custom" ? `[${visual.guildName}] ` : tag;
     const name = visual.mode === "hidden" ? ""
@@ -1133,6 +1143,8 @@
     const result = [shownGuild.trim(), name, level].filter(Boolean).join(" ");
     return result === value ? null : result;
   };
+  const visualNameColor = value => visual.enabled && visual.vipNameColor && visual.mode !== "hidden"
+    && ownWorldLabel(value) ? "yellow" : null;
   const visualHudData = data => {
     if (visual.enabled === false) return data;
     const shown = { ...data };
@@ -1162,6 +1174,8 @@
     const drawText = GUI.prototype.textPx;
     GUI.prototype.textPx = function (value, ...args) {
       const replacement = this.mundo ? worldLabel(value) : null;
+      const color = this.mundo ? visualNameColor(value) : null;
+      if (color) args[3] = color;
       return replacement === "" ? 0 : drawText.call(this, replacement ?? value, ...args);
     };
     const updateHud = Hud2.prototype.atualizar;
@@ -1203,6 +1217,12 @@
       : visualHooksState === "error" ? "Sistema ativado, mas os módulos visuais não carregaram. Recarregue o jogo."
       : visualHooksState === "loading" ? "Sistema ativado. Aguardando os módulos visuais do jogo."
       : "Sistema visual ativado.";
+  });
+  vipNameColorToggle.addEventListener("change", () => {
+    visual.vipNameColor = vipNameColorToggle.checked;
+    savePreference("vip-name-color", visual.vipNameColor);
+    nameDisplayStatus.textContent = !visual.enabled ? "Cor salva. Ative o sistema visual para exibi-la."
+      : visual.vipNameColor ? "Nome dourado ativado acima do personagem." : "Cor original do nome restaurada.";
   });
   nameDisplayApply.addEventListener("click", () => {
     const mode = nameDisplayMode.value;

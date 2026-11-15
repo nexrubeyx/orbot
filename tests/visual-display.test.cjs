@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 
 const source = readFileSync(require.resolve('../src/panel.js'), 'utf8');
-const start = source.indexOf('  const worldLabel = value => {');
+const start = source.indexOf('  const ownWorldLabel = value => {');
 const end = source.indexOf('  let visualHooksState', start);
 assert.ok(start >= 0 && end > start);
 const helper = source.slice(start, end);
@@ -22,6 +22,23 @@ function resourceDisplay(visual, data) {
     return { hud: visualHudData(data), worldHp: visualWorldHpPercent() };
   `)(visual, data);
 }
+
+function nameColor(visual, value, nick = 'Drow') {
+  return new Function('visual', 'nick', 'value', `
+    const window = { mod: { myself: { nick } } };
+    ${helper}
+    return visualNameColor(value);
+  `)(visual, nick, value);
+}
+
+test('uses the game gold color only for the own visible name while enabled', () => {
+  const visual = { enabled: true, vipNameColor: true, mode: 'original' };
+  assert.equal(nameColor(visual, '[VTK] Drow Lv.222'), 'yellow');
+  assert.equal(nameColor(visual, '[VTK] Alice Lv.222'), null);
+  assert.equal(nameColor({ ...visual, vipNameColor: false }, '[VTK] Drow Lv.222'), null);
+  assert.equal(nameColor({ ...visual, enabled: false }, '[VTK] Drow Lv.222'), null);
+  assert.equal(nameColor({ ...visual, mode: 'hidden' }, '[VTK] Drow Lv.222'), null);
+});
 
 test('changes the own world label while preserving the guild tag', () => {
   const visual = { mode: 'custom', name: 'Outro Nome', levelEnabled: true, level: 500 };
