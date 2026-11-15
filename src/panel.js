@@ -467,11 +467,14 @@
       .page .menu-block :is(select,input[type="number"],input[type="search"]):focus-visible { outline:2px solid var(--ouro); outline-offset:1px; }
       .name-display-field { display:grid; gap:4px; }
       .name-display-field :is(select,input) { width:100%; min-width:0; box-sizing:border-box; padding:8px 9px; border:1px solid var(--luz); background:var(--slot); color:var(--ui); font:inherit; }
+      .name-visual-option { display:grid; grid-template-columns:minmax(0,1fr) 105px; align-items:center; gap:8px; padding:8px 9px; border:1px solid var(--luz); background:var(--slot); }
+      .name-visual-option label { display:flex; align-items:center; gap:6px; color:var(--ui); }
+      .name-visual-option input[type="number"] { margin:0; }
       .name-display-apply { justify-self:start; padding:7px 12px; cursor:pointer; }
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.73</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.74</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -486,7 +489,7 @@
           <button class="side-link" data-page="clone">Clone</button>
           <button class="side-link" data-page="automation">Configuração</button>
           <button class="side-link" data-page="status">Status</button>
-          <button class="side-link" data-page="name-display">Nome</button>
+          <button class="side-link" data-page="name-display">Visual</button>
           <button class="side-link" data-page="console">Console</button>
         </nav>
         <div class="page-content">
@@ -818,13 +821,16 @@
             </section>
           </section>
           <section class="page" data-section="name-display" hidden>
-            <h2>Nome do personagem</h2>
-            <section class="menu-block" aria-label="Nome exibido localmente">
-              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✎</span><span class="menu-heading-copy"><strong>Nome visual</strong><small>Personalize ou oculte o nome na sua tela</small></span></div>
+            <h2>Visual do personagem</h2>
+            <section class="menu-block" aria-label="Dados exibidos localmente">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✎</span><span class="menu-heading-copy"><strong>Dados visuais</strong><small>Nome, nível, XP e vida na sua tela</small></span></div>
               <label class="name-display-field">Exibição do nome<select class="name-display-mode"><option value="original">Nome original</option><option value="custom">Nome personalizado</option><option value="hidden">Ocultar nome</option></select></label>
               <label class="name-display-field">Nome personalizado<input class="name-display-input" type="text" maxlength="50" autocomplete="off" spellcheck="false" placeholder="Digite o nome que deseja mostrar"></label>
+              <div class="name-visual-option"><label><input class="name-level-enabled" type="checkbox"> Alterar nível</label><input class="name-level-value" type="number" min="1" max="99999" step="1" value="1" aria-label="Nível visual"></div>
+              <div class="name-visual-option"><label><input class="name-xp-enabled" type="checkbox"> Alterar XP (%)</label><input class="name-xp-value" type="number" min="0" max="100" step="1" value="100" aria-label="Porcentagem visual de XP"></div>
+              <div class="name-visual-option"><label><input class="name-hp-enabled" type="checkbox"> Alterar vida (%)</label><input class="name-hp-value" type="number" min="0" max="100" step="1" value="100" aria-label="Porcentagem visual de vida"></div>
               <button class="name-display-apply" type="button">Aplicar</button>
-              <p class="hint">A mudança aparece apenas no seu jogo. Outros jogadores continuam vendo o nome real.</p>
+              <p class="hint">Os valores são visuais e aparecem apenas na sua tela. O servidor mantém os dados reais.</p>
               <p class="result name-display-status" role="status"></p>
             </section>
           </section>
@@ -1008,6 +1014,12 @@
   const nameDisplayInput = root.querySelector(".name-display-input");
   const nameDisplayApply = root.querySelector(".name-display-apply");
   const nameDisplayStatus = root.querySelector(".name-display-status");
+  const nameLevelEnabled = root.querySelector(".name-level-enabled");
+  const nameLevelValue = root.querySelector(".name-level-value");
+  const nameXpEnabled = root.querySelector(".name-xp-enabled");
+  const nameXpValue = root.querySelector(".name-xp-value");
+  const nameHpEnabled = root.querySelector(".name-hp-enabled");
+  const nameHpValue = root.querySelector(".name-hp-value");
   const arrowsCount = root.querySelector(".arrows-count");
   const hpPotionsCount = root.querySelector(".hp-potions-count");
   const mpPotionsCount = root.querySelector(".mp-potions-count");
@@ -1022,47 +1034,90 @@
   if (!["original", "custom", "hidden"].includes(displayedNameMode)) displayedNameMode = "original";
   let customDisplayName = readPreference("name-custom", "").slice(0, 50);
   if (displayedNameMode === "custom" && !customDisplayName) displayedNameMode = "original";
+  const storedNumber = (key, fallback, min, max) => {
+    const value = Number(readPreference(key, fallback));
+    return Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+  };
+  const visual = {
+    mode: displayedNameMode,
+    name: customDisplayName,
+    levelEnabled: readPreference("name-level-enabled", "false") === "true",
+    level: storedNumber("name-level", 1, 1, 99999),
+    xpEnabled: readPreference("name-xp-enabled", "false") === "true",
+    xp: storedNumber("name-xp", 100, 0, 100),
+    hpEnabled: readPreference("name-hp-enabled", "false") === "true",
+    hp: storedNumber("name-hp", 100, 0, 100)
+  };
   nameDisplayMode.value = displayedNameMode;
   nameDisplayInput.value = customDisplayName;
+  nameLevelEnabled.checked = visual.levelEnabled;
+  nameLevelValue.value = String(visual.level);
+  nameXpEnabled.checked = visual.xpEnabled;
+  nameXpValue.value = String(visual.xp);
+  nameHpEnabled.checked = visual.hpEnabled;
+  nameHpValue.value = String(visual.hp);
 
-  const transformedName = value => {
-    if (displayedNameMode === "original") return null;
+  const worldLabel = value => {
     const realName = window.mod?.myself?.nick;
-    if (!realName || typeof value !== "string" || !value.startsWith(realName)) return null;
-    const suffix = value.slice(realName.length);
+    if (!realName || typeof value !== "string") return null;
+    const tag = /^\[[^\]]{1,24}\]\s*/.exec(value)?.[0] ?? "";
+    const plainLabel = value.slice(tag.length);
+    const plainRealName = tag && realName.startsWith(tag) ? realName.slice(tag.length) : realName;
+    if (!plainLabel.startsWith(plainRealName)) return null;
+    const suffix = plainLabel.slice(plainRealName.length);
     if (suffix && !/^ Lv\.\d+$/.test(suffix)) return null;
-    return displayedNameMode === "hidden" ? "" : `${customDisplayName}${suffix}`;
+    if (visual.mode === "hidden") return visual.levelEnabled ? `Lv.${visual.level}` : suffix.trim();
+    const name = visual.mode === "custom" ? visual.name : plainRealName;
+    const level = visual.levelEnabled ? ` Lv.${visual.level}` : suffix;
+    const result = `${tag}${name}${level}`;
+    return result === value ? null : result;
   };
-  const isNameLabelCanvas = canvas => canvas?.id === "labels" || (canvas?.width === 2048 && canvas?.height === 2048);
-  const originalFillText = CanvasRenderingContext2D.prototype.fillText;
-  CanvasRenderingContext2D.prototype.fillText = function (value, ...args) {
-    const replacement = isNameLabelCanvas(this.canvas) ? transformedName(value) : null;
-    if (replacement === "") return;
-    return originalFillText.call(this, replacement ?? value, ...args);
-  };
-  const originalMeasureText = CanvasRenderingContext2D.prototype.measureText;
-  CanvasRenderingContext2D.prototype.measureText = function (value) {
-    const canvas = this.canvas;
-    const measuresLabels = isNameLabelCanvas(canvas)
-      || (canvas?.width === 300 && canvas?.height === 150 && !canvas.id);
-    return originalMeasureText.call(this, measuresLabels ? transformedName(value) ?? value : value);
-  };
-  const refreshDisplayedName = () => {
-    const realName = window.mod?.myself?.nick;
-    const hudName = document.querySelector(".hud > .cartao .nome");
-    if (!hudName || !realName) return;
-    const visibleName = displayedNameMode === "hidden" ? ""
-      : displayedNameMode === "custom" ? customDisplayName : realName;
-    if (hudName.textContent !== visibleName) hudName.textContent = visibleName;
-  };
-  let lastRealName = window.mod?.myself?.nick ?? null;
-  const refreshNameAtlas = () => {
-    document.fonts?.dispatchEvent(new Event("loadingdone"));
-  };
-  if (displayedNameMode !== "original") {
-    refreshDisplayedName();
-    refreshNameAtlas();
-  }
+  let visualHooksState = "loading";
+  Promise.all([import("/src/gui.mjs"), import("/src/hud2.mjs"), import("/src/render.mjs")]).then(([
+    { GUI }, { Hud2 }, { Renderer }
+  ]) => {
+    const drawText = GUI.prototype.textPx;
+    GUI.prototype.textPx = function (value, ...args) {
+      const replacement = this.mundo ? worldLabel(value) : null;
+      return replacement === "" ? 0 : drawText.call(this, replacement ?? value, ...args);
+    };
+    const updateHud = Hud2.prototype.atualizar;
+    Hud2.prototype.atualizar = function (data) {
+      if (!data?.visivel) return updateHud.call(this, data);
+      const shown = { ...data };
+      if (visual.mode === "hidden") shown.nome = "";
+      else if (visual.mode === "custom") shown.nome = visual.name;
+      if (visual.levelEnabled) shown.nivel = visual.level;
+      if (visual.xpEnabled) shown.xp = visual.xp / 100;
+      if (visual.hpEnabled && Number.isFinite(data.maxHp)) shown.hp = Math.round(data.maxHp * visual.hp / 100);
+      return updateHud.call(this, shown);
+    };
+    const drawWorld = Renderer.prototype.drawWorld;
+    Renderer.prototype.drawWorld = function (...args) {
+      this.__botSelfPosition = null;
+      return drawWorld.call(this, ...args);
+    };
+    const drawCharacter = Renderer.prototype.drawCharacter;
+    Renderer.prototype.drawCharacter = function (...args) {
+      if (window.mod?.myself?.id != null && String(args[8]) === String(window.mod.myself.id)) {
+        this.__botSelfPosition = { x: args[2], y: args[3] };
+      }
+      return drawCharacter.call(this, ...args);
+    };
+    const drawHealthBar = Renderer.prototype.drawHealthBar;
+    Renderer.prototype.drawHealthBar = function (x, y, hp, ...args) {
+      const self = this.__botSelfPosition;
+      const shownHp = visual.hpEnabled && self?.x === x && self?.y === y ? visual.hp : hp;
+      return drawHealthBar.call(this, x, y, shownHp, ...args);
+    };
+    visualHooksState = "ready";
+    if (nameDisplayStatus.textContent === "Aparência salva. Aguardando os módulos visuais do jogo.") {
+      nameDisplayStatus.textContent = "Aparência aplicada nesta tela.";
+    }
+  }).catch(() => {
+    visualHooksState = "error";
+    nameDisplayStatus.textContent = "Não foi possível aplicar os valores no mapa. Recarregue o jogo.";
+  });
   nameDisplayApply.addEventListener("click", () => {
     const mode = nameDisplayMode.value;
     const value = nameDisplayInput.value.trim();
@@ -1070,14 +1125,34 @@
       nameDisplayStatus.textContent = "Digite um nome para usar o modo personalizado.";
       return;
     }
-    displayedNameMode = mode;
-    customDisplayName = value;
+    const level = Number(nameLevelValue.value);
+    const xp = Number(nameXpValue.value);
+    const hp = Number(nameHpValue.value);
+    if ((nameLevelEnabled.checked && (!Number.isInteger(level) || level < 1 || level > 99999))
+        || (nameXpEnabled.checked && (!Number.isInteger(xp) || xp < 0 || xp > 100))
+        || (nameHpEnabled.checked && (!Number.isInteger(hp) || hp < 0 || hp > 100))) {
+      nameDisplayStatus.textContent = "Informe nível entre 1 e 99999 e porcentagens entre 0 e 100.";
+      return;
+    }
+    visual.mode = mode;
+    visual.name = value;
+    visual.levelEnabled = nameLevelEnabled.checked;
+    visual.xpEnabled = nameXpEnabled.checked;
+    visual.hpEnabled = nameHpEnabled.checked;
+    if (visual.levelEnabled) visual.level = level;
+    if (visual.xpEnabled) visual.xp = xp;
+    if (visual.hpEnabled) visual.hp = hp;
     savePreference("name-mode", mode);
     savePreference("name-custom", value);
-    refreshDisplayedName();
-    refreshNameAtlas();
-    nameDisplayStatus.textContent = mode === "hidden" ? "Nome oculto nesta tela."
-      : mode === "custom" ? "Nome visual aplicado nesta tela." : "Nome original restaurado.";
+    savePreference("name-level-enabled", visual.levelEnabled);
+    savePreference("name-level", visual.level);
+    savePreference("name-xp-enabled", visual.xpEnabled);
+    savePreference("name-xp", visual.xp);
+    savePreference("name-hp-enabled", visual.hpEnabled);
+    savePreference("name-hp", visual.hp);
+    nameDisplayStatus.textContent = visualHooksState === "ready" ? "Aparência aplicada nesta tela."
+      : visualHooksState === "error" ? "Salvo, mas o jogo não carregou os módulos visuais. Recarregue a página."
+      : "Aparência salva. Aguardando os módulos visuais do jogo.";
   });
   for (const option of root.querySelectorAll("[data-status-item]")) {
     option.checked = readPreference(`status-${option.dataset.statusItem}`, "true") === "true";
@@ -2677,12 +2752,6 @@
     if (!backdrop.hidden) renderRefillItems();
     if (!backdrop.hidden) syncHuntUI();
     if (!backdrop.hidden && root.querySelector('[data-section="console"]')?.hidden === false) showConsole();
-    const realName = window.mod?.myself?.nick ?? null;
-    if (realName !== lastRealName) {
-      lastRealName = realName;
-      refreshNameAtlas();
-    }
-    refreshDisplayedName();
     const me = window.mod?.myself;
     if (!me || !Number.isFinite(me.hp) || !Number.isFinite(me.maxHp) || !Number.isFinite(me.mp) || !Number.isFinite(me.maxMp)) return;
     const hpPct = me.maxHp > 0 ? me.hp / me.maxHp * 100 : 100;
