@@ -465,17 +465,10 @@
       .page .menu-block .resource-summary { margin:0; }
       .page .menu-block .console-toolbar { flex-wrap:wrap; gap:6px; margin:0; }
       .page .menu-block :is(select,input[type="number"],input[type="search"]):focus-visible { outline:2px solid var(--ouro); outline-offset:1px; }
-      .resume-token-field { width:100%; min-width:0; box-sizing:border-box; padding:9px; border:1px solid var(--luz); background:var(--slot); color:var(--ui); font:12px ui-monospace,monospace; user-select:text; -webkit-user-select:text; }
-      .resume-token-actions { display:flex; flex-wrap:wrap; gap:7px; }
-      .resume-token-actions button { padding:6px 10px; cursor:pointer; }
-      .resume-character { display:flex; flex-wrap:wrap; gap:8px; }
-      .resume-character > span { flex:1 1 140px; min-width:0; padding:8px 9px; border:1px solid var(--luz); background:var(--slot); }
-      .resume-character small { display:block; color:var(--ui-2); font-size:10px; }
-      .resume-character strong { display:block; overflow-wrap:anywhere; color:var(--ui); font-size:13px; }
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.71</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.72</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -490,7 +483,6 @@
           <button class="side-link" data-page="clone">Clone</button>
           <button class="side-link" data-page="automation">Configuração</button>
           <button class="side-link" data-page="status">Status</button>
-          <button class="side-link" data-page="resume-token">Resume token</button>
           <button class="side-link" data-page="console">Console</button>
         </nav>
         <div class="page-content">
@@ -821,17 +813,6 @@
             <div class="console-list" aria-live="polite"></div>
             </section>
           </section>
-          <section class="page" data-section="resume-token" hidden>
-            <h2>Resume token</h2>
-            <section class="menu-block" aria-label="Token de retomada da sessão">
-              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">◇</span><span class="menu-heading-copy"><strong>Token da sessão</strong><small>Usado pelo jogo para retomar o login</small></span></div>
-              <div class="resume-character"><span><small>Nick do personagem</small><strong class="resume-character-nick">Aguardando personagem</strong></span><span><small>Nível</small><strong class="resume-character-level">—</strong></span></div>
-              <label for="fantasy-resume-token">Seu resume token</label>
-              <input id="fantasy-resume-token" class="resume-token-field" type="password" readonly autocomplete="off" spellcheck="false" placeholder="Nenhum token disponível">
-              <div class="resume-token-actions"><button class="resume-token-reveal" type="button" disabled>Mostrar</button><button class="resume-token-copy" type="button" disabled>Copiar token</button></div>
-              <p class="result resume-token-status" role="status">O token é carregado ao abrir esta aba. Não compartilhe com outras pessoas.</p>
-            </section>
-          </section>
         </div>
       </div>
     </section>
@@ -1008,12 +989,6 @@
   const consoleList = root.querySelector(".console-list");
   const consoleClear = root.querySelector(".console-clear");
   const consoleExport = root.querySelector(".console-export");
-  const resumeTokenField = root.querySelector(".resume-token-field");
-  const resumeTokenReveal = root.querySelector(".resume-token-reveal");
-  const resumeTokenCopy = root.querySelector(".resume-token-copy");
-  const resumeTokenStatus = root.querySelector(".resume-token-status");
-  const resumeCharacterNick = root.querySelector(".resume-character-nick");
-  const resumeCharacterLevel = root.querySelector(".resume-character-level");
   const arrowsCount = root.querySelector(".arrows-count");
   const hpPotionsCount = root.querySelector(".hp-potions-count");
   const mpPotionsCount = root.querySelector(".mp-potions-count");
@@ -1119,37 +1094,6 @@
   specialMinimumRow.hidden = !lureSpecialToggle.checked || !specialMinimumToggle.checked;
   let captchaHistoryRevision = -1;
   let captchaHistoryLoading = false;
-  const refreshResumeCharacter = () => {
-    const me = window.mod?.myself;
-    resumeCharacterNick.textContent = me?.nick || "Aguardando personagem";
-    resumeCharacterLevel.textContent = me?.level != null ? String(me.level) : "—";
-  };
-  const refreshResumeToken = () => {
-    refreshResumeCharacter();
-    let token = null;
-    try { token = localStorage.getItem("fantasy.session"); }
-    catch { resumeTokenStatus.textContent = "Não foi possível acessar o armazenamento do navegador."; }
-    resumeTokenField.value = token ?? "";
-    resumeTokenField.type = "password";
-    resumeTokenReveal.textContent = "Mostrar";
-    resumeTokenReveal.disabled = resumeTokenCopy.disabled = !token;
-    if (token) resumeTokenStatus.textContent = "Não compartilhe este token com outras pessoas.";
-    else if (!resumeTokenStatus.textContent.includes("armazenamento")) resumeTokenStatus.textContent = "Nenhum token salvo. Entre no jogo para obter um token.";
-  };
-  resumeTokenReveal.addEventListener("click", () => {
-    const visible = resumeTokenField.type === "text";
-    resumeTokenField.type = visible ? "password" : "text";
-    resumeTokenReveal.textContent = visible ? "Mostrar" : "Ocultar";
-  });
-  resumeTokenCopy.addEventListener("click", async () => {
-    if (!resumeTokenField.value) return;
-    try {
-      await navigator.clipboard.writeText(resumeTokenField.value);
-      resumeTokenStatus.textContent = "Token copiado.";
-    } catch {
-      resumeTokenStatus.textContent = "Não foi possível copiar. Use Mostrar e copie o valor manualmente.";
-    }
-  });
   const setPage = name => {
     if (!pages.some(page => page.dataset.section === name)) name = pages[0]?.dataset.section ?? "creatures";
     for (const page of pages) page.hidden = page.dataset.section !== name;
@@ -1158,12 +1102,7 @@
     if (name === "console") showConsole();
     if (name === "training") renderTrainingMobs();
     if (name === "captcha") renderCaptchaHistory(true);
-    if (name === "resume-token") refreshResumeToken();
-    else { resumeTokenField.type = "password"; resumeTokenReveal.textContent = "Mostrar"; }
   };
-  window.addEventListener("storage", event => {
-    if (event.key === "fantasy.session" && !root.querySelector('[data-section="resume-token"]').hidden) refreshResumeToken();
-  });
   let initialPage = "creatures";
   try { initialPage = localStorage.getItem("fantasy-mod-panel-page") ?? initialPage; } catch {}
   setPage(initialPage);
@@ -1205,7 +1144,6 @@
   });
   window.addEventListener("__fantasy_mod_console_update", () => {
     if (!backdrop.hidden && root.querySelector('[data-section="console"]')?.hidden === false) showConsole();
-    if (!backdrop.hidden && root.querySelector('[data-section="resume-token"]')?.hidden === false) refreshResumeCharacter();
   });
 
   function showConsole() {
@@ -1414,18 +1352,8 @@
     return true;
   }
 
-  const open = () => {
-    backdrop.hidden = false;
-    if (!root.querySelector('[data-section="resume-token"]').hidden) refreshResumeToken();
-    refresh(true);
-  };
-  const close = () => {
-    waypointMapDialog.hidden = true;
-    backdrop.hidden = true;
-    resumeTokenField.type = "password";
-    resumeTokenField.value = "";
-    resumeTokenReveal.textContent = "Mostrar";
-  };
+  const open = () => { backdrop.hidden = false; refresh(true); };
+  const close = () => { waypointMapDialog.hidden = true; backdrop.hidden = true; };
   root.querySelector(".close").addEventListener("click", close);
   backdrop.addEventListener("click", event => { if (event.target === backdrop) close(); });
   const persistAutomation = () => {
@@ -2630,24 +2558,33 @@
   window.addEventListener("keydown", event => { if (event.key === "Escape" && !backdrop.hidden) close(); });
 
   document.documentElement.append(host);
-  const topButton = document.createElement("a");
-  topButton.href = "#";
-  topButton.className = "b mod-button";
-  topButton.title = "Preferências do Sentinela";
-  topButton.setAttribute("aria-label", "Abrir preferências do Sentinela");
-  topButton.innerHTML = '<span aria-hidden="true" style="font-size:calc(var(--px) * 10)">⚙</span><small>Robo</small>';
-  topButton.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); open(); });
-  const placeTopButton = () => {
-    if (topButton.isConnected && topButton.parentElement?.matches("nav.topo")) return;
-    const nav = document.querySelector(".hud nav.topo");
-    if (!nav || topButton.parentElement === nav) return;
-    const mapButton = nav.querySelector("a.bbutton_minimap");
-    if (mapButton) mapButton.after(topButton);
-    else nav.append(topButton);
+  document.querySelectorAll(".hud nav.topo .mod-button").forEach(button => button.remove());
+  const bindCharacterCard = () => {
+    const card = document.querySelector(".hud > .cartao");
+    if (!card) return false;
+    card.style.cursor = "pointer";
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", "Abrir menu do Sentinela");
+    card.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      open();
+    });
+    card.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      event.stopPropagation();
+      open();
+    });
+    return true;
   };
-  const hudObserver = new MutationObserver(placeTopButton);
-  hudObserver.observe(document.documentElement, { childList: true, subtree: true });
-  placeTopButton();
+  if (!bindCharacterCard()) {
+    const hudObserver = new MutationObserver(() => {
+      if (bindCharacterCard()) hudObserver.disconnect();
+    });
+    hudObserver.observe(document.documentElement, { childList: true, subtree: true });
+  }
   window.__fantasyModPanel = { open, close };
   setInterval(() => {
     if (!waypointMapDialog.hidden) drawWaypointMap();
