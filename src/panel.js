@@ -468,10 +468,14 @@
       .resume-token-field { width:100%; min-width:0; box-sizing:border-box; padding:9px; border:1px solid var(--luz); background:var(--slot); color:var(--ui); font:12px ui-monospace,monospace; user-select:text; -webkit-user-select:text; }
       .resume-token-actions { display:flex; flex-wrap:wrap; gap:7px; }
       .resume-token-actions button { padding:6px 10px; cursor:pointer; }
+      .resume-character { display:flex; flex-wrap:wrap; gap:8px; }
+      .resume-character > span { flex:1 1 140px; min-width:0; padding:8px 9px; border:1px solid var(--luz); background:var(--slot); }
+      .resume-character small { display:block; color:var(--ui-2); font-size:10px; }
+      .resume-character strong { display:block; overflow-wrap:anywhere; color:var(--ui); font-size:13px; }
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.69</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.70</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -821,6 +825,7 @@
             <h2>Resume token</h2>
             <section class="menu-block" aria-label="Token de retomada da sessão">
               <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">◇</span><span class="menu-heading-copy"><strong>Token da sessão</strong><small>Usado pelo jogo para retomar o login</small></span></div>
+              <div class="resume-character"><span><small>Nick do personagem</small><strong class="resume-character-nick">Aguardando personagem</strong></span><span><small>Nível</small><strong class="resume-character-level">—</strong></span></div>
               <label for="fantasy-resume-token">Seu resume token</label>
               <input id="fantasy-resume-token" class="resume-token-field" type="password" readonly autocomplete="off" spellcheck="false" placeholder="Nenhum token disponível">
               <div class="resume-token-actions"><button class="resume-token-reveal" type="button" disabled>Mostrar</button><button class="resume-token-copy" type="button" disabled>Copiar token</button></div>
@@ -1007,6 +1012,8 @@
   const resumeTokenReveal = root.querySelector(".resume-token-reveal");
   const resumeTokenCopy = root.querySelector(".resume-token-copy");
   const resumeTokenStatus = root.querySelector(".resume-token-status");
+  const resumeCharacterNick = root.querySelector(".resume-character-nick");
+  const resumeCharacterLevel = root.querySelector(".resume-character-level");
   const arrowsCount = root.querySelector(".arrows-count");
   const hpPotionsCount = root.querySelector(".hp-potions-count");
   const mpPotionsCount = root.querySelector(".mp-potions-count");
@@ -1112,7 +1119,13 @@
   specialMinimumRow.hidden = !lureSpecialToggle.checked || !specialMinimumToggle.checked;
   let captchaHistoryRevision = -1;
   let captchaHistoryLoading = false;
+  const refreshResumeCharacter = () => {
+    const me = window.mod?.myself;
+    resumeCharacterNick.textContent = me?.nick || "Aguardando personagem";
+    resumeCharacterLevel.textContent = me?.level != null ? String(me.level) : "—";
+  };
   const refreshResumeToken = () => {
+    refreshResumeCharacter();
     let token = null;
     try { token = localStorage.getItem("fantasy.session"); }
     catch { resumeTokenStatus.textContent = "Não foi possível acessar o armazenamento do navegador."; }
@@ -1192,6 +1205,7 @@
   });
   window.addEventListener("__fantasy_mod_console_update", () => {
     if (!backdrop.hidden && root.querySelector('[data-section="console"]')?.hidden === false) showConsole();
+    if (!backdrop.hidden && root.querySelector('[data-section="resume-token"]')?.hidden === false) refreshResumeCharacter();
   });
 
   function showConsole() {
