@@ -465,10 +465,13 @@
       .page .menu-block .resource-summary { margin:0; }
       .page .menu-block .console-toolbar { flex-wrap:wrap; gap:6px; margin:0; }
       .page .menu-block :is(select,input[type="number"],input[type="search"]):focus-visible { outline:2px solid var(--ouro); outline-offset:1px; }
+      .name-display-field { display:grid; gap:4px; }
+      .name-display-field :is(select,input) { width:100%; min-width:0; box-sizing:border-box; padding:8px 9px; border:1px solid var(--luz); background:var(--slot); color:var(--ui); font:inherit; }
+      .name-display-apply { justify-self:start; padding:7px 12px; cursor:pointer; }
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.72</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.73</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -483,6 +486,7 @@
           <button class="side-link" data-page="clone">Clone</button>
           <button class="side-link" data-page="automation">Configuração</button>
           <button class="side-link" data-page="status">Status</button>
+          <button class="side-link" data-page="name-display">Nome</button>
           <button class="side-link" data-page="console">Console</button>
         </nav>
         <div class="page-content">
@@ -813,6 +817,17 @@
             <div class="console-list" aria-live="polite"></div>
             </section>
           </section>
+          <section class="page" data-section="name-display" hidden>
+            <h2>Nome do personagem</h2>
+            <section class="menu-block" aria-label="Nome exibido localmente">
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✎</span><span class="menu-heading-copy"><strong>Nome visual</strong><small>Personalize ou oculte o nome na sua tela</small></span></div>
+              <label class="name-display-field">Exibição do nome<select class="name-display-mode"><option value="original">Nome original</option><option value="custom">Nome personalizado</option><option value="hidden">Ocultar nome</option></select></label>
+              <label class="name-display-field">Nome personalizado<input class="name-display-input" type="text" maxlength="50" autocomplete="off" spellcheck="false" placeholder="Digite o nome que deseja mostrar"></label>
+              <button class="name-display-apply" type="button">Aplicar</button>
+              <p class="hint">A mudança aparece apenas no seu jogo. Outros jogadores continuam vendo o nome real.</p>
+              <p class="result name-display-status" role="status"></p>
+            </section>
+          </section>
         </div>
       </div>
     </section>
@@ -989,6 +1004,10 @@
   const consoleList = root.querySelector(".console-list");
   const consoleClear = root.querySelector(".console-clear");
   const consoleExport = root.querySelector(".console-export");
+  const nameDisplayMode = root.querySelector(".name-display-mode");
+  const nameDisplayInput = root.querySelector(".name-display-input");
+  const nameDisplayApply = root.querySelector(".name-display-apply");
+  const nameDisplayStatus = root.querySelector(".name-display-status");
   const arrowsCount = root.querySelector(".arrows-count");
   const hpPotionsCount = root.querySelector(".hp-potions-count");
   const mpPotionsCount = root.querySelector(".mp-potions-count");
@@ -999,6 +1018,67 @@
   try { autoRefresh.checked = localStorage.getItem(preferenceKey) !== "false"; } catch { autoRefresh.checked = true; }
   const readPreference = (key, fallback) => { try { const value = localStorage.getItem(`fantasy-mod-${key}`); return value == null ? fallback : value; } catch { return fallback; } };
   const savePreference = (key, value) => { try { localStorage.setItem(`fantasy-mod-${key}`, String(value)); } catch {} };
+  let displayedNameMode = readPreference("name-mode", "original");
+  if (!["original", "custom", "hidden"].includes(displayedNameMode)) displayedNameMode = "original";
+  let customDisplayName = readPreference("name-custom", "").slice(0, 50);
+  if (displayedNameMode === "custom" && !customDisplayName) displayedNameMode = "original";
+  nameDisplayMode.value = displayedNameMode;
+  nameDisplayInput.value = customDisplayName;
+
+  const transformedName = value => {
+    if (displayedNameMode === "original") return null;
+    const realName = window.mod?.myself?.nick;
+    if (!realName || typeof value !== "string" || !value.startsWith(realName)) return null;
+    const suffix = value.slice(realName.length);
+    if (suffix && !/^ Lv\.\d+$/.test(suffix)) return null;
+    return displayedNameMode === "hidden" ? "" : `${customDisplayName}${suffix}`;
+  };
+  const isNameLabelCanvas = canvas => canvas?.id === "labels" || (canvas?.width === 2048 && canvas?.height === 2048);
+  const originalFillText = CanvasRenderingContext2D.prototype.fillText;
+  CanvasRenderingContext2D.prototype.fillText = function (value, ...args) {
+    const replacement = isNameLabelCanvas(this.canvas) ? transformedName(value) : null;
+    if (replacement === "") return;
+    return originalFillText.call(this, replacement ?? value, ...args);
+  };
+  const originalMeasureText = CanvasRenderingContext2D.prototype.measureText;
+  CanvasRenderingContext2D.prototype.measureText = function (value) {
+    const canvas = this.canvas;
+    const measuresLabels = isNameLabelCanvas(canvas)
+      || (canvas?.width === 300 && canvas?.height === 150 && !canvas.id);
+    return originalMeasureText.call(this, measuresLabels ? transformedName(value) ?? value : value);
+  };
+  const refreshDisplayedName = () => {
+    const realName = window.mod?.myself?.nick;
+    const hudName = document.querySelector(".hud > .cartao .nome");
+    if (!hudName || !realName) return;
+    const visibleName = displayedNameMode === "hidden" ? ""
+      : displayedNameMode === "custom" ? customDisplayName : realName;
+    if (hudName.textContent !== visibleName) hudName.textContent = visibleName;
+  };
+  let lastRealName = window.mod?.myself?.nick ?? null;
+  const refreshNameAtlas = () => {
+    document.fonts?.dispatchEvent(new Event("loadingdone"));
+  };
+  if (displayedNameMode !== "original") {
+    refreshDisplayedName();
+    refreshNameAtlas();
+  }
+  nameDisplayApply.addEventListener("click", () => {
+    const mode = nameDisplayMode.value;
+    const value = nameDisplayInput.value.trim();
+    if (mode === "custom" && !value) {
+      nameDisplayStatus.textContent = "Digite um nome para usar o modo personalizado.";
+      return;
+    }
+    displayedNameMode = mode;
+    customDisplayName = value;
+    savePreference("name-mode", mode);
+    savePreference("name-custom", value);
+    refreshDisplayedName();
+    refreshNameAtlas();
+    nameDisplayStatus.textContent = mode === "hidden" ? "Nome oculto nesta tela."
+      : mode === "custom" ? "Nome visual aplicado nesta tela." : "Nome original restaurado.";
+  });
   for (const option of root.querySelectorAll("[data-status-item]")) {
     option.checked = readPreference(`status-${option.dataset.statusItem}`, "true") === "true";
     option.addEventListener("change", () => savePreference(`status-${option.dataset.statusItem}`, option.checked));
@@ -2597,6 +2677,12 @@
     if (!backdrop.hidden) renderRefillItems();
     if (!backdrop.hidden) syncHuntUI();
     if (!backdrop.hidden && root.querySelector('[data-section="console"]')?.hidden === false) showConsole();
+    const realName = window.mod?.myself?.nick ?? null;
+    if (realName !== lastRealName) {
+      lastRealName = realName;
+      refreshNameAtlas();
+    }
+    refreshDisplayedName();
     const me = window.mod?.myself;
     if (!me || !Number.isFinite(me.hp) || !Number.isFinite(me.maxHp) || !Number.isFinite(me.mp) || !Number.isFinite(me.maxMp)) return;
     const hpPct = me.maxHp > 0 ? me.hp / me.maxHp * 100 : 100;
