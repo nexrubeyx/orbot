@@ -421,6 +421,11 @@
       .page[data-section="automation"] .config-options .pref { flex-direction:row-reverse; min-height:40px; margin:5px 0 0; padding:8px 9px; background:var(--slot); font-size:11px; line-height:1.3; cursor:pointer; }
       .page[data-section="automation"] .config-options .pref:hover { border-color:var(--ouro-escuro); }
       .page[data-section="automation"] .config-options > .hint { margin:2px 2px 5px; line-height:1.4; }
+      .page[data-section="automation"] .config-training .pref { flex-direction:row-reverse; min-height:40px; margin:5px 0 9px; padding:8px 9px; background:var(--slot); font-size:11px; line-height:1.3; cursor:pointer; }
+      .page[data-section="automation"] .config-training .pref:hover { border-color:var(--ouro-escuro); }
+      .page[data-section="automation"] .config-training .training-online-minutes-row { display:grid; gap:5px; max-width:230px; color:var(--ui-2); font-size:11px; }
+      .page[data-section="automation"] .config-training .training-online-minutes { width:100%; min-width:0; }
+      .page[data-section="automation"] .config-training .hint { margin-top:8px; line-height:1.4; }
       .page[data-section="automation"] .config-sales .loot-picker,.page[data-section="automation"] .config-sales .protected-sell-card { margin:5px 0 0; padding:9px; border:1px solid var(--luz); background:var(--slot); box-shadow:inset 0 1px #ffffff0a; }
       .page[data-section="automation"] .config-sales .loot-picker-head,.page[data-section="automation"] .config-sales .protected-sell-head { flex-wrap:wrap; gap:6px; color:var(--ui); font-size:12px; }
       .page[data-section="automation"] .config-sales .loot-item-list { max-height:150px; }
@@ -478,7 +483,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.77</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.78</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -568,9 +573,6 @@
             <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✦</span><span class="menu-heading-copy"><strong>Treino automático</strong><small>Alvos, intervalo e viagem à cidade</small></span></div>
             <button class="hunt-toggle training-toggle" type="button">Iniciar treino</button>
             <p class="hint">Procura alvos dentro do raio configurado, aproxima-se até o alcance de ataque e coleta loot próximo.</p>
-            <label class="pref"><input class="training-online-bonus" type="checkbox"> Ativar automaticamente o bônus de treino online</label>
-            <label class="attack-range">Tempo mínimo disponível (minutos)<input class="training-online-minutes" type="number" min="1" max="1440" step="1" value="3"></label>
-            <p class="hint training-online-bonus-status">Usa o tempo disponível (grátis e pago) quando o treino automático estiver ativo. Não compra tempo.</p>
             <label class="attack-range">Raio de busca (tiles)<input class="training-radius" type="number" min="1" max="100" step="1" value="4"></label>
             <div class="training-mobs">
               <strong>Escolher mobs próximos</strong>
@@ -773,6 +775,12 @@
                   <label class="automation-title"><input class="auto-mana" type="checkbox"> Auto mana (MP)</label>
                   <label><input class="mp-threshold threshold" type="number" min="5" max="95" step="5" aria-label="Usar poção de mana abaixo de porcentagem">%</label>
                 </div>
+              </section>
+              <section class="config-block config-training" aria-label="Bônus de treino online">
+                <div class="config-heading"><span class="config-heading-icon" aria-hidden="true">✦</span><span class="config-heading-copy"><strong>Bônus de treino online</strong><small>Ativação automática durante o treino</small></span></div>
+                <label class="pref"><input class="training-online-bonus" type="checkbox"> Ativar automaticamente o bônus de treino online</label>
+                <label class="training-online-minutes-row">Tempo mínimo disponível (minutos)<input class="training-online-minutes" type="number" min="1" max="1440" step="1" value="3"></label>
+                <p class="hint training-online-bonus-status">Usa o tempo disponível (grátis e pago) quando o treino automático estiver ativo. Não compra tempo.</p>
               </section>
               <section class="config-block config-options" aria-label="Preferências gerais">
                 <div class="config-heading"><span class="config-heading-icon" aria-hidden="true">⚙</span><span class="config-heading-copy"><strong>Preferências gerais</strong><small>Conexão e respostas automáticas</small></span></div>
