@@ -483,7 +483,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.78</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.79</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -777,10 +777,10 @@
                 </div>
               </section>
               <section class="config-block config-training" aria-label="Bônus de treino online">
-                <div class="config-heading"><span class="config-heading-icon" aria-hidden="true">✦</span><span class="config-heading-copy"><strong>Bônus de treino online</strong><small>Ativação automática durante o treino</small></span></div>
+                <div class="config-heading"><span class="config-heading-icon" aria-hidden="true">✦</span><span class="config-heading-copy"><strong>Bônus de treino online</strong><small>Funciona mesmo com o treino do bot desligado</small></span></div>
                 <label class="pref"><input class="training-online-bonus" type="checkbox"> Ativar automaticamente o bônus de treino online</label>
                 <label class="training-online-minutes-row">Tempo mínimo disponível (minutos)<input class="training-online-minutes" type="number" min="1" max="1440" step="1" value="3"></label>
-                <p class="hint training-online-bonus-status">Usa o tempo disponível (grátis e pago) quando o treino automático estiver ativo. Não compra tempo.</p>
+                <p class="hint training-online-bonus-status">Usa o tempo disponível (grátis e pago) mesmo sem treino automático. Não compra tempo.</p>
               </section>
               <section class="config-block config-options" aria-label="Preferências gerais">
                 <div class="config-heading"><span class="config-heading-icon" aria-hidden="true">⚙</span><span class="config-heading-copy"><strong>Preferências gerais</strong><small>Conexão e respostas automáticas</small></span></div>

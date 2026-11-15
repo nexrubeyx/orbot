@@ -55,7 +55,7 @@ test('rejects invalid minimums without changing the saved value', () => {
   assert.equal(h.saved.has('fantasy-mod-training-online-minutes'), false);
 });
 
-test('uses existing paid time but waits for stamina, active training and connection', () => {
+test('uses existing paid time independently of the bot training but waits for stamina and connection', () => {
   const h = harness();
   h.playerStats.online = { on: false, free: 60, paid: 120, stamina: 0 };
   h.maybeActivateOnlineTraining();
@@ -63,8 +63,7 @@ test('uses existing paid time but waits for stamina, active training and connect
   h.maybeActivateOnlineTraining();
   h.playerStats.online.stamina = 180;
   h.huntState.training = false;
-  h.maybeActivateOnlineTraining();
-  h.huntState.training = true;
+  h.huntState.enabled = false;
   h.huntState.trainingOnlineBonusEnabled = false;
   h.maybeActivateOnlineTraining();
   h.huntState.trainingOnlineBonusEnabled = true;

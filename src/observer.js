@@ -978,7 +978,7 @@
     return { ok: true, minutes: value };
   };
   function maybeActivateOnlineTraining() {
-    if (!huntState.enabled || !huntState.training || !huntState.trainingOnlineBonusEnabled || myself.dead) return;
+    if (!huntState.trainingOnlineBonusEnabled || myself.dead) return;
     const online = playerStats.online;
     if (!online || online.on !== false) return;
     const free = Number(online.free), paid = Number(online.paid ?? 0), stamina = Number(online.stamina);
