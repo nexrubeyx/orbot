@@ -1986,7 +1986,7 @@
       } else focusState.status = `Seguindo ${target.name} · ${target.distance}/${attackRange} tiles`;
     } else focusState.status = `Focando ${target.name} · ${target.distance} tiles`;
     if (focusState.useSkill && canAttack) {
-      const outcome = mod.useHuntSpecial();
+      const outcome = mod.useHuntSpecial(target);
       if (!outcome.ok && !/cooldown|aguardando cooldown/i.test(outcome.error ?? "")) {
         focusState.status = `Focando ${target.name}: ${outcome.error}`;
       }
