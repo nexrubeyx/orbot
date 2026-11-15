@@ -470,11 +470,15 @@
       .name-visual-option { display:grid; grid-template-columns:minmax(0,1fr) 105px; align-items:center; gap:8px; padding:8px 9px; border:1px solid var(--luz); background:var(--slot); }
       .name-visual-option label { display:flex; align-items:center; gap:6px; color:var(--ui); }
       .name-visual-option input[type="number"] { margin:0; }
+      .name-resource-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+      .name-resource-fields[hidden] { display:none; }
+      .name-resource-fields.single { grid-template-columns:minmax(0,1fr); }
+      .name-resource-fields input { width:100%; min-width:0; box-sizing:border-box; }
       .name-display-apply { justify-self:start; padding:7px 12px; cursor:pointer; }
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.75</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.76</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -823,16 +827,22 @@
           <section class="page" data-section="name-display" hidden>
             <h2>Visual do personagem</h2>
             <section class="menu-block" aria-label="Dados exibidos localmente">
-              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✎</span><span class="menu-heading-copy"><strong>Dados visuais</strong><small>Nome, guilda, nível, XP e vida na sua tela</small></span></div>
+              <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">✎</span><span class="menu-heading-copy"><strong>Dados visuais</strong><small>Nome, guilda, nível, XP, vida e mana</small></span></div>
+              <label class="pref"><input class="visual-master-toggle" type="checkbox"> Ativar sistema visual</label>
               <label class="name-display-field">Exibição do nome<select class="name-display-mode"><option value="original">Nome original</option><option value="custom">Nome personalizado</option><option value="hidden">Ocultar nome</option></select></label>
               <label class="name-display-field">Nome personalizado<input class="name-display-input" type="text" maxlength="50" autocomplete="off" spellcheck="false" placeholder="Digite o nome que deseja mostrar"></label>
               <label class="name-display-field">Guilda acima do personagem<select class="guild-display-mode"><option value="original">Guilda original</option><option value="custom">Guilda personalizada</option><option value="hidden">Ocultar guilda</option></select></label>
               <label class="name-display-field">Nome da guilda visual<input class="guild-display-input" type="text" maxlength="30" autocomplete="off" spellcheck="false" placeholder="Digite sem colchetes, por exemplo VTK"></label>
               <div class="name-visual-option"><label><input class="name-level-enabled" type="checkbox"> Alterar nível</label><input class="name-level-value" type="number" min="1" max="99999" step="1" value="1" aria-label="Nível visual"></div>
               <div class="name-visual-option"><label><input class="name-xp-enabled" type="checkbox"> Alterar XP (%)</label><input class="name-xp-value" type="number" min="0" max="100" step="1" value="100" aria-label="Porcentagem visual de XP"></div>
-              <div class="name-visual-option"><label><input class="name-hp-enabled" type="checkbox"> Alterar vida (%)</label><input class="name-hp-value" type="number" min="0" max="100" step="1" value="100" aria-label="Porcentagem visual de vida"></div>
+              <label class="name-display-field">Vida visual<select class="name-hp-mode"><option value="original">Valor real</option><option value="percent">Porcentagem personalizada</option><option value="values">Quantidade personalizada</option></select></label>
+              <div class="name-resource-fields single name-hp-percent-fields" hidden><label class="name-display-field">Vida (%)<input class="name-hp-percent" type="number" min="0" max="100" step="1" value="100"></label></div>
+              <div class="name-resource-fields name-hp-values-fields" hidden><label class="name-display-field">Vida atual<input class="name-hp-current" type="number" min="0" max="999999999" step="1" value="100"></label><label class="name-display-field">Vida máxima<input class="name-hp-max" type="number" min="1" max="999999999" step="1" value="100"></label></div>
+              <label class="name-display-field">Mana visual<select class="name-mp-mode"><option value="original">Valor real</option><option value="percent">Porcentagem personalizada</option><option value="values">Quantidade personalizada</option></select></label>
+              <div class="name-resource-fields single name-mp-percent-fields" hidden><label class="name-display-field">Mana (%)<input class="name-mp-percent" type="number" min="0" max="100" step="1" value="100"></label></div>
+              <div class="name-resource-fields name-mp-values-fields" hidden><label class="name-display-field">Mana atual<input class="name-mp-current" type="number" min="0" max="999999999" step="1" value="100"></label><label class="name-display-field">Mana máxima<input class="name-mp-max" type="number" min="1" max="999999999" step="1" value="100"></label></div>
               <button class="name-display-apply" type="button">Aplicar</button>
-              <p class="hint">Os valores são visuais e aparecem apenas na sua tela. O servidor mantém os dados reais.</p>
+              <p class="hint">Em “Quantidade personalizada”, a barra usa o valor atual dividido pelo máximo. Tudo muda apenas na sua tela; o servidor mantém os dados reais.</p>
               <p class="result name-display-status" role="status"></p>
             </section>
           </section>
@@ -1012,6 +1022,7 @@
   const consoleList = root.querySelector(".console-list");
   const consoleClear = root.querySelector(".console-clear");
   const consoleExport = root.querySelector(".console-export");
+  const visualMasterToggle = root.querySelector(".visual-master-toggle");
   const nameDisplayMode = root.querySelector(".name-display-mode");
   const nameDisplayInput = root.querySelector(".name-display-input");
   const guildDisplayMode = root.querySelector(".guild-display-mode");
@@ -1022,8 +1033,14 @@
   const nameLevelValue = root.querySelector(".name-level-value");
   const nameXpEnabled = root.querySelector(".name-xp-enabled");
   const nameXpValue = root.querySelector(".name-xp-value");
-  const nameHpEnabled = root.querySelector(".name-hp-enabled");
-  const nameHpValue = root.querySelector(".name-hp-value");
+  const nameHpMode = root.querySelector(".name-hp-mode");
+  const nameHpPercent = root.querySelector(".name-hp-percent");
+  const nameHpCurrent = root.querySelector(".name-hp-current");
+  const nameHpMax = root.querySelector(".name-hp-max");
+  const nameMpMode = root.querySelector(".name-mp-mode");
+  const nameMpPercent = root.querySelector(".name-mp-percent");
+  const nameMpCurrent = root.querySelector(".name-mp-current");
+  const nameMpMax = root.querySelector(".name-mp-max");
   const arrowsCount = root.querySelector(".arrows-count");
   const hpPotionsCount = root.querySelector(".hp-potions-count");
   const mpPotionsCount = root.querySelector(".mp-potions-count");
@@ -1046,7 +1063,12 @@
     const value = Number(readPreference(key, fallback));
     return Number.isInteger(value) && value >= min && value <= max ? value : fallback;
   };
+  const storedMode = (key, fallback) => {
+    const value = readPreference(key, fallback);
+    return ["original", "percent", "values"].includes(value) ? value : "original";
+  };
   const visual = {
+    enabled: readPreference("visual-enabled", "true") !== "false",
     mode: displayedNameMode,
     name: customDisplayName,
     guildMode: displayedGuildMode,
@@ -1055,9 +1077,18 @@
     level: storedNumber("name-level", 1, 1, 99999),
     xpEnabled: readPreference("name-xp-enabled", "false") === "true",
     xp: storedNumber("name-xp", 100, 0, 100),
-    hpEnabled: readPreference("name-hp-enabled", "false") === "true",
-    hp: storedNumber("name-hp", 100, 0, 100)
+    hpMode: storedMode("name-hp-mode", readPreference("name-hp-enabled", "false") === "true" ? "percent" : "original"),
+    hpPercent: storedNumber("name-hp", 100, 0, 100),
+    hpCurrent: storedNumber("name-hp-current", 100, 0, 999999999),
+    hpMax: storedNumber("name-hp-max", 100, 1, 999999999),
+    mpMode: storedMode("name-mp-mode", "original"),
+    mpPercent: storedNumber("name-mp-percent", 100, 0, 100),
+    mpCurrent: storedNumber("name-mp-current", 100, 0, 999999999),
+    mpMax: storedNumber("name-mp-max", 100, 1, 999999999)
   };
+  visual.hpCurrent = Math.min(visual.hpCurrent, visual.hpMax);
+  visual.mpCurrent = Math.min(visual.mpCurrent, visual.mpMax);
+  visualMasterToggle.checked = visual.enabled;
   nameDisplayMode.value = displayedNameMode;
   nameDisplayInput.value = customDisplayName;
   guildDisplayMode.value = displayedGuildMode;
@@ -1066,10 +1097,26 @@
   nameLevelValue.value = String(visual.level);
   nameXpEnabled.checked = visual.xpEnabled;
   nameXpValue.value = String(visual.xp);
-  nameHpEnabled.checked = visual.hpEnabled;
-  nameHpValue.value = String(visual.hp);
+  nameHpMode.value = visual.hpMode;
+  nameHpPercent.value = String(visual.hpPercent);
+  nameHpCurrent.value = String(visual.hpCurrent);
+  nameHpMax.value = String(visual.hpMax);
+  nameMpMode.value = visual.mpMode;
+  nameMpPercent.value = String(visual.mpPercent);
+  nameMpCurrent.value = String(visual.mpCurrent);
+  nameMpMax.value = String(visual.mpMax);
+  const syncResourceFields = () => {
+    root.querySelector(".name-hp-percent-fields").hidden = nameHpMode.value !== "percent";
+    root.querySelector(".name-hp-values-fields").hidden = nameHpMode.value !== "values";
+    root.querySelector(".name-mp-percent-fields").hidden = nameMpMode.value !== "percent";
+    root.querySelector(".name-mp-values-fields").hidden = nameMpMode.value !== "values";
+  };
+  nameHpMode.addEventListener("change", syncResourceFields);
+  nameMpMode.addEventListener("change", syncResourceFields);
+  syncResourceFields();
 
   const worldLabel = value => {
+    if (visual.enabled === false) return null;
     const realName = window.mod?.myself?.nick;
     if (!realName || typeof value !== "string") return null;
     const tag = /^\[[^\]]{1,24}\]\s*/.exec(value)?.[0] ?? "";
@@ -1086,6 +1133,28 @@
     const result = [shownGuild.trim(), name, level].filter(Boolean).join(" ");
     return result === value ? null : result;
   };
+  const visualHudData = data => {
+    if (visual.enabled === false) return data;
+    const shown = { ...data };
+    if (visual.mode === "hidden") shown.nome = "";
+    else if (visual.mode === "custom") shown.nome = visual.name;
+    if (visual.levelEnabled) shown.nivel = visual.level;
+    if (visual.xpEnabled) shown.xp = visual.xp / 100;
+    if (visual.hpMode === "percent" && Number.isFinite(data.maxHp)) shown.hp = Math.round(data.maxHp * visual.hpPercent / 100);
+    else if (visual.hpMode === "values") {
+      shown.hp = visual.hpCurrent;
+      shown.maxHp = visual.hpMax;
+    }
+    if (visual.mpMode === "percent" && Number.isFinite(data.maxMp)) shown.mp = Math.round(data.maxMp * visual.mpPercent / 100);
+    else if (visual.mpMode === "values") {
+      shown.mp = visual.mpCurrent;
+      shown.maxMp = visual.mpMax;
+    }
+    return shown;
+  };
+  const visualWorldHpPercent = () => visual.enabled === false ? null
+    : visual.hpMode === "percent" ? visual.hpPercent
+    : visual.hpMode === "values" ? visual.hpCurrent / visual.hpMax * 100 : null;
   let visualHooksState = "loading";
   Promise.all([import("/src/gui.mjs"), import("/src/hud2.mjs"), import("/src/render.mjs")]).then(([
     { GUI }, { Hud2 }, { Renderer }
@@ -1098,13 +1167,7 @@
     const updateHud = Hud2.prototype.atualizar;
     Hud2.prototype.atualizar = function (data) {
       if (!data?.visivel) return updateHud.call(this, data);
-      const shown = { ...data };
-      if (visual.mode === "hidden") shown.nome = "";
-      else if (visual.mode === "custom") shown.nome = visual.name;
-      if (visual.levelEnabled) shown.nivel = visual.level;
-      if (visual.xpEnabled) shown.xp = visual.xp / 100;
-      if (visual.hpEnabled && Number.isFinite(data.maxHp)) shown.hp = Math.round(data.maxHp * visual.hp / 100);
-      return updateHud.call(this, shown);
+      return updateHud.call(this, visualHudData(data));
     };
     const drawWorld = Renderer.prototype.drawWorld;
     Renderer.prototype.drawWorld = function (...args) {
@@ -1113,7 +1176,7 @@
     };
     const drawCharacter = Renderer.prototype.drawCharacter;
     Renderer.prototype.drawCharacter = function (...args) {
-      if (window.mod?.myself?.id != null && String(args[8]) === String(window.mod.myself.id)) {
+      if (visual.enabled && window.mod?.myself?.id != null && String(args[8]) === String(window.mod.myself.id)) {
         this.__botSelfPosition = { x: args[2], y: args[3] };
       }
       return drawCharacter.call(this, ...args);
@@ -1121,16 +1184,25 @@
     const drawHealthBar = Renderer.prototype.drawHealthBar;
     Renderer.prototype.drawHealthBar = function (x, y, hp, ...args) {
       const self = this.__botSelfPosition;
-      const shownHp = visual.hpEnabled && self?.x === x && self?.y === y ? visual.hp : hp;
+      const shownPercent = visualWorldHpPercent();
+      const shownHp = shownPercent != null && self?.x === x && self?.y === y ? shownPercent : hp;
       return drawHealthBar.call(this, x, y, shownHp, ...args);
     };
     visualHooksState = "ready";
-    if (nameDisplayStatus.textContent === "Aparência salva. Aguardando os módulos visuais do jogo.") {
-      nameDisplayStatus.textContent = "Aparência aplicada nesta tela.";
+    if (visual.enabled && /Aguardando os módulos visuais do jogo\./.test(nameDisplayStatus.textContent)) {
+      nameDisplayStatus.textContent = "Sistema visual pronto nesta tela.";
     }
   }).catch(() => {
     visualHooksState = "error";
-    nameDisplayStatus.textContent = "Não foi possível aplicar os valores no mapa. Recarregue o jogo.";
+    if (visual.enabled) nameDisplayStatus.textContent = "Não foi possível aplicar os valores no mapa. Recarregue o jogo.";
+  });
+  visualMasterToggle.addEventListener("change", () => {
+    visual.enabled = visualMasterToggle.checked;
+    savePreference("visual-enabled", visual.enabled);
+    nameDisplayStatus.textContent = !visual.enabled ? "Sistema visual desativado. Os valores reais voltaram a aparecer."
+      : visualHooksState === "error" ? "Sistema ativado, mas os módulos visuais não carregaram. Recarregue o jogo."
+      : visualHooksState === "loading" ? "Sistema ativado. Aguardando os módulos visuais do jogo."
+      : "Sistema visual ativado.";
   });
   nameDisplayApply.addEventListener("click", () => {
     const mode = nameDisplayMode.value;
@@ -1147,11 +1219,31 @@
     }
     const level = Number(nameLevelValue.value);
     const xp = Number(nameXpValue.value);
-    const hp = Number(nameHpValue.value);
+    const hpMode = nameHpMode.value;
+    const hpPercent = Number(nameHpPercent.value);
+    const hpCurrent = Number(nameHpCurrent.value);
+    const hpMax = Number(nameHpMax.value);
+    const mpMode = nameMpMode.value;
+    const mpPercent = Number(nameMpPercent.value);
+    const mpCurrent = Number(nameMpCurrent.value);
+    const mpMax = Number(nameMpMax.value);
     if ((nameLevelEnabled.checked && (!Number.isInteger(level) || level < 1 || level > 99999))
-        || (nameXpEnabled.checked && (!Number.isInteger(xp) || xp < 0 || xp > 100))
-        || (nameHpEnabled.checked && (!Number.isInteger(hp) || hp < 0 || hp > 100))) {
-      nameDisplayStatus.textContent = "Informe nível entre 1 e 99999 e porcentagens entre 0 e 100.";
+        || (nameXpEnabled.checked && (!Number.isInteger(xp) || xp < 0 || xp > 100))) {
+      nameDisplayStatus.textContent = "Informe nível entre 1 e 99999 e XP entre 0 e 100%.";
+      return;
+    }
+    const validPercent = (input, value) => input.value !== "" && Number.isInteger(value) && value >= 0 && value <= 100;
+    const validValues = (currentInput, maxInput, current, max) => currentInput.value !== "" && maxInput.value !== ""
+      && Number.isInteger(current) && Number.isInteger(max) && current >= 0 && max >= 1
+      && current <= max && max <= 999999999;
+    if ((hpMode === "percent" && !validPercent(nameHpPercent, hpPercent))
+        || (mpMode === "percent" && !validPercent(nameMpPercent, mpPercent))) {
+      nameDisplayStatus.textContent = "Informe uma porcentagem entre 0 e 100.";
+      return;
+    }
+    if ((hpMode === "values" && !validValues(nameHpCurrent, nameHpMax, hpCurrent, hpMax))
+        || (mpMode === "values" && !validValues(nameMpCurrent, nameMpMax, mpCurrent, mpMax))) {
+      nameDisplayStatus.textContent = "Informe valores atuais entre 0 e o máximo (até 999999999).";
       return;
     }
     visual.mode = mode;
@@ -1161,10 +1253,14 @@
     guildDisplayInput.value = guildValue;
     visual.levelEnabled = nameLevelEnabled.checked;
     visual.xpEnabled = nameXpEnabled.checked;
-    visual.hpEnabled = nameHpEnabled.checked;
+    visual.hpMode = hpMode;
+    visual.mpMode = mpMode;
     if (visual.levelEnabled) visual.level = level;
     if (visual.xpEnabled) visual.xp = xp;
-    if (visual.hpEnabled) visual.hp = hp;
+    if (hpMode === "percent") visual.hpPercent = hpPercent;
+    if (hpMode === "values") { visual.hpCurrent = hpCurrent; visual.hpMax = hpMax; }
+    if (mpMode === "percent") visual.mpPercent = mpPercent;
+    if (mpMode === "values") { visual.mpCurrent = mpCurrent; visual.mpMax = mpMax; }
     savePreference("name-mode", mode);
     savePreference("name-custom", value);
     savePreference("guild-mode", guildMode);
@@ -1173,9 +1269,17 @@
     savePreference("name-level", visual.level);
     savePreference("name-xp-enabled", visual.xpEnabled);
     savePreference("name-xp", visual.xp);
-    savePreference("name-hp-enabled", visual.hpEnabled);
-    savePreference("name-hp", visual.hp);
-    nameDisplayStatus.textContent = visualHooksState === "ready" ? "Aparência aplicada nesta tela."
+    savePreference("name-hp-mode", visual.hpMode);
+    savePreference("name-hp-enabled", visual.hpMode === "percent");
+    savePreference("name-hp", visual.hpPercent);
+    savePreference("name-hp-current", visual.hpCurrent);
+    savePreference("name-hp-max", visual.hpMax);
+    savePreference("name-mp-mode", visual.mpMode);
+    savePreference("name-mp-percent", visual.mpPercent);
+    savePreference("name-mp-current", visual.mpCurrent);
+    savePreference("name-mp-max", visual.mpMax);
+    nameDisplayStatus.textContent = !visual.enabled ? "Configurações salvas. Ative o sistema visual para exibi-las."
+      : visualHooksState === "ready" ? "Aparência aplicada nesta tela."
       : visualHooksState === "error" ? "Salvo, mas o jogo não carregou os módulos visuais. Recarregue a página."
       : "Aparência salva. Aguardando os módulos visuais do jogo.";
   });
