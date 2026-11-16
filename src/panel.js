@@ -483,7 +483,7 @@
     </style>
     <div class="backdrop" hidden>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Preferências do Sentinela">
-      <header><span>Menu do Sentinela <span class="menu-version">v1.0.80</span></span><button class="close" aria-label="Fechar">×</button></header>
+      <header><span>Menu do Sentinela <span class="menu-version">v1.0.81</span></span><button class="close" aria-label="Fechar">×</button></header>
       <div class="workspace">
         <nav class="side-menu" aria-label="Opções do Sentinela">
           <button class="side-link" data-page="creatures">Criaturas</button>
@@ -635,7 +635,7 @@
             <h2>Focar</h2>
             <div class="hunt menu-block">
               <div class="menu-heading"><span class="menu-heading-icon" aria-hidden="true">◎</span><span class="menu-heading-copy"><strong>Foco no alvo</strong><small>Controle do alvo selecionado no jogo</small></span></div>
-              <p class="hint">Segue até o alcance de ataque de 4 tiles, separado do sistema de caça.</p>
+              <p class="hint">Segue até o alcance de ataque de 4 tiles. No mage, pressione F para alternar a habilidade entre o alvo e seu personagem.</p>
               <button class="hunt-toggle focus-toggle" type="button">Iniciar Focar</button>
               <label class="setting-toggle">
                 <span class="setting-toggle-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v3M5.6 5.6l2.1 2.1M3 12h3M18 12h3M16.3 7.7l2.1-2.1M8 13.5l3 7 2-4 4-2-7-3Z"/></svg></span>

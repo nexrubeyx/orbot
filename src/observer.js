@@ -482,6 +482,14 @@
       window.mod?.setFocusEnabled?.(!window.mod?.focus?.enabled);
       return;
     }
+    if (event.code === "KeyF" && window.mod?.focus?.enabled
+      && Number(playerStats.cls ?? playerStats.cl) === 2) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      if (event.type === "keydown" && !event.repeat) window.mod.toggleFocusMageAim?.();
+      return;
+    }
     if (!huntActive || !isGameShortcut(event)) return;
     if (event.code === "Space" && event.type === "keydown" && !event.repeat) {
       event.preventDefault();
@@ -537,6 +545,7 @@
   huntState.status = "Parado";
   const focusState = mod.focus ?? (mod.focus = { enabled: false, useSkill: false, followTarget: true, status: "Focar desligado" });
   focusState.enabled = false;
+  focusState.castAtSelf = false;
   try {
     focusState.useSkill = localStorage.getItem("fantasy-mod-focus-use-skill") === "true";
     focusState.followTarget = localStorage.getItem("fantasy-mod-focus-follow-target") !== "false";
@@ -1077,6 +1086,12 @@
     const key = option === "useSkill" ? "fantasy-mod-focus-use-skill" : "fantasy-mod-focus-follow-target";
     try { localStorage.setItem(key, String(focusState[option])); } catch {}
     return { ok: true, option, enabled: focusState[option] };
+  };
+  mod.toggleFocusMageAim = () => {
+    if (!focusState.enabled || Number(playerStats.cls ?? playerStats.cl) !== 2) return { ok: false };
+    focusState.castAtSelf = !focusState.castAtSelf;
+    focusState.status = `Focar: habilidade mage ${focusState.castAtSelf ? "no personagem" : "no alvo"}`;
+    return { ok: true, castAtSelf: focusState.castAtSelf };
   };
   mod.setFocusEnabled = enabled => {
     if (enabled && stationaryFarm.enabled) return { ok: false, error: "Pare o Farm Parado antes de ativar Focar." };
@@ -1976,6 +1991,13 @@
     }
     const attackRange = 4;
     const canAttack = target.distance <= attackRange && hasAttackLine(myself.x, myself.y, target);
+    // The Mage's manual special aims at a ground tile and can pass over
+    // creatures. Walls still block the cast.
+    const manualMageSkill = Number(playerStats.cls ?? playerStats.cl) === classIds.mage
+      && playerStats.autoSpecial !== true;
+    const castAtSelf = manualMageSkill && focusState.castAtSelf;
+    const canUseSkill = target.distance <= attackRange
+      && (castAtSelf || canAttack || manualMageSkill && hasAttackLine(myself.x, myself.y, target, false, true));
     if (focusState.followTarget && !canAttack) {
       if (Date.now() >= nextFocusMoveAt) {
         const outcome = moveTowardAttackRange(target, attackRange);
@@ -1985,8 +2007,9 @@
         nextFocusMoveAt = Date.now() + (outcome.ok ? 900 : 1200);
       } else focusState.status = `Seguindo ${target.name} · ${target.distance}/${attackRange} tiles`;
     } else focusState.status = `Focando ${target.name} · ${target.distance} tiles`;
-    if (focusState.useSkill && canAttack) {
-      const outcome = mod.useHuntSpecial(target);
+    if (manualMageSkill) focusState.status += ` · habilidade ${castAtSelf ? "no personagem" : "no alvo"} (F)`;
+    if (focusState.useSkill && canUseSkill) {
+      const outcome = mod.useHuntSpecial(castAtSelf ? myself : target);
       if (!outcome.ok && !/cooldown|aguardando cooldown/i.test(outcome.error ?? "")) {
         focusState.status = `Focando ${target.name}: ${outcome.error}`;
       }
@@ -2165,7 +2188,7 @@
   const isGoldDrop = entity => entity?.it === 4
     || /\b(ouro|gold|bronze|moeda|coin|coins)\b/.test(normalizeName(entity?.n));
   const isOwnLoot = entity => entity?.mine === true || entity?.mine === 1;
-  function hasAttackLine(x0, y0, target, allowMissingMap = false) {
+  function hasAttackLine(x0, y0, target, allowMissingMap = false, ignoreCreatures = false) {
     if ((!gameWorld && !allowMissingMap) || !Number.isInteger(x0) || !Number.isInteger(y0)
       || !Number.isInteger(target?.x) || !Number.isInteger(target?.y)) return false;
     const walls = new Set(currentWalls.map(([x, y]) => `${x},${y}`));
@@ -2186,7 +2209,8 @@
       if (twice < dx) { error += dx; y += sy; }
       if (x === target.x && y === target.y) break;
       const key = `${x},${y}`;
-      if ((gameWorld && !gameWorld.isWalkable(myself.floor, x, y)) || walls.has(key) || blockers.has(key)) return false;
+      if ((gameWorld && !gameWorld.isWalkable(myself.floor, x, y)) || walls.has(key)
+        || !ignoreCreatures && blockers.has(key)) return false;
     }
     return true;
   }
